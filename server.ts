@@ -11,7 +11,26 @@ async function startServer() {
 
   // Health check
   app.get("/api/health", (req, res) => {
+    require('fs').writeFileSync('key_log.txt', "GEMINI_API_KEY length: " + (process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.length : 'undefined'));
     res.json({ status: "ok", time: new Date().toISOString() });
+  });
+
+  // Fetch and save models
+  try {
+    fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${process.env.GEMINI_API_KEY}`)
+      .then(r => r.json())
+      .then(d => require('fs').writeFileSync('models.json', JSON.stringify(d, null, 2)))
+      .catch(e => console.error(e));
+  } catch (e) {}
+
+  app.get("/api/models", async (req, res) => {
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${process.env.GEMINI_API_KEY}`);
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      res.status(500).json({ error: String(error) });
+    }
   });
 
   // API routes FIRST

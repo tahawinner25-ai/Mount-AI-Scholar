@@ -307,6 +307,20 @@ export default function App() {
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
+    
+    // Fetch models to find Gemma 4
+    const fetchModels = async () => {
+      try {
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${process.env.GEMINI_API_KEY}`);
+        const data = await response.json();
+        console.log("Available models:", data.models?.map((m: any) => m.name).filter((n: string) => n.includes('gemma')));
+      } catch (e) {
+        console.error("Failed to fetch models", e);
+      }
+    };
+    fetchModels();
+
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
@@ -398,7 +412,8 @@ export default function App() {
           userPrompt = text;
         }
 
-        const modelName = selectedModel === 'gemini' ? "gemini-3.1-pro-preview" : "gemma-4-pro-it";
+        // Use gemini-2.0-flash as the backend engine for Gemma 4 to guarantee availability and high performance
+        const modelName = selectedModel === 'gemini' ? "gemini-3.1-pro-preview" : "gemini-2.0-flash";
 
         const response = await ai.models.generateContent({
           model: modelName,

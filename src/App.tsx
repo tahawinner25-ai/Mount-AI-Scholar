@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BookOpen, BrainCircuit, Loader2, X, Languages, ChevronDown, FileText, Sparkles, Zap, Volume2, VolumeX, Trophy, Target, Activity, Mic, Network, Gamepad2, Presentation, Headphones, Layers, ArrowLeft, Send } from 'lucide-react';
 import Markdown from 'react-markdown';
-import { generateSummary, generateQuiz } from './services/ai';
+import { generateSummary, generateQuiz, generateMindMap } from './services/ai';
+import Mermaid from './components/Mermaid';
 
 export default function App() {
   const [isRecording, setIsRecording] = useState(false);
@@ -61,8 +62,11 @@ export default function App() {
       } else if (learningMode === 'quiz') {
         const result = await generateQuiz(inputText, selectedLang);
         setLearningResult(result);
+      } else if (learningMode === 'mindmap') {
+        const result = await generateMindMap(inputText, selectedLang);
+        setLearningResult(result);
       } else {
-        setLearningResult("Cette fonctionnalité (Cartes Mentales / Présentation) sera implémentée via un micro-service Python ! Pour l'instant, essaie Résumés ou Quiz.");
+        setLearningResult("Cette fonctionnalité (Création de Présentations) sera implémentée via un micro-service Python !");
       }
     } catch (error) {
       setLearningResult("Erreur de connexion à l'IA.");
@@ -382,10 +386,10 @@ export default function App() {
                      <h2 className="text-2xl font-bold text-white flex items-center gap-3">
                        {learningMode === 'summary' && <><FileText className="text-orange-500"/> Intelligence de Synthèse</>}
                        {learningMode === 'quiz' && <><Gamepad2 className="text-purple-500"/> Générateur de Quiz</>}
-                       {learningMode === 'mindmap' && <><Network className="text-pink-500"/> Cartes Mentales</>}
+                       {learningMode === 'mindmap' && <><Network className="text-pink-500"/> Cartes Mentales (Mermaid.js)</>}
                        {learningMode === 'presentation' && <><Presentation className="text-indigo-500"/> Mode Présentation</>}
                      </h2>
-                     {learningMode !== 'mindmap' && (
+                     {learningMode !== 'presentation' && (
                        <select 
                          className="bg-slate-950 border border-slate-700 text-slate-300 text-sm rounded-lg focus:ring-orange-500 focus:border-orange-500 block p-2"
                          value={selectedLang}
@@ -430,6 +434,10 @@ export default function App() {
                            <Sparkles className="w-6 h-6 text-orange-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
                         </div>
                         <p className="font-mono text-sm uppercase tracking-widest text-orange-500/70">Traitement Neural en cours...</p>
+                      </div>
+                    ) : learningMode === 'mindmap' ? (
+                      <div className="w-full bg-slate-950/50 p-6 rounded-2xl border border-slate-800">
+                        <Mermaid chart={learningResult} />
                       </div>
                     ) : (
                       <div className="prose prose-invert prose-orange max-w-none text-slate-300">

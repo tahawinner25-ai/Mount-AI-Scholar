@@ -40,3 +40,44 @@ export async function generateQuiz(text: string, language: string): Promise<stri
     return "Erreur lors de la création du quiz.";
   }
 }
+
+export async function generateMindMap(text: string, language: string): Promise<string> {
+  if (!text) return "";
+  
+  const prompt = `Crée un diagramme (mindmap ou graph TD) en syntaxe Mermaid.js pour résumer le texte suivant.
+IMPORTANT : Ne renvoie strictement QUE le code Mermaid brut. N'inclus aucun texte avant ou après, pas de markdown \`\`\`mermaid.
+Le graphe DOIT commencer directement par "graph TD" ou "mindmap".
+Évite les caractères spéciaux (parenthèses, crochets, accolades) à l'intérieur du texte des noeuds.
+Langue du diagramme : ${language}.
+  
+Texte :
+${text}`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+    });
+    
+    let code = response.text || '';
+    
+    // Essayer d'extraire depuis un bloc de code markdown
+    const mdMatch = code.match(/```(?:mermaid)?\n?([\s\S]*?)```/);
+    if (mdMatch) {
+      code = mdMatch[1];
+    } else {
+      // Si pas de bloc, on essaie de trouver le début typique (graph, flowchart, mindmap, stateDiagram, pie, etc.)
+      const mermaidStartIndex = code.search(/^(graph|flowchart|mindmap|stateDiagram|pie|sequenceDiagram|classDiagram|erDiagram|journey|gantt)/m);
+      if (mermaidStartIndex !== -1) {
+        code = code.substring(mermaidStartIndex);
+      }
+    }
+    
+    code = code.replace(/```mermaid\n?/g, '').replace(/```\n?/g, '').trim();
+    
+    return code || 'graph TD\n  A[Erreur de Génération]';
+  } catch (err) {
+    console.error("Gemini API Error (MindMap):", err);
+    return "graph TD\n  A[Erreur de Connexion à l'IA]";
+  }
+}

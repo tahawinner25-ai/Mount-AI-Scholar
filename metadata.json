@@ -1,5 +1,5 @@
 {
-  "name": "Mount-AI-Scholar",
-  "description": "Traducteur de complexité pour étudiants, propulsé par Llama 3.",
+  "name": "Mount AI: Voice Recognition & Accessibility",
+  "description": "Prototype d'accessibilité augmentée (IA + AR) pour l'analyse vocale en temps réel, conçu pour le WWDC Swift Student Challenge 2027.",
   "requestFramePermissions": []
 }

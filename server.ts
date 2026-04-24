@@ -120,7 +120,8 @@ async function startServer() {
             { role: "user", content: userPrompt }
           ],
           temperature: 0.7,
-          max_tokens: 4096
+          max_tokens: 4096,
+          stream: true
         })
       });
 
@@ -130,9 +131,16 @@ async function startServer() {
         return res.status(response.status).json({ error: `Groq API Error: ${response.status}`, details: errorText });
       }
 
-      const data = await response.json();
-      console.log("Groq API Success");
-      res.json({ result: data.choices[0].message.content });
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+
+      if (response.body) {
+        for await (const chunk of response.body as any) {
+          res.write(chunk);
+        }
+      }
+      res.end();
     } catch (error) {
       console.error("Server error:", error);
       res.status(500).json({ error: "Internal server error" });

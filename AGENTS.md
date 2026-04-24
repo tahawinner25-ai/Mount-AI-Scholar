@@ -7,16 +7,16 @@
 - Il code principalement sur un PC Windows (Python/IA) mais utilise son iPad (Swift Playgrounds) pour la partie Apple.
 
 ## Son "Master Plan" (Projet Principal) :
-- Vise le **WWDC Swift Student Challenge 2027**.
-- **Idée du projet :** "Mount Voice AR" - Une application d'accessibilité pour la dyslexie et les troubles de l'apprentissage.
+- Vise le **WWDC Swift Student Challenge 2027** (via l'iPad) mais développe son moteur sur PC.
+- **Idée du projet :** "Mount AI Scholar" - Application éducative d'apprentissage, révision (8 langues + Audio) et accessibilité pour la dyslexie.
 - **Architecture Technique :**
-  1. **CoreML / Speech :** Analyse phonémique en temps réel pour décomposer le flux vocal (Input -> Phonemes).
-  2. **ARKit / SwiftUI :** Projection spatiale des composants linguistiques (syllabes/phonèmes) autour du locuteur.
-  3. **Objectif :** Faciliter la correspondance phonème-graphème via un feedback multi-sensoriel (Audio + Visuel 3D).
+  1. **Version Windows (Fondation) :** Entraînement et inférence Machine Learning en Python (Analyse vocale, résumés, quiz fun, cartes mentales, présentations) avec Dashboard UI.
+  2. **Version Apple (Objectif 2027) :** Portage via CoreML et interface ARKit/SwiftUI pour la projection spatiale.
+  3. **Objectif :** Traduire la complexité et faciliter la correspondance phonème-graphème.
 
 ## État actuel du Prototype (Web) :
-- Dashboard de monitoring de l'IA (Voice Core).
-- Simulation de pipeline CoreML et logs système.
+- Dashboard "Mount AI Scholar" (Windows Edition).
+- Simulation du pipeline ML et analyseur vocal temps réel.
 - Trois modes : Dyslexie (Phonemes), Surdité (Visualisation), Apprentissage (Correction).
 
 ## Rappels Importants :

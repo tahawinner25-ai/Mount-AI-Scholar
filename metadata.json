@@ -1,5 +1,5 @@
 {
   "name": "Mount AI Scholar",
   "description": "Dashboard d'intelligence artificielle et d'accessibilité (Dyslexie) - Version Windows UI.",
-  "requestFramePermissions": []
+  "requestFramePermissions": ["microphone"]
 }

@@ -1,8 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BookOpen, BrainCircuit, Loader2, X, Languages, ChevronDown, FileText, Sparkles, Zap, Volume2, VolumeX, Trophy, Target, Activity, Mic, Network, Gamepad2, Presentation, Headphones, Layers, ArrowLeft, Send } from 'lucide-react';
+import { BookOpen, BrainCircuit, Loader2, X, Languages, ChevronDown, FileText, Sparkles, Zap, Volume2, VolumeX, Trophy, Target, Activity, Mic, Network, Gamepad2, Presentation, Headphones, Layers, ArrowLeft, Send, LogIn, LogOut, Play } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { generateSummary, generateQuiz, generateMindMap } from './services/ai';
 import Mermaid from './components/Mermaid';
+import DyslexicRenderer from './components/DyslexicRenderer';
+import { auth, loginWithGoogle, logout, db } from './services/firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { doc, getDoc, setDoc, serverTimestamp, collection, addDoc } from 'firebase/firestore';
+
+declare global {
+  interface Window {
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
+  }
+}
 
 export default function App() {
   const [isRecording, setIsRecording] = useState(false);
@@ -17,24 +28,137 @@ export default function App() {
   const [learningResult, setLearningResult] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedLang, setSelectedLang] = useState("Français");
+  const [speechError, setSpeechError] = useState<string | null>(null);
   
-  // Simulation de l'analyse vocale en temps réel (CoreML Mock)
+  // Auth State
+  const [user, setUser] = useState<User | null>(null);
+  const [engineStatus, setEngineStatus] = useState<'offline' | 'online'>('offline');
+
+  // URL de ton vrai cerveau Python local exposé via Pinggy.
+  // INFO: Ce lien "Pinggy" expire dans 60 minutes (limite gratuite).
+  // Quand il expire, il suffira de relancer pinggy sur ton PC pour avoir un nouveau lien !
+  const ML_ENGINE_URL = "https://pgdaj-196-75-55-75.run.pinggy-free.link";
+
+  // Vérifier la connexion avec ton moteur Python Local (PC)
+  useEffect(() => {
+    const checkEngine = async () => {
+      try {
+        const res = await fetch(`${ML_ENGINE_URL}/`);
+        if (res.ok) setEngineStatus('online');
+        else setEngineStatus('offline');
+      } catch {
+        setEngineStatus('offline');
+      }
+    };
+    checkEngine();
+    const interval = setInterval(checkEngine, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
+      if (currentUser) {
+         try {
+           // Ensure UserProfile exists
+           const userRef = doc(db, 'users', currentUser.uid);
+           const userSnap = await getDoc(userRef);
+           if (!userSnap.exists()) {
+             await setDoc(userRef, {
+               userId: currentUser.uid,
+               role: 'student',
+               createdAt: serverTimestamp()
+             });
+           }
+         } catch (e) {
+           console.error("Firebase Rule Error during profile creation", e);
+         }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Ref pour l'API native (Web Speech API)
+  const recognitionRef = useRef<any>(null);
+
+  // Initialisation de l'API de reconnaissance (Natif - Sans clé)
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'fr-FR'; // Adaptable dynamiquement
+
+      recognition.onresult = (event: any) => {
+        let finalTranscript = '';
+        let interimTranscript = '';
+        
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+        
+        setTranscript(prev => {
+          const updated = prev + " " + finalTranscript;
+          return updated.trim();
+        });
+
+        // Envoi de la transcription au moteur ML Python !
+        if (finalTranscript) {
+          const words = finalTranscript.trim().split(' ');
+          const lastWord = words[words.length - 1];
+          
+          if (lastWord.length > 2) {
+             // 1. Simulation visuelle rapide pour une sensation de Temps Réel (0 latence)
+             const quickSyllable = `/${lastWord.substring(0, 3)}/`;
+             setDetectedPhonemes(prev => [quickSyllable, ...prev].slice(0, 8));
+             
+             // 2. Requête vers le vrai Cerveau Python (Inférence)
+             fetch(`${ML_ENGINE_URL}/api/analyse-phonemes`, {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({ transcript: lastWord })
+             })
+             .then(res => res.json())
+             .then(data => {
+                 if (data.phonemes_detectes && data.phonemes_detectes.length > 0) {
+                     // L'IA remplace la simulation par le phonème précis
+                     setDetectedPhonemes(prev => [data.phonemes_detectes[0].toUpperCase(), ...prev.slice(1)].slice(0, 8));
+                 }
+             })
+             .catch(err => console.log("[Architecture] Moteur ML hors ligne, on garde la simulation", err));
+          }
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error("Speech API Error:", event.error);
+        if (event.error === 'not-allowed') {
+          setSpeechError("🎤 Vous avez refusé l'accès au microphone. Pour réafficher le choix ou l'autoriser, cliquez sur l'icône de cadenas ou de caméra/micro barrée dans la barre d'adresse de votre navigateur en haut, et autorisez le microphone. Vous pouvez aussi ouvrir l'application dans un nouvel onglet.");
+        } else {
+          setSpeechError(`Erreur du microphone: ${event.error}`);
+        }
+        setIsRecording(false);
+      };
+      
+      recognition.onend = () => {
+        setIsRecording(false);
+      };
+
+      recognitionRef.current = recognition;
+    }
+  }, []);
+
+  // Simulation de l'analyse audio de bas niveau
   useEffect(() => {
     let interval: any;
     if (isRecording) {
       interval = setInterval(() => {
-        // Mock audio visualization data
         setAudioData(prev => prev.map(() => Math.random() * 100));
-        
-        // Simuler la détection de phonèmes aléatoires
-        const phonemes = ["/ba/", "/ko/", "/ti/", "/sa/", "/re/"];
-        if (Math.random() > 0.8) {
-          const newPhoneme = phonemes[Math.floor(Math.random() * phonemes.length)];
-          setDetectedPhonemes(prev => [newPhoneme, ...prev].slice(0, 8));
-          
-          // Append to mock transcript
-          setTranscript(prev => (prev + " " + newPhoneme).trim().slice(-100));
-        }
       }, 100);
     } else {
       setAudioData(new Array(30).fill(0));
@@ -43,10 +167,39 @@ export default function App() {
   }, [isRecording]);
 
   const toggleRecording = () => {
-    setIsRecording(!isRecording);
     if (!isRecording) {
+      setSpeechError(null);
       setTranscript("");
       setDetectedPhonemes([]);
+      setIsRecording(true);
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.start();
+        } catch (e) {
+          console.error("Déjà en cours", e);
+        }
+      } else {
+        alert("Ton navigateur ne supporte pas la reconnaissance vocale native (utilise Chrome/Edge sur PC/Mac).");
+        setIsRecording(false);
+      }
+    } else {
+      setIsRecording(false);
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    }
+  };
+
+  const speakText = (text: string) => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel(); // Stop playing anything else
+      const utterance = new SpeechSynthesisUtterance(text);
+      if (selectedLang === 'English') utterance.lang = 'en-US';
+      else if (selectedLang === 'Arabe') utterance.lang = 'ar-SA';
+      else utterance.lang = 'fr-FR';
+      window.speechSynthesis.speak(utterance);
+    } else {
+      alert("La synthèse vocale n'est pas supportée par ton navigateur.");
     }
   };
 
@@ -56,19 +209,33 @@ export default function App() {
     setLearningResult("");
     
     try {
+      let result = "";
       if (learningMode === 'summary') {
-        const result = await generateSummary(inputText, selectedLang);
-        setLearningResult(result);
+        result = await generateSummary(inputText, selectedLang);
       } else if (learningMode === 'quiz') {
-        const result = await generateQuiz(inputText, selectedLang);
-        setLearningResult(result);
+        result = await generateQuiz(inputText, selectedLang);
       } else if (learningMode === 'mindmap') {
-        const result = await generateMindMap(inputText, selectedLang);
-        setLearningResult(result);
+        result = await generateMindMap(inputText, selectedLang);
       } else {
-        setLearningResult("Cette fonctionnalité (Création de Présentations) sera implémentée via un micro-service Python !");
+        result = "Cette fonctionnalité (Création de Présentations) sera implémentée via un micro-service Python !";
       }
+      
+      setLearningResult(result);
+
+      // Save to Firebase securely
+      if (user && result && learningMode !== 'presentation') {
+         await addDoc(collection(db, 'learning_items'), {
+           userId: user.uid,
+           mode: learningMode,
+           language: selectedLang,
+           originalText: inputText.substring(0, 100000),
+           generatedContent: result.substring(0, 100000),
+           createdAt: serverTimestamp()
+         });
+      }
+
     } catch (error) {
+      console.error(error);
       setLearningResult("Erreur de connexion à l'IA.");
     } finally {
       setIsGenerating(false);
@@ -98,11 +265,24 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-4 text-xs font-mono">
+            {user ? (
+               <div className="flex items-center gap-3">
+                 <span className="text-slate-400 font-medium">Connecté: {user.displayName}</span>
+                 <button onClick={logout} className="p-2 mr-2 bg-slate-900 border border-slate-700 rounded-xl hover:bg-slate-800 transition text-slate-300">
+                   <LogOut className="w-4 h-4" />
+                 </button>
+               </div>
+            ) : (
+               <button onClick={loginWithGoogle} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-white transition-colors">
+                 <LogIn className="w-4 h-4" /> LOGIN
+               </button>
+            )}
+            
             {mainView === 'dyslexia' && (
-              <div className={`hidden lg:flex items-center gap-2 bg-slate-900 px-4 py-2 rounded-full border border-slate-800`}>
-                <div className={`w-2 h-2 rounded-full ${isRecording ? 'bg-red-500 animate-pulse' : 'bg-slate-700'}`} />
-                <span className={isRecording ? 'text-red-400' : 'text-slate-500'}>
-                  {isRecording ? 'ML_ENGINE_ACTIVE' : 'READY_TO_BOOT'}
+              <div className={`hidden lg:flex items-center gap-2 bg-slate-900 px-4 py-2 rounded-full border ${engineStatus === 'online' ? 'border-emerald-500/50' : 'border-slate-800'}`}>
+                <div className={`w-2 h-2 rounded-full ${engineStatus === 'online' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-700'}`} />
+                <span className={engineStatus === 'online' ? 'text-emerald-400' : 'text-slate-500'}>
+                  {engineStatus === 'online' ? 'ENGINE_CONNECTED' : 'ENGINE_OFFLINE'}
                 </span>
               </div>
             )}
@@ -201,6 +381,16 @@ export default function App() {
 
             {/* Section Centrale: Visualisation & AR Preview */}
             <section className="lg:col-span-6 space-y-8">
+              
+              {speechError && (
+                <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 flex items-center justify-between">
+                  <p className="text-red-400 text-sm font-medium">{speechError}</p>
+                  <button onClick={() => setSpeechError(null)} className="text-red-400 hover:text-red-300">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
               {/* Virtual AR Viewport */}
               <div className="aspect-[4/3] bg-slate-900 rounded-[2.5rem] border border-slate-800 relative overflow-hidden group shadow-2xl">
                 {/* Camera Simulation (Overlay) */}
@@ -227,20 +417,21 @@ export default function App() {
                 </div>
 
                 {/* Virtual AR Syllables Floating */}
-                <div className="absolute inset-0 z-30 flex items-center justify-center p-12">
+                <div className="absolute inset-0 z-30 flex items-center justify-center p-12 pointer-events-none">
                   {isRecording ? (
-                    <div className="flex flex-wrap justify-center gap-4">
+                    <div className="flex flex-wrap justify-center gap-4 pointer-events-auto">
                       {detectedPhonemes.map((p, i) => (
-                        <div 
+                        <button 
                           key={i}
-                          className="min-w-[4rem] h-16 px-4 bg-blue-500/20 backdrop-blur-xl border border-blue-500/30 rounded-2xl flex items-center justify-center text-3xl font-extrabold text-white shadow-[0_0_30px_rgba(59,130,246,0.3)] animate-in fade-in zoom-in duration-300"
+                          onClick={() => speakText(p.replace(/[/]/g, ''))}
+                          className="min-w-[4rem] h-16 px-4 bg-blue-500/20 hover:bg-blue-500/40 backdrop-blur-xl border border-blue-500/30 rounded-2xl flex items-center justify-center text-3xl font-extrabold text-white shadow-[0_0_30px_rgba(59,130,246,0.3)] animate-in fade-in zoom-in duration-300 cursor-pointer transition-colors"
                           style={{ 
                             transform: `translateY(${Math.sin(Date.now()/500 + i) * 10}px)`,
                             opacity: 1 - i * 0.12 
                           }}
                         >
                           {p}
-                        </div>
+                        </button>
                       ))}
                     </div>
                   ) : (
@@ -298,13 +489,18 @@ export default function App() {
                   )}
                 </div>
                 <div className="min-h-[120px] bg-slate-950 p-8 rounded-3xl border border-slate-800/50 relative group">
-                  <p className={`text-xl font-medium leading-relaxed transition-colors duration-500 ${isRecording ? 'text-slate-100' : 'text-slate-500'}`}>
-                    {transcript || (
-                      <span className="font-light italic tracking-tight">
-                        Le moteur de reconnaissance vocale attend...
-                      </span>
-                    )}
-                  </p>
+                  <DyslexicRenderer text={transcript} />
+                  
+                  {transcript && (
+                    <button 
+                      onClick={() => speakText(transcript)}
+                      className="absolute bottom-4 right-12 w-8 h-8 rounded-full bg-blue-500/10 hover:bg-blue-500/20 flex items-center justify-center border border-blue-500/30 transition-colors"
+                      title="Lire le texte à voix haute"
+                    >
+                      <Play className="w-4 h-4 text-blue-500" />
+                    </button>
+                  )}
+                  
                   <Sparkles className="absolute bottom-4 right-4 w-5 h-5 text-blue-500/30 group-hover:text-blue-500 transition-colors" />
                 </div>
               </div>
@@ -412,7 +608,8 @@ export default function App() {
                      onChange={(e) => setInputText(e.target.value)}
                    />
                    
-                   <div className="flex justify-end">
+                   <div className="flex justify-end items-center gap-4">
+                     {!user && <span className="text-xs text-orange-500 animate-pulse">Connecte-toi pour sauvegarder ton apprentissage</span>}
                      <button 
                        onClick={handleGenerate}
                        disabled={isGenerating || !inputText}

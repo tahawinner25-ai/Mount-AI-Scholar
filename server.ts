@@ -2,6 +2,7 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import "dotenv/config";
+import * as fs from "fs";
 
 async function startServer() {
   const app = express();
@@ -11,7 +12,7 @@ async function startServer() {
 
   // Health check
   app.get("/api/health", (req, res) => {
-    require('fs').writeFileSync('key_log.txt', "GEMINI_API_KEY length: " + (process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.length : 'undefined'));
+    fs.writeFileSync('key_log.txt', "GEMINI_API_KEY length: " + (process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.length : 'undefined'));
     res.json({ status: "ok", time: new Date().toISOString() });
   });
 
@@ -19,7 +20,7 @@ async function startServer() {
   try {
     fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${process.env.GEMINI_API_KEY}`)
       .then(r => r.json())
-      .then(d => require('fs').writeFileSync('models.json', JSON.stringify(d, null, 2)))
+      .then(d => fs.writeFileSync('models.json', JSON.stringify(d, null, 2)))
       .catch(e => console.error(e));
   } catch (e) {}
 

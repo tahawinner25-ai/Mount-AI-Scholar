@@ -4,7 +4,6 @@ import Markdown from 'react-markdown';
 import { generateSummary, generateQuiz, generateMindMap, queryElasticRAG } from './services/ai';
 import Mermaid from './components/Mermaid';
 import DyslexicRenderer from './components/DyslexicRenderer';
-import IoCountdown from './IoCountdown';
 import { auth, loginWithGoogle, logout, db, handleFirestoreError, OperationType } from './services/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp, collection, addDoc, query, where, orderBy, getDocs } from 'firebase/firestore';
@@ -29,7 +28,7 @@ export default function App() {
   const [inputText, setInputText] = useState("");
   const [learningResult, setLearningResult] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [selectedLang, setSelectedLang] = useState("Français");
+  const [selectedLang, setSelectedLang] = useState("French");
   const [speechError, setSpeechError] = useState<string | null>(null);
   const [historyItems, setHistoryItems] = useState<any[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
@@ -43,9 +42,8 @@ export default function App() {
     return localStorage.getItem('mlEngineUrl') || "https://ocunh-196-75-45-43.run.pinggy-free.link";
   });
   const [showConfig, setShowConfig] = useState(false);
-  const [showIoCountdown, setShowIoCountdown] = useState(false);
 
-  // Vérifier la connexion avec ton moteur Python Local (PC)
+  // Check connection to Local Python Engine (PC)
   useEffect(() => {
     const checkEngine = async () => {
       try {
@@ -174,9 +172,9 @@ export default function App() {
       recognition.onerror = (event: any) => {
         console.error("Speech API Error:", event.error);
         if (event.error === 'not-allowed') {
-          setSpeechError("🎤 Vous avez refusé l'accès au microphone. Pour réafficher le choix ou l'autoriser, cliquez sur l'icône de cadenas ou de caméra/micro barrée dans la barre d'adresse de votre navigateur en haut, et autorisez le microphone. Vous pouvez aussi ouvrir l'application dans un nouvel onglet.");
+          setSpeechError("🎤 You denied microphone access. To allow it, click on the padlock icon in the browser address bar and allow the microphone.");
         } else {
-          setSpeechError(`Erreur du microphone: ${event.error}`);
+          setSpeechError(`Microphone Error: ${event.error}`);
         }
         setIsRecording(false);
       };
@@ -212,7 +210,7 @@ export default function App() {
         try {
           recognitionRef.current.start();
         } catch (e) {
-          console.error("Déjà en cours", e);
+          console.error("Already running", e);
         }
       } else {
         alert("Ton navigateur ne supporte pas la reconnaissance vocale native (utilise Chrome/Edge sur PC/Mac).");
@@ -231,11 +229,11 @@ export default function App() {
       window.speechSynthesis.cancel(); // Stop playing anything else
       const utterance = new SpeechSynthesisUtterance(text);
       if (selectedLang === 'English') utterance.lang = 'en-US';
-      else if (selectedLang === 'Arabe') utterance.lang = 'ar-SA';
+      else if (selectedLang === 'Arabic') utterance.lang = 'ar-SA';
       else utterance.lang = 'fr-FR';
       window.speechSynthesis.speak(utterance);
     } else {
-      alert("La synthèse vocale n'est pas supportée par ton navigateur.");
+      alert("Speech synthesis is not supported by your browser.");
     }
   };
 
@@ -255,7 +253,7 @@ export default function App() {
       } else if (learningMode === 'search') {
         result = await queryElasticRAG(inputText, selectedLang, mlEngineUrl);
       } else {
-        result = "Cette fonctionnalité (Création de Présentations) sera implémentée via un micro-service Python !";
+        result = "Cette fonctionnalité (Création de Presentations) sera implémentée via un micro-service Python !";
       }
       
       setLearningResult(result);
@@ -278,21 +276,17 @@ export default function App() {
 
     } catch (error) {
       console.error(error);
-      setLearningResult("Erreur de connexion à l'IA.");
+      setLearningResult("AI Connection Error.");
     } finally {
       setIsGenerating(false);
     }
   };
 
-  if (showIoCountdown) {
-    return <IoCountdown onBack={() => setShowIoCountdown(false)} />;
-  }
-
   if (!authReady) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center space-y-4">
-        <Loader2 className="w-12 h-12 text-orange-500 animate-spin" />
-        <div className="text-orange-500 font-mono text-sm tracking-widest animate-pulse">CHARGEMENT DU SYSTÈME...</div>
+        <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
+        <div className="text-blue-500 font-mono text-sm tracking-widest animate-pulse">SYSTEM LOADING...</div>
       </div>
     );
   }
@@ -310,7 +304,7 @@ export default function App() {
             
             <h1 className="text-4xl font-black text-white tracking-tight mb-2 text-center uppercase drop-shadow-lg">Mount AI Scholar</h1>
             <p className="text-slate-300 text-center mb-10 font-medium text-lg leading-relaxed max-w-sm">
-              L'Assistant d'Apprentissage Intelligent avec Analyse Vocale & IA.
+              Intelligent Learning Assistant with Voice Analysis & AI.
             </p>
             
             <button 
@@ -324,9 +318,9 @@ export default function App() {
                   <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                   <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                 </svg>
-                <span className="relative z-10 uppercase tracking-widest text-sm">Connexion avec Google</span>
+                <span className="relative z-10 uppercase tracking-widest text-sm">Login with Google</span>
             </button>
-            <p className="mt-8 text-xs text-slate-500 font-mono text-center">SYSTÈME ACCESSIBLE SOUS AUTORISATION UNIQUEMENT</p>
+            <p className="mt-8 text-xs text-slate-500 font-mono text-center">SYSTEM ACCESSIBLE UNDER AUTHORIZATION ONLY</p>
          </div>
       </div>
     );
@@ -352,7 +346,7 @@ export default function App() {
             <div>
               <h1 className="text-xl font-bold tracking-tight">Mount AI<span className={mainView === 'dyslexia' ? 'text-blue-500' : mainView === 'architecture' ? 'text-emerald-500' : mainView === 'history' ? 'text-indigo-500' : 'text-orange-500'}>: Scholar</span></h1>
               <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">
-                {mainView === 'dyslexia' ? 'Windows Voice Core' : mainView === 'architecture' ? 'Technical Architecture' : mainView === 'history' ? 'Historique Base de Données' : 'Global Learning Engine'}
+                {mainView === 'dyslexia' ? 'Windows Voice Core' : mainView === 'architecture' ? 'Technical Architecture' : mainView === 'history' ? 'History Base de Données' : 'Global Learning Engine'}
               </p>
             </div>
           </div>
@@ -361,10 +355,10 @@ export default function App() {
             {user ? (
                <div className="flex items-center gap-3">
                  <button onClick={() => setMainView('history')} className={`flex items-center gap-2 p-2 px-4 rounded-xl border transition ${mainView === 'history' ? 'bg-indigo-900 border-indigo-500 text-indigo-300' : 'bg-slate-900 border-slate-700 hover:bg-slate-800 text-slate-300'}`}>
-                   <History className="w-4 h-4 text-white" /> <span className="hidden sm:inline">Historique</span>
+                   <History className="w-4 h-4 text-white" /> <span className="hidden sm:inline">History</span>
                  </button>
-                 <span className="text-slate-400 font-medium">Connecté: {user.displayName}</span>
-                 <button onClick={logout} className="p-2 bg-slate-900 border border-slate-700 rounded-xl hover:bg-slate-800 transition text-slate-300 ml-2" title="Déconnexion">
+                 <span className="text-slate-400 font-medium">Connected: {user.displayName}</span>
+                 <button onClick={logout} className="p-2 bg-slate-900 border border-slate-700 rounded-xl hover:bg-slate-800 transition text-slate-300 ml-2" title="Logout">
                    <LogOut className="w-4 h-4" />
                  </button>
                </div>
@@ -381,7 +375,7 @@ export default function App() {
               >
                 <div className={`w-2 h-2 rounded-full ${engineStatus === 'online' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-500'}`} />
                 <span className={`text-xs md:text-sm ${engineStatus === 'online' ? 'text-emerald-400' : 'text-slate-400'}`}>
-                  {engineStatus === 'online' ? 'Backend Actif' : 'Backend Déconnecté'}
+                  {engineStatus === 'online' ? 'Backend Active' : 'Backend Disconnected'}
                 </span>
                 <Settings className="w-3 h-3 text-slate-500 ml-1 hidden sm:block" />
               </div>
@@ -412,10 +406,10 @@ export default function App() {
                       }}
                       className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-lg text-sm transition-colors"
                     >
-                      Connecter au moteur
+                      Connect to Engine
                     </button>
                     <p className="text-[10px] text-slate-500 leading-tight mt-2 text-center">
-                      Colle ici le nouveau lien que te donne ton terminal Windows.
+                      Paste the new link from Windows terminal here.
                     </p>
                   </div>
                 </div>
@@ -433,18 +427,7 @@ export default function App() {
                  <BrainCircuit className="w-12 h-12 text-blue-500" />
               </div>
               <h1 className="text-5xl font-extrabold tracking-tight text-white mb-4">Mount AI <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-orange-500">Scholar</span></h1>
-              <p className="text-lg text-slate-400 max-w-2xl mx-auto font-light">Environnement d'exécution haute performance pour l'accessibilité cognitive.</p>
-              
-              <div className="flex items-center justify-center pt-4">
-                <button 
-                  onClick={() => setShowIoCountdown(true)}
-                  className="group relative px-6 py-3 bg-white/5 border border-white/10 hover:border-white/30 rounded-full font-mono text-sm tracking-widest uppercase flex items-center gap-3 overflow-hidden transition-all hover:scale-105 hover:bg-white/10"
-                >
-                   <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                   Google I/O Countdown N°1
-                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
-                </button>
-              </div>
+              <p className="text-lg text-slate-400 max-w-2xl mx-auto font-light">High-performance environment for cognitive accessibility.</p>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
@@ -458,12 +441,12 @@ export default function App() {
                 <div className="w-14 h-14 rounded-2xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center mb-6">
                   <Mic className="w-7 h-7 text-blue-500" />
                 </div>
-                <h2 className="text-2xl font-bold text-white mb-3 tracking-tight">Analyse Phonémique</h2>
+                <h2 className="text-2xl font-bold text-white mb-3 tracking-tight">Phonemic Analysis</h2>
                 <p className="text-slate-400 leading-relaxed text-sm flex-1">
-                  Moteur temps-réel de traitement du signal vocal. Intégration CoreML & Vision AR.
+                  Real-time voice processing engine. CoreML & Vision AR integration.
                 </p>
                 <div className="mt-6 flex items-center gap-2 text-blue-500 font-bold uppercase tracking-wider text-xs group-hover:translate-x-2 transition-transform">
-                  Exécuter Pipeline ML <Sparkles className="w-4 h-4 ml-2" />
+                  Run ML Pipeline <Sparkles className="w-4 h-4 ml-2" />
                 </div>
               </button>
 
@@ -477,12 +460,12 @@ export default function App() {
                 <div className="w-14 h-14 rounded-2xl bg-orange-600/20 border border-orange-500/30 flex items-center justify-center mb-6">
                   <Layers className="w-7 h-7 text-orange-500" />
                 </div>
-                <h2 className="text-2xl font-bold text-white mb-3 tracking-tight">Intelligence Cognitive</h2>
+                <h2 className="text-2xl font-bold text-white mb-3 tracking-tight">Cognitive Intelligence</h2>
                 <p className="text-slate-400 leading-relaxed text-sm flex-1">
                   Extraction sémantique et synthèse structurée par LLM (Gemini Ultra/Pro).
                 </p>
                 <div className="mt-6 flex items-center gap-2 text-orange-500 font-bold uppercase tracking-wider text-xs group-hover:translate-x-2 transition-transform">
-                  Lancer Engine v3.0 <Zap className="w-4 h-4 ml-2" />
+                  Launch Engine v3.0 <Zap className="w-4 h-4 ml-2" />
                 </div>
               </button>
 
@@ -496,12 +479,12 @@ export default function App() {
                 <div className="w-14 h-14 rounded-2xl bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center mb-6">
                   <Activity className="w-7 h-7 text-emerald-500" />
                 </div>
-                <h2 className="text-2xl font-bold text-white mb-3 tracking-tight">Faisabilité & Fiabilité</h2>
+                <h2 className="text-2xl font-bold text-white mb-3 tracking-tight">Feasibility & Reliability</h2>
                 <p className="text-slate-400 leading-relaxed text-sm flex-1">
                   Architecture structurée et scalabilité du projet (Performances & Sécurité).
                 </p>
                 <div className="mt-6 flex items-center gap-2 text-emerald-500 font-bold uppercase tracking-wider text-xs group-hover:translate-x-2 transition-transform">
-                  Architecture IT <Zap className="w-4 h-4 ml-2" />
+                  IT Architecture <Zap className="w-4 h-4 ml-2" />
                 </div>
               </button>
             </div>
@@ -514,22 +497,22 @@ export default function App() {
             <aside className="lg:col-span-3 space-y-6">
               <div className="bg-slate-900/50 rounded-3xl border border-slate-800 p-6 space-y-6 backdrop-blur-sm">
                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                  <BrainCircuit className="w-4 h-4 text-blue-500" /> Module Dyslexie
+                  <BrainCircuit className="w-4 h-4 text-blue-500" /> Dyslexia Module
                 </h3>
                 <p className="text-sm text-slate-400">
-                  Décodage phonémique en temps réel. Cette interface simule une projection augmentée pour faciliter la correspondance phonème-graphème.
+                  Real-time phonemic decoding. This interface simulates an augmented projection to facilitate phoneme-grapheme correspondence.
                 </p>
               </div>
 
               <div className="bg-slate-900/50 rounded-3xl border border-slate-800 p-6 space-y-4 shadow-sm">
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Performances ML</h3>
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">ML Performance</h3>
                 <div className="space-y-3">
                   <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
                     <p className="text-[10px] text-slate-500 uppercase mb-1">Latence (Inference)</p>
                     <p className="text-xl font-mono font-bold text-blue-500">14<span className="text-xs ml-1">ms</span></p>
                   </div>
                   <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-                    <p className="text-[10px] text-slate-500 uppercase mb-1">Confiance Modèle</p>
+                    <p className="text-[10px] text-slate-500 uppercase mb-1">Model Confidence</p>
                     <div className="flex items-end justify-between">
                       <p className="text-xl font-mono font-bold text-emerald-500">98.2<span className="text-xs ml-1">%</span></p>
                       <div className="flex gap-0.5 h-4 items-end">
@@ -605,8 +588,8 @@ export default function App() {
                         <Volume2 className="w-10 h-10 text-slate-400" />
                       </div>
                       <div>
-                        <h4 className="text-xl font-bold text-white mb-2 italic">Prêt pour l'Analyse ?</h4>
-                        <p className="text-slate-400 text-sm leading-relaxed">Active le micro pour séparer les phonèmes en temps réel pour l'aide à la dyslexie.</p>
+                        <h4 className="text-xl font-bold text-white mb-2 italic">Ready for Analysis??</h4>
+                        <p className="text-slate-400 text-sm leading-relaxed">Activate the mic to separate phonemes in real-time for dyslexia aid.</p>
                       </div>
                     </div>
                   )}
@@ -646,10 +629,10 @@ export default function App() {
                     <div className="w-6 h-6 rounded-lg bg-blue-600/10 border border-blue-500/20 flex items-center justify-center">
                       <FileText className="w-3 h-3 text-blue-500" />
                     </div>
-                    Mode Lecture Accessible
+                    Accessible Reading Mode
                   </h3>
                   {isRecording && (
-                    <div className="px-3 py-1 bg-blue-500 text-white text-[10px] font-bold rounded-lg animate-pulse">EN ÉCOUTE</div>
+                    <div className="px-3 py-1 bg-blue-500 text-white text-[10px] font-bold rounded-lg animate-pulse">LISTENING</div>
                   )}
                 </div>
                 {/* Zone de lecture avec fond très clair (papier) pour le contraste naturel */}
@@ -660,7 +643,7 @@ export default function App() {
                     <button 
                       onClick={() => speakText(transcript)}
                       className="absolute bottom-6 right-6 w-12 h-12 rounded-full bg-blue-600 hover:bg-blue-500 shadow-xl shadow-blue-500/30 flex items-center justify-center transition-colors border-2 border-white text-white"
-                      title="Lire le texte à voix haute"
+                      title="Read text aloud"
                     >
                       <Play className="w-5 h-5 ml-1" />
                     </button>
@@ -675,7 +658,7 @@ export default function App() {
             <aside className="lg:col-span-3 space-y-6">
               <div className="bg-slate-900 rounded-3xl border border-slate-800 p-6 flex flex-col h-full shadow-2xl">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Flux Machine Learning</h3>
+                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Machine Learning Flow</h3>
                   <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
                 </div>
                 <div className="flex-1 space-y-3 font-mono text-[10px] overflow-y-auto max-h-[600px] pr-2 scrollbar-hide">
@@ -700,7 +683,7 @@ export default function App() {
                     </>
                   )}
                   <div className="text-slate-700 py-4 text-center border-t border-slate-800 mt-4 italic">
-                    Logs système en attente...
+                    System logs pending...
                   </div>
                 </div>
               </div>
@@ -713,7 +696,7 @@ export default function App() {
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                 <div>
                    <h2 className="text-3xl font-black text-white tracking-tight uppercase">Faisabilité <span className="text-emerald-500">& Fiabilité</span></h2>
-                   <p className="text-slate-400 font-medium">Une infrastructure robuste conçue pour changer la vie des étudiants et enfants malades.</p>
+                   <p className="text-slate-400 font-medium">A robust infrastructure designed to change the lives of students and sick children.</p>
                 </div>
              </div>
 
@@ -725,7 +708,7 @@ export default function App() {
                          <div className="p-3 bg-emerald-500/10 rounded-xl">
                             <Target className="w-6 h-6 text-emerald-500" />
                          </div>
-                         <h3 className="text-xl font-bold text-white">Faisabilité Technique</h3>
+                         <h3 className="text-xl font-bold text-white">Technical Feasibility</h3>
                       </div>
                       <div className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded-full flex items-center gap-2">
                          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
@@ -735,15 +718,15 @@ export default function App() {
                    <ul className="space-y-4 text-slate-300">
                       <li className="flex gap-3">
                          <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                         <p><strong>Architecture Hybride (PROD) :</strong> Le Backend Réel est déployé ! Front-end web ultra-rapide connecté à notre moteur d'inférence Python/Machine Learning isolé. Performance validée, consommation d'énergie optimisée.</p>
+                         <p><strong>Architecture Hybride (PROD) :</strong> The Real Backend is deployed! Ultra-fast web front-end connected to our isolated Python/Machine Learning inference engine. Validated performance, optimized energy consumption.</p>
                       </li>
                       <li className="flex gap-3">
                          <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                         <p><strong>Traitement en Temps Réel :</strong> L'analyse phonémique s'effectue en micro-batching avec une latence quasi nulle (&lt; 25ms), ce qui est vital pour l'intervention éducative auprès des publics dyslexiques.</p>
+                         <p><strong>Real-Time Processing:</strong> L'analyse phonémique s'effectue en micro-batching avec une latence quasi nulle (&lt; 25ms), ce qui est vital pour l'intervention éducative auprès des publics dyslexiques.</p>
                       </li>
                       <li className="flex gap-3">
                          <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                         <p><strong>Modulaire et Évolutif (Architecture Hybride) :</strong> Conçu dès le départ pour que les algorithmes de traitement puissent être portés sur des environnements mobiles et embarqués haute performance.</p>
+                         <p><strong>Modulaire et Évolutif (Architecture Hybride) :</strong> Designed from the start so that processing algorithms can be ported to high-performance mobile and embedded environments.</p>
                       </li>
                    </ul>
                 </div>
@@ -754,20 +737,20 @@ export default function App() {
                       <div className="p-3 bg-blue-500/10 rounded-xl">
                          <Activity className="w-6 h-6 text-blue-500" />
                       </div>
-                      <h3 className="text-xl font-bold text-white">Fiabilité & Protection</h3>
+                      <h3 className="text-xl font-bold text-white">Reliability & Protection</h3>
                    </div>
                    <ul className="space-y-4 text-slate-300">
                       <li className="flex gap-3">
                          <Zap className="w-5 h-5 text-blue-500 shrink-0" />
-                         <p><strong>Accessibilité Continue :</strong> Fallback (plan de secours) visuel instantané si l'IA distante est déconnectée. L'apprentissage de l'enfant ne s'arrête jamais à cause du réseau.</p>
+                         <p><strong>Continuous Accessibility:</strong> Fallback (plan de secours) visuel instantané si l'IA distante est déconnectée. L'apprentissage de l'enfant ne s'arrête jamais à cause du réseau.</p>
                       </li>
                       <li className="flex gap-3">
                          <Zap className="w-5 h-5 text-blue-500 shrink-0" />
-                         <p><strong>Respect Implacable des Données :</strong> 100% conforme COPPA / RGPD. Aucune voix d'enfant n'est stockée sur serveur. L'inférence est instantanément convertie en texte localement puis détruite.</p>
+                         <p><strong>Relentless Data Respect:</strong> 100% COPPA/GDPR compliant. No child's voice is stored on the server. Inference is instantly converted to text locally and then destroyed.</p>
                       </li>
                       <li className="flex gap-3">
                          <Zap className="w-5 h-5 text-blue-500 shrink-0" />
-                         <p><strong>Tests Pédagogiques :</strong> Outils créés non pas comme de simples calculs mathématiques, mais calibrés pour éviter la surcharge cognitive (UI Minimaliste, forts contrastes).</p>
+                         <p><strong>Educational Testing:</strong> Outils créés non pas comme de simples calculs mathématiques, mais calibrés pour éviter la surcharge cognitive (UI Minimaliste, forts contrastes).</p>
                       </li>
                    </ul>
                 </div>
@@ -792,20 +775,20 @@ export default function App() {
                  >
                    <div className="flex items-center gap-3 mb-2">
                      <SearchCode className={`w-6 h-6 ${learningMode === 'search' ? 'text-white' : 'text-blue-500'}`} />
-                     <span className="text-base font-black tracking-tight">Agent RAG Elasticsearch</span>
+                     <span className="text-base font-black tracking-tight">Elasticsearch RAG Agent</span>
                    </div>
                    <p className="text-xs font-medium opacity-80">Interroge tes cours via la recherche vectorielle (kNN).</p>
                  </button>
 
                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2 mb-4">
-                   <BookOpen className="w-4 h-4 text-orange-500" /> Apprentissage Global
+                   <BookOpen className="w-4 h-4 text-orange-500" /> Global Learning
                  </h3>
                  <div className="space-y-3">
                     {[
-                      { id: 'summary', label: 'Résumés Vocaux', icon: <FileText className="w-4 h-4" /> },
-                      { id: 'quiz', label: 'Quiz Fun & Exos', icon: <Gamepad2 className="w-4 h-4" /> },
-                      { id: 'mindmap', label: 'Cartes Mentales', icon: <Network className="w-4 h-4" /> },
-                      { id: 'presentation', label: 'Présentations', icon: <Presentation className="w-4 h-4" /> },
+                      { id: 'summary', label: 'Vocal Summaries', icon: <FileText className="w-4 h-4" /> },
+                      { id: 'quiz', label: 'Fun Quizzes & Exercises', icon: <Gamepad2 className="w-4 h-4" /> },
+                      { id: 'mindmap', label: 'Mind Maps', icon: <Network className="w-4 h-4" /> },
+                      { id: 'presentation', label: 'Presentations', icon: <Presentation className="w-4 h-4" /> },
                     ].map((m) => (
                       <button
                         key={m.id}
@@ -830,11 +813,11 @@ export default function App() {
                 <div className="bg-slate-900 rounded-[2.5rem] border border-slate-800 p-8 shadow-2xl flex flex-col gap-6">
                    <div className="flex justify-between items-center">
                      <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-                       {learningMode === 'search' && <><Database className="text-blue-500"/> Moteur RAG Elastic</>}
-                       {learningMode === 'summary' && <><FileText className="text-orange-500"/> Intelligence de Synthèse</>}
-                       {learningMode === 'quiz' && <><Gamepad2 className="text-purple-500"/> Générateur de Quiz</>}
-                       {learningMode === 'mindmap' && <><Network className="text-pink-500"/> Cartes Mentales (Mermaid.js)</>}
-                       {learningMode === 'presentation' && <><Presentation className="text-indigo-500"/> Mode Présentation</>}
+                       {learningMode === 'search' && <><Database className="text-blue-500"/> Elastic RAG Engine</>}
+                       {learningMode === 'summary' && <><FileText className="text-orange-500"/> Synthesis Intelligence</>}
+                       {learningMode === 'quiz' && <><Gamepad2 className="text-purple-500"/> Quiz Generator</>}
+                       {learningMode === 'mindmap' && <><Network className="text-pink-500"/> Mind Maps (Mermaid.js)</>}
+                       {learningMode === 'presentation' && <><Presentation className="text-indigo-500"/> Presentation Mode</>}
                      </h2>
                      {learningMode !== 'presentation' && (
                        <select 
@@ -842,11 +825,11 @@ export default function App() {
                          value={selectedLang}
                          onChange={(e) => setSelectedLang(e.target.value)}
                        >
-                          <option>Français</option>
-                          <option>Anglais</option>
-                          <option>Arabe</option>
-                          <option>Espagnol</option>
-                          <option>Allemand</option>
+                          <option>French</option>
+                          <option>English</option>
+                          <option>Arabic</option>
+                          <option>Spanish</option>
+                          <option>German</option>
                        </select>
                      )}
                    </div>
@@ -854,20 +837,20 @@ export default function App() {
                    <textarea 
                      rows={5}
                      className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-6 text-slate-300 focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all resize-none outline-none font-mono text-sm"
-                     placeholder={learningMode === 'search' ? "Recherche vectorielle. Ex: 'Selon mes cours de SVT, comment fonctionne la photosynthèse ? L'agent ira chercher les vecteurs dans Elasticsearch...'" : "Colle ton cours, ton texte ou tes notes ici pour que l'IA puisse travailler dessus..."}
+                     placeholder={learningMode === 'search' ? "Recherche vectorielle. Ex: 'Selon mes cours de SVT, comment fonctionne la photosynthèse ? L'agent ira chercher les vecteurs dans Elasticsearch...'" : "Paste your course, text, or notes here for the AI to process..."}
                      value={inputText}
                      onChange={(e) => setInputText(e.target.value)}
                    />
                    
                    <div className="flex justify-end items-center gap-4">
-                     {!user && <span className="text-xs text-orange-500 animate-pulse">Connecte-toi pour sauvegarder ton apprentissage</span>}
+                     {!user && <span className="text-xs text-orange-500 animate-pulse">Log in to save your learning</span>}
                      <button 
                        onClick={handleGenerate}
                        disabled={isGenerating || !inputText}
                        className="px-8 py-4 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 disabled:hover:bg-orange-600 rounded-xl text-white font-bold flex items-center gap-3 transition-colors"
                      >
                        {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-                       Générer
+                       Generate
                      </button>
                    </div>
                 </div>
@@ -881,7 +864,7 @@ export default function App() {
                            <div className="w-16 h-16 border-4 border-orange-500/20 border-t-orange-500 rounded-full animate-spin" />
                            <Sparkles className="w-6 h-6 text-orange-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
                         </div>
-                        <p className="font-mono text-sm uppercase tracking-widest text-orange-500/70">Traitement Neural en cours...</p>
+                        <p className="font-mono text-sm uppercase tracking-widest text-orange-500/70">Neural Processing in progress...</p>
                       </div>
                     ) : learningMode === 'mindmap' ? (
                       <div className="w-full bg-slate-950/50 p-6 rounded-2xl border border-slate-800">
@@ -904,8 +887,8 @@ export default function App() {
           <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                 <div>
-                   <h2 className="text-3xl font-black text-white tracking-tight uppercase">Historique d'Apprentissage</h2>
-                   <p className="text-slate-400 font-medium">Tes générations précédentes sauvegardées sécuritairement sur Firebase.</p>
+                   <h2 className="text-3xl font-black text-white tracking-tight uppercase">History d'Apprentissage</h2>
+                   <p className="text-slate-400 font-medium">Your previous generations saved securely on Firebase.</p>
                 </div>
              </div>
 
@@ -917,7 +900,7 @@ export default function App() {
                ) : historyItems.length === 0 ? (
                  <div className="text-center py-20">
                     <History className="w-12 h-12 text-slate-700 mx-auto mb-4" />
-                    <p className="text-slate-400 font-medium">Aucun historique trouvé.</p>
+                    <p className="text-slate-400 font-medium">No history found.</p>
                  </div>
                ) : (
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -935,7 +918,7 @@ export default function App() {
                            </div>
                          </div>
                          <div className="mt-4 pt-4 border-t border-slate-800 text-xs font-bold text-orange-500 group-hover:translate-x-1 transition-transform flex items-center">
-                           Enregistré <CheckCircle2 className="w-4 h-4 ml-2" />
+                           Saved <CheckCircle2 className="w-4 h-4 ml-2" />
                          </div>
                       </div>
                    ))}

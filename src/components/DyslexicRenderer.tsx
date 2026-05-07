@@ -7,8 +7,8 @@ interface DyslexicRendererProps {
 export default function DyslexicRenderer({ text }: DyslexicRendererProps) {
   if (!text) {
     return (
-      <span className="font-light italic tracking-tight text-slate-500">
-        Le moteur de reconnaissance vocale attend...
+      <span className="font-medium italic tracking-widest text-slate-500">
+        Prêt... Le texte s'affichera ici avec une lisibilité maximale.
       </span>
     );
   }
@@ -20,8 +20,6 @@ export default function DyslexicRenderer({ text }: DyslexicRendererProps) {
     if (!word) return null;
 
     // Regex très basique pour séparer les syllabes (voyeilles + consonnes).
-    // Ceci est une approximation visuelle pour le prototype web. 
-    // Sur ton PC python tu utiliseras NLTK ou un moteur NLP !
     const syllableRegex = /[^aeyuioœAEYUIOŒ]+[aeyuioœAEYUIOŒ]+|[aeyuioœAEYUIOŒ]+/g;
     let syllables = word.match(syllableRegex) || [word];
 
@@ -40,18 +38,18 @@ export default function DyslexicRenderer({ text }: DyslexicRendererProps) {
       }
     }
 
-    // Couleurs alternées pour le contraste visuel (très utile pour la dyslexie)
-    const colors = ["text-blue-400", "text-orange-400"];
+    // Couleurs alternées avec fort contraste adapté à la lecture (évite le rouge agressif)
+    const colors = ["text-blue-700", "text-emerald-700"];
 
     return (
-      <span key={wordIndex} className="inline-block mr-2 mb-2 bg-slate-950/50 px-2 py-1 rounded-lg border border-slate-800/50">
+      <span key={wordIndex} className="inline-block mr-4 mb-4 bg-white px-3 py-2 rounded-xl border-2 border-slate-200 shadow-sm">
         {syllables.map((syl, i) => (
-          <span key={i} className={`font-bold ${colors[i % colors.length]}`}>
+          <span key={i} className={`font-extrabold tracking-widest ${colors[i % colors.length]}`}>
             {syl}
           </span>
         ))}
         {silentSuffix && (
-          <span className="font-light text-slate-500 opacity-60">
+          <span className="font-medium tracking-widest text-slate-400 opacity-80">
             {silentSuffix}
           </span>
         )}
@@ -62,7 +60,7 @@ export default function DyslexicRenderer({ text }: DyslexicRendererProps) {
   const words = text.split(/\s+/);
 
   return (
-    <div className="flex flex-wrap items-center leading-loose text-2xl">
+    <div className="flex flex-wrap items-center leading-loose text-4xl md:text-5xl font-sans">
       {words.map((word, index) => renderWord(word, index))}
     </div>
   );

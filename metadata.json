@@ -1,5 +1,5 @@
 {
   "name": "Mount AI Scholar",
-  "description": "Dashboard d'intelligence artificielle et d'accessibilité (Dyslexie) - Version Windows UI.",
+  "description": "Système d'Apprentissage Cognitif & Accessibilité. Moteur d'analyse vocale multi-langues et moteur de recherche intelligent pour la dyslexie et l'apprentissage augmenté.",
   "requestFramePermissions": ["microphone"]
 }

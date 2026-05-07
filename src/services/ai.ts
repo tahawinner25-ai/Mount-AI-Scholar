@@ -1,11 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 
-// Polyfill for process.env in Vite if needed, though system instructions say to use it directly
-const apiKey = typeof process !== 'undefined' && process.env.GEMINI_API_KEY 
-  ? process.env.GEMINI_API_KEY 
-  : import.meta.env.VITE_GEMINI_API_KEY || '';
-
-const ai = new GoogleGenAI({ apiKey });
+// initialization
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export async function generateSummary(text: string, language: string): Promise<string> {
   if (!text) return "";
@@ -14,13 +10,60 @@ export async function generateSummary(text: string, language: string): Promise<s
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
     });
     return response.text || 'Erreur lors de la génération.';
   } catch (err) {
     console.error("Gemini API Error (Summary):", err);
     return "Désolé, l'IA a rencontré une erreur pendant la génération du résumé. Vérifie la console ou tes clés API.";
+  }
+}
+
+export async function queryElasticRAG(query: string, language: string, backendUrl: string): Promise<string> {
+  if (!query) return "";
+
+  // 1. TENTATIVE VERS L'API PYTHON EN LOCAL (Le PC de l'utilisateur)
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // Timeout allongé (15s) pour Tunnel Pinggy + ML Pipeline
+    
+    // Appel à FastAPI uvicorn (Mount AI Scholar Backend) via Tunnel Pinggy
+    const res = await fetch(`${backendUrl}/api/rag`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ query, language }),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (res.ok) {
+      const data = await res.json();
+      return `📡 **RÉPONSE DU MOTEUR ELASTIC (via Python Local)** 📡\n\n${data.answer}\n\n*Sources vectorielles retenues par kNN :* ${data.sources.join(', ')}`;
+    }
+  } catch (backendErr) {
+    console.log("Python Backend offline ou non atteignable. Fallback sur la simulation Gemini.");
+  }
+
+  // 2. FALLBACK DE SIMULATION (Si le serveur Uvicorn n'est pas lancé)
+  const prompt = `L'utilisateur teste la fonctionnalité RAG (Retrieval-Augmented Generation) sur son environnement de développement.
+Cependant, son serveur Python Elasticsearch local n'est pas atteignable pour le moment.
+
+Tu vas SIMULER ce que le moteur RAG aurait répondu pour la requête : "${query}".
+Rédige une réponse structurée en ${language}. 
+Commence par une brève phrase disant que ceci est une **⚠️ Simulation (Backend Python hors ligne)**, puis donne l'information pertinente avec des bullet points.`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+    });
+    return response.text || 'Erreur lors de la simulation RAG.';
+  } catch (err) {
+    console.error("Gemini API Error (RAG Simulation):", err);
+    return "Erreur critique de connexion. Vérifie ton réseau et ton backend FastAPI.";
   }
 }
 
@@ -31,7 +74,7 @@ export async function generateQuiz(text: string, language: string): Promise<stri
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
     });
     return response.text || 'Erreur lors de la génération du quiz.';
@@ -55,7 +98,7 @@ ${text}`;
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
     });
     

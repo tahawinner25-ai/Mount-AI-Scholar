@@ -1,0 +1,39 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile holding basic roles and creation timestamps.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "role": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "role", "createdAt"]
+    },
+    "LearningItem": {
+      "title": "LearningItem",
+      "description": "An item generated through AI (summary, quiz, mindmap).",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "mode": { "type": "string" },
+        "language": { "type": "string" },
+        "originalText": { "type": "string" },
+        "generatedContent": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "mode", "language", "originalText", "generatedContent", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profile"
+    },
+    "/learning_items/{itemId}": {
+      "schema": { "$ref": "#/entities/LearningItem" },
+      "description": "Records of AI generations requests and responses"
+    }
+  }
+}

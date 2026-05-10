@@ -1,3 +1,5 @@
+🏔️ Mount AI Scholar
+
 # 🧠 Technical Architecture
 The project is divided into two major architectural phases:
 

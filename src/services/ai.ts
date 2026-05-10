@@ -1,19 +1,24 @@
-import { GoogleGenAI } from '@google/genai';
-
-// initialization
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// API calls relayed to backend
 
 export async function generateSummary(text: string, language: string): Promise<string> {
   if (!text) return "";
   
-  const prompt = `Tu es un professeur expert en sciences cognitives, spécialisé dans l'apprentissage optimisé.\n\nFais un résumé très clair, structuré avec des bullet points de ce texte pour un étudiant. Utilise des emojis pour le rendre visuel. Le résumé DOIT être rédigé dans la langue suivante: ${language}.\n\nTexte à résumer:\n${text}`;
+  const targetLanguage = language.toLowerCase();
+  const summaryInstruction = targetLanguage === 'english' 
+    ? "You are an expert cognitive science professor. Provide a very clear, structured summary with bullet points for a student. Use emojis. THE RESPONSE MUST BE EXCLUSIVELY IN ENGLISH."
+    : `Tu es un professeur expert en sciences cognitives. Fais un résumé très clair, structuré avec des bullet points pour un étudiant. Utilise des emojis. LA RÉPONSE DOIT ÊTRE EXCLUSIVEMENT EN ${language.toUpperCase()}.`;
+
+  const prompt = `${summaryInstruction}\n\nTexte / Text:\n${text}`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
+    const response = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt })
     });
-    return response.text || 'Erreur lors de la génération.';
+    if (!response.ok) throw new Error('API Error');
+    const data = await response.json();
+    return data.text || 'Erreur lors de la génération.';
   } catch (err) {
     console.error("Gemini API Error (Summary):", err);
     return "Désolé, l'IA a rencontré une erreur pendant la génération du résumé. Vérifie la console ou tes clés API.";
@@ -23,6 +28,8 @@ export async function generateSummary(text: string, language: string): Promise<s
 export async function queryElasticRAG(query: string, language: string, backendUrl: string): Promise<string> {
   if (!query) return "";
 
+  const targetLanguage = language.toLowerCase();
+  
   // 1. TENTATIVE VERS L'API PYTHON EN LOCAL (Le PC de l'utilisateur)
   try {
     const controller = new AbortController();
@@ -41,43 +48,53 @@ export async function queryElasticRAG(query: string, language: string, backendUr
 
     if (res.ok) {
       const data = await res.json();
-      return `📡 **RÉPONSE DU MOTEUR ELASTIC (via Python Local)** 📡\n\n${data.answer}\n\n*Sources vectorielles retenues par kNN :* ${data.sources.join(', ')}`;
+      return `### 📡 Knowledge Engine (Hybrid Local)\n\n${data.answer}\n\n**Sources:** ${data.sources.join(', ')}`;
     }
   } catch (backendErr) {
-    console.log("Python Backend offline ou non atteignable. Fallback sur la simulation Gemini.");
+    console.log("Python Backend offline. Falling back to Cloud Synthesis.");
   }
 
-  // 2. FALLBACK DE SIMULATION (Si le serveur Uvicorn n'est pas lancé)
-  const prompt = `L'utilisateur teste la fonctionnalité RAG (Retrieval-Augmented Generation) sur son environnement de développement.
-Cependant, son serveur Python Elasticsearch local n'est pas atteignable pour le moment.
+  // 2. FALLBACK DE PRODUCTION (Cloud Synthesis Engine)
+  const systemContext = targetLanguage === 'english'
+    ? "You are the Mount AI Scholar Knowledge Engine. Provide a highly accurate, professional response using your cross-domain knowledge. Use bullet points and emojis. DO NOT mention you are an AI or simulation. RESPONSE MUST BE IN ENGLISH."
+    : `Tu es le moteur de connaissances Mount AI Scholar (Cloud Edition). Fournis une réponse structurée, précise et pédagogique. Utilise des bullet points et des emojis. Ne mentionne PAS que tu es une simulation. RÉPONSE DOIT ÊTRE EN ${language.toUpperCase()}.`;
 
-Tu vas SIMULER ce que le moteur RAG aurait répondu pour la requête : "${query}".
-Rédige une réponse structurée en ${language}. 
-Commence par une brève phrase disant que ceci est une **⚠️ Simulation (Backend Python hors ligne)**, puis donne l'information pertinente avec des bullet points.`;
+  const prompt = `${systemContext}\n\nRequête / Query: ${query}`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
+    const response = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt })
     });
-    return response.text || 'Erreur lors de la simulation RAG.';
+    if (!response.ok) throw new Error('API Error');
+    const data = await response.json();
+    return data.text || 'Erreur de synthèse de données.';
   } catch (err) {
-    console.error("Gemini API Error (RAG Simulation):", err);
-    return "Erreur critique de connexion. Vérifie ton réseau et ton backend FastAPI.";
+    console.error("Gemini API Error (Knowledge Base):", err);
+    return "Système de connaissance momentanément indisponible. Vérifiez votre connexion réseau.";
   }
 }
 
 export async function generateQuiz(text: string, language: string): Promise<string> {
   if (!text) return "";
   
-  const prompt = `Génère un quiz de 3 questions à choix multiples (QCM) ludique basé sur le texte suivant. Pour chaque question, propose 3 options (A, B, C) et indique la bonne réponse à la fin avec une petite explication. Le quiz DOIT être rédigé dans la langue suivante: ${language}. Ton ton doit être encourageant et adapté à tous les apprenants.\n\nTexte:\n${text}`;
+  const targetLanguage = language.toLowerCase();
+  const quizInstruction = targetLanguage === 'english'
+    ? "Generate a fun 3-question MCQ quiz based on the following text. For each question, provide 3 options (A, B, C) and indicate the correct answer at the end with a brief explanation. THE QUIZ MUST BE EXCLUSIVELY IN ENGLISH."
+    : `Génère un quiz de 3 questions à choix multiples (QCM) ludique basé sur le texte suivant. Pour chaque question, propose 3 options (A, B, C) et indique la bonne réponse à la fin avec une petite explication. LE QUIZ DOIT ÊTRE EXCLUSIVEMENT EN ${language.toUpperCase()}.\n\nTexte:`;
+
+  const prompt = `${quizInstruction}\n\n${text}`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
+    const response = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt })
     });
-    return response.text || 'Erreur lors de la génération du quiz.';
+    if (!response.ok) throw new Error('API Error');
+    const data = await response.json();
+    return data.text || 'Erreur lors de la génération du quiz.';
   } catch (err) {
     console.error("Gemini API Error (Quiz):", err);
     return "Erreur lors de la création du quiz.";
@@ -87,25 +104,26 @@ export async function generateQuiz(text: string, language: string): Promise<stri
 export async function generateMindMap(text: string, language: string): Promise<string> {
   if (!text) return "";
   
-  const prompt = `Crée un diagramme (mindmap ou graph TD) en syntaxe Mermaid.js pour résumer le texte suivant.
-IMPORTANT : Ne renvoie strictement QUE le code Mermaid brut. N'inclus aucun texte avant ou après, pas de markdown \`\`\`mermaid.
-Le graphe DOIT commencer directement par "graph TD" ou "mindmap".
-Évite les caractères spéciaux (parenthèses, crochets, accolades) à l'intérieur du texte des noeuds.
-Langue du diagramme : ${language}.
-  
-Texte :
-${text}`;
+  const targetLanguage = language.toLowerCase();
+  const mindMapInstruction = targetLanguage === 'english'
+    ? "Create a Mermaid.js diagram (graph TD) to summarize the text. Return ONLY the raw Mermaid code. Use double quotes for ALL labels: A[\"Node\"] -->|\"Link\"| B[\"Node\"]. No text before or after. All text in ENGLISH."
+    : `Crée un diagramme (graph TD) en syntaxe Mermaid.js pour résumer le texte suivant. Ne renvoie QUE le code Mermaid brut. IMPORTANT: Utilise SYSTEMATIQUEMENT des doubles guillemets pour TOUS les textes (nœuds ET liens) : A["Texte"] -->|"Lien"| B["Texte"]. N'ajoute JAMAIS de ">" après le lien (ex: incorrect: -->|Lien|>). La langue doit être : ${language.toUpperCase()}.`;
+
+  const prompt = `${mindMapInstruction}\n\nTexte / Text:\n${text}`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
+    const response = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt })
     });
+    if (!response.ok) throw new Error('API Error');
+    const data = await response.json();
     
-    let code = response.text || '';
+    let code = data.text || '';
     
     // Essayer d'extraire depuis un bloc de code markdown
-    const mdMatch = code.match(/```(?:mermaid)?\n?([\s\S]*?)```/);
+    const mdMatch = code.match(/\`\`\`(?:mermaid)?\n?([\s\S]*?)\`\`\`/);
     if (mdMatch) {
       code = mdMatch[1];
     } else {
@@ -116,7 +134,7 @@ ${text}`;
       }
     }
     
-    code = code.replace(/```mermaid\n?/g, '').replace(/```\n?/g, '').trim();
+    code = code.replace(/\`\`\`mermaid\n?/g, '').replace(/\`\`\`\n?/g, '').trim();
     
     return code || 'graph TD\n  A[Erreur de Génération]';
   } catch (err) {

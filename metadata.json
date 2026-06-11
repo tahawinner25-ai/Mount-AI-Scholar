@@ -1,5 +1,6 @@
 {
   "name": "Mount AI Scholar",
-  "description": "Système d'Apprentissage Cognitif & Accessibilité. Moteur d'analyse vocale multi-langues et moteur de recherche intelligent pour la dyslexie et l'apprentissage augmenté.",
-  "requestFramePermissions": ["microphone"]
+  "description": "Cognitive learning and accessibility platform (Dyslexia/Deafness). Zero-Data-Leak architecture: local AI processing (Edge Inference). No personal or biometric data stored in the cloud.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

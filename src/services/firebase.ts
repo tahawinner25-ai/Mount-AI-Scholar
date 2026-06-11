@@ -1,10 +1,19 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, enableMultiTabIndexedDbPersistence } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+
+// Activation de la persistance hors ligne (Offline Mode pur)
+enableMultiTabIndexedDbPersistence(db).catch((err) => {
+  if (err.code === 'failed-precondition') {
+    console.warn("Multi-tab conflict for offline persistence.");
+  } else if (err.code === 'unimplemented') {
+    console.warn("Browser context lacks offline persistence support.");
+  }
+});
 export const auth = getAuth();
 export const googleProvider = new GoogleAuthProvider();
 

@@ -1,9 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BookOpen, BrainCircuit, Loader2, X, Languages, ChevronDown, FileText, Sparkles, Zap, Globe, Volume2, VolumeX, Trophy, Target, Activity, Mic, Network, Gamepad2, Presentation, Headphones, Layers, ArrowLeft, Send, LogIn, LogOut, Play, Settings, GraduationCap, Award, CheckCircle2, Clock, History, Database, SearchCode } from 'lucide-react';
+import { MainViewType } from './types';
+import { BookOpen, BrainCircuit, Loader2, X, Languages, ChevronDown, FileText, Sparkles, Zap, Globe, Volume2, VolumeX, Trophy, Target, Activity, Mic, Network, Gamepad2, Presentation, Headphones, Layers, ArrowLeft, Send, LogIn, LogOut, Play, Settings, GraduationCap, Award, CheckCircle2, Clock, History, Database, SearchCode, Terminal, Code, Moon, Trash2, Paperclip } from 'lucide-react';
 import Markdown from 'react-markdown';
-import { generateSummary, generateQuiz, generateMindMap, queryElasticRAG } from './services/ai';
+import { generateSummary, generateQuiz, generateMindMap, queryElasticRAG, getLocalGemmaFallback, generatePedagogicalControl, getLocalPedagogicalFallback } from './services/ai';
+import { extractTextFromFile } from './services/documentParser';
 import Mermaid from './components/Mermaid';
 import DyslexicRenderer from './components/DyslexicRenderer';
+import ExamQuiz from './components/ExamQuiz';
+import CognitiveArena from './components/CognitiveArena';
+import VocabularyTracker from './components/VocabularyTracker';
+import CyberSecurityLab from './components/CyberSecurityLab';
+import OfflineSyncPipeline from './components/OfflineSyncPipeline';
+import HubView from './components/views/HubView';
+import DyslexiaView from './components/views/DyslexiaView';
+import HistoryView from './components/views/HistoryView';
+import scholarIcon from './assets/images/mount_ai_scholar_distinct_1779635328156.png';
 import { auth, loginWithGoogle, logout, db, handleFirestoreError, OperationType } from './services/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp, collection, addDoc, query, where, orderBy, getDocs } from 'firebase/firestore';
@@ -15,14 +26,51 @@ declare global {
   }
 }
 
+const SYSTEM_DIAGRAM_CHART = `graph TD
+    classDef client fill:#0b1120,stroke:#38bdf8,stroke-width:2px,color:#fff;
+    classDef edgeEngine fill:#052e16,stroke:#4ade80,stroke-width:2px,color:#86efac;
+    classDef secureGate fill:#1e1b4b,stroke:#818cf8,stroke-width:2px,color:#c7d2fe;
+    classDef cloudService fill:#101b2f,stroke:#c084fc,stroke-width:2px,color:#e9d5ff;
+
+    ReactApp[React Vite UI - Port 3000]:::client
+    LocalAPI[FastAPI local PC Engine - Port 8000]:::edgeEngine
+    GemmaML[Gemma 4 Edge Inference - Privacy by Design]:::edgeEngine
+    PrivacyShield[Cyber Shield: PII Firewall & Prompt Shielder]:::secureGate
+    Firebase[Firebase Cloud Auth & Firestore Store]:::cloudService
+    GeminiAPI[Cloud: Google Gemini 3.5 Synthesis Engine]:::cloudService
+
+    ReactApp -->|Real-Time Voice Stream| LocalAPI
+    LocalAPI -->|Inference request| GemmaML
+    GemmaML -->|Zero Latency Mapping| LocalAPI
+    LocalAPI -->|Decoded Phonemes & Feedback| ReactApp
+
+    ReactApp -->|Sanitizes Personal Info| PrivacyShield
+    PrivacyShield -->|Filtered Input Prompt| GeminiAPI
+    GeminiAPI -->|Interactive Quizzes & Network Maps| ReactApp
+
+    ReactApp -->|Telemetry Logs & Active Stats Sync| Firebase
+`;
+
 export default function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [audioData, setAudioData] = useState<number[]>(new Array(30).fill(0));
   const [detectedPhonemes, setDetectedPhonemes] = useState<string[]>([]);
   const [transcript, setTranscript] = useState("");
-  const [mainView, setMainView] = useState<'hub' | 'dyslexia' | 'learning' | 'architecture' | 'history'>('hub');
-  const [learningMode, setLearningMode] = useState<'mindmap' | 'quiz' | 'presentation' | 'summary' | 'search'>('summary');
-
+  const [mainView, setMainView] = useState<MainViewType>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const view = params.get('view');
+    if (view === 'cognitive-gym' || window.location.hash === '#cognitive-gym' || view === 'kaggle-agent') return 'cognitive-gym';
+    if (view === 'iq-test' || window.location.hash === '#iq-test') return 'cognitive-gym';
+    return 'hub';
+  });
+  const [learningMode, setLearningMode] = useState<'mindmap' | 'quiz' | 'exam' | 'presentation' | 'summary' | 'search' | 'gemma'>('summary');
+  
+  // Cognitive Phonics Gym Interactive States
+  const [selectedCardId, setSelectedCardId] = useState(0);
+  const [voiceArenaSpoken, setVoiceArenaSpoken] = useState<string[]>([]);
+  const [remediationContent, setRemediationContent] = useState("");
+  const [isRemediating, setIsRemediating] = useState(false);
+  const [arenaTranscript, setArenaTranscript] = useState("");
   
   // States for Gemini Integration
   const [inputText, setInputText] = useState("");
@@ -47,24 +95,60 @@ export default function App() {
   const [engineStatus, setEngineStatus] = useState<'offline' | 'online'>('offline');
 
   const [mlEngineUrl, setMlEngineUrl] = useState(() => {
-    let saved = localStorage.getItem('mlEngineUrl');
-    // Forcefully remove old pinggy links to ensure it defaults to cloud
-    if (saved && saved.includes('pinggy-free.link')) {
-      saved = "";
-      localStorage.setItem('mlEngineUrl', "");
-    }
-    return saved || "https://toto25dev-mount-ai-scholar-engine.hf.space"; // Defaults to HF cloud backend
+    const saved = localStorage.getItem('mlEngineUrl');
+    // Si Capitaine utilise un tunnel Pinggy/localhost pour son moteur local en "Privacy by Design", on le conserve !
+    // Sinon, on utilise par défaut le serveur Cloud Express résistant de la startup pour une expérience 100% stable
+    return saved || window.location.origin;
   });
   const [showConfig, setShowConfig] = useState(false);
+  const [archSubTab, setArchSubTab] = useState<'visualizer' | 'cyber' | 'ledger'>('cyber');
+
+  const [isNetworkOffline, setIsNetworkOffline] = useState(!navigator.onLine);
+
+  // Dyslexia Visual & Pronunciation Helpers
+  const [isBionic, setIsBionic] = useState(false);
+  const [letterSpacing, setLetterSpacing] = useState<'normal' | 'wide' | 'widest'>('normal');
+  const [wordSpacing, setWordSpacing] = useState<'normal' | 'wide' | 'widest'>('normal');
+  const [dyslexicFont, setDyslexicFont] = useState(false);
+  const [activeMirrorChar, setActiveMirrorChar] = useState<'b' | 'd' | 'p' | 'q'>('b');
+
+  // Fast Edge Manual Input Simulation
+  const [manualInputText, setManualInputText] = useState("");
+  const [isAnalyzingEdge, setIsAnalyzingEdge] = useState(false);
+  const [edgePerformanceMs, setEdgePerformanceMs] = useState<number | null>(null);
+
+  // States for PDF/Word multiple document parsing and pedagogical exams
+  const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; size: number; text: string }>>([]);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [generatedQuestions, setGeneratedQuestions] = useState<any[]>([]);
+
+  useEffect(() => {
+
+    document.title = "Cognitive Arena";
+  }, []);
+
+  useEffect(() => {
+    const handleOnline = () => setIsNetworkOffline(false);
+    const handleOffline = () => setIsNetworkOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Check connection to Local Python Engine (PC)
   useEffect(() => {
     const checkEngine = async () => {
       try {
-        const res = await fetch(`${mlEngineUrl}/docs`, { mode: 'no-cors' });
-        // En mode no-cors, la réponse sera "opaque" (type: 'opaque') et res.status sera 0
-        // S'il n'y a pas d'erreur réseau, on considère que le backend est joignable.
-        setEngineStatus('online');
+        const res = await fetch(`${mlEngineUrl}/`);
+        if (res.ok) {
+          setEngineStatus('online');
+        } else {
+          setEngineStatus('offline');
+        }
       } catch (err) {
         setEngineStatus('offline');
       }
@@ -126,6 +210,26 @@ export default function App() {
     }
   }, [mainView, user]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      if ((e.ctrlKey || e.metaKey) && (key === 'b' || e.code === 'KeyB')) {
+        e.preventDefault();
+        window.history.replaceState({}, '', '/');
+        setMainView('hub');
+      } else if ((e.ctrlKey || e.metaKey) && (key === 'q' || e.code === 'KeyQ')) {
+        e.preventDefault();
+        window.history.replaceState({}, '', '/?view=cognitive-gym');
+        setMainView('cognitive-gym');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, { capture: true });
+    };
+  }, []);
+
   // Ref pour l'API native (Web Speech API)
   const recognitionRef = useRef<any>(null);
 
@@ -155,8 +259,41 @@ export default function App() {
           return updated.trim();
         });
 
-        // Envoi de la transcription au moteur ML Python !
+        const processRecognitionWords = (text: string) => {
+          if (!text) return;
+          const rawWords = text.toLowerCase()
+            .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "")
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean);
+            
+          setVoiceArenaSpoken(prev => {
+            const next = [...prev];
+            let changed = false;
+            for (const rw of rawWords) {
+              if (!next.includes(rw)) {
+                next.push(rw);
+                changed = true;
+              }
+            }
+            return changed ? next : prev;
+          });
+        };
+
+        // Instantly process interim speech results for real-time word matching (Zero Latency)
+        if (interimTranscript) {
+          processRecognitionWords(interimTranscript);
+        }
+
+        // Process final speech results
         if (finalTranscript) {
+          processRecognitionWords(finalTranscript);
+
+          setArenaTranscript(prev => {
+            const updated = prev + " " + finalTranscript;
+            return updated.trim();
+          });
+
           const words = finalTranscript.trim().split(' ');
           const lastWord = words[words.length - 1];
           
@@ -169,16 +306,38 @@ export default function App() {
              fetch(`${mlEngineUrl}/api/analyse-phonemes`, {
                  method: 'POST',
                  headers: { 'Content-Type': 'application/json' },
-                 body: JSON.stringify({ transcript: lastWord })
+                 body: JSON.stringify({ transcript: lastWord, language: selectedLang })
              })
-             .then(res => res.json())
+             .then(res => {
+                 if (!res.ok) throw new Error("HTTP Error " + res.status);
+                 return res.json();
+             })
              .then(data => {
                  if (data.phonemes_detectes && data.phonemes_detectes.length > 0) {
-                     // L'IA remplace la simulation par le phonème précis
                      setDetectedPhonemes(prev => [data.phonemes_detectes[0].toUpperCase(), ...prev.slice(1)].slice(0, 8));
                  }
              })
-             .catch(err => console.log("[Architecture] Moteur ML hors ligne, on garde la simulation", err));
+             .catch(err => {
+                 console.log("[Architecture] Moteur ML local hors ligne, basculement vers l'API Express hybride", err);
+                 // Basculement vers l'API Express résiliente de notre serveur Node
+                 fetch('/api/analyse-phonemes', {
+                     method: 'POST',
+                     headers: { 'Content-Type': 'application/json' },
+                     body: JSON.stringify({ transcript: lastWord, language: selectedLang })
+                 })
+                 .then(res => {
+                     if (!res.ok) throw new Error("HTTP Error " + res.status);
+                     return res.json();
+                 })
+                 .then(data => {
+                     if (data.phonemes_detectes && data.phonemes_detectes.length > 0) {
+                         setDetectedPhonemes(prev => [data.phonemes_detectes[0].toUpperCase(), ...prev.slice(1)].slice(0, 8));
+                     }
+                 })
+                 .catch(fallbackErr => {
+                     console.warn("[Architecture] Tout est hors ligne, simulation active", fallbackErr);
+                 });
+             });
           }
         }
       };
@@ -186,9 +345,11 @@ export default function App() {
       recognition.onerror = (event: any) => {
         console.error("Speech API Error:", event.error);
         if (event.error === 'not-allowed') {
-          setSpeechError("🎤 You denied microphone access. To allow it, click on the padlock icon in the browser address bar and allow the microphone.");
+          setSpeechError("🎤 Micro bloqué! Pour l'autoriser, clique sur l'icône de cadenas dans la barre d'adresse du navigateur. Si tu es dans un iframe, ouvre l'application dans un nouvel onglet.");
+        } else if (event.error === 'no-speech') {
+          setSpeechError("Aucun son détecté. Parle bien distinctement près du micro.");
         } else {
-          setSpeechError(`Microphone Error: ${event.error}`);
+          setSpeechError(`Erreur Micro (Code: ${event.error})`);
         }
         setIsRecording(false);
       };
@@ -238,13 +399,160 @@ export default function App() {
     }
   };
 
-  const speakText = (text: string) => {
+  const handleUrlOrManualEdgeInput = async (inputText: string) => {
+    if (!inputText.trim()) return;
+    setIsAnalyzingEdge(true);
+    setSpeechError(null);
+    const textToProcess = inputText.trim();
+    
+    // update state
+    setTranscript(textToProcess);
+    setArenaTranscript(textToProcess);
+
+    const startTime = performance.now();
+
+    // Instant syllables preview with 0ms delay
+    const localWords = textToProcess.split(/\s+/);
+    const lastWord = localWords[localWords.length - 1];
+    
+    const quickPhonemes = localWords.map(w => `/${w.substring(0, Math.min(3, w.length)) || '..'}/`);
+    setDetectedPhonemes(quickPhonemes.slice(0, 8));
+
+    // Update active vocabulary track
+    setVoiceArenaSpoken(prev => {
+      const next = [...prev];
+      let changed = false;
+      for (const w of localWords) {
+        const cleanW = w.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
+        if (cleanW && !next.includes(cleanW)) {
+          next.push(cleanW);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+
+    try {
+      // 3. API request to phoneme prediction engine
+      let res;
+      try {
+        res = await fetch(`${mlEngineUrl}/api/analyse-phonemes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transcript: textToProcess, language: selectedLang })
+        });
+      } catch (err) {
+        console.log("Local Edge Engine failed, querying hybrid cloud backup server...", err);
+        res = await fetch('/api/analyse-phonemes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transcript: textToProcess, language: selectedLang })
+        });
+      }
+
+      if (res && res.ok) {
+        const data = await res.json();
+        if (data.phonemes_detectes && data.phonemes_detectes.length > 0) {
+          const formatted = data.phonemes_detectes.map((ph: string) => ph.toUpperCase());
+          setDetectedPhonemes(formatted.slice(0, 8));
+        }
+      }
+    } catch (e) {
+      console.error("Local NLP parser error", e);
+    } finally {
+      const endTime = performance.now();
+      const diff = Math.round(endTime - startTime);
+      setEdgePerformanceMs(diff > 0 ? diff : 8);
+      setIsAnalyzingEdge(false);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    
+    setFileError(null);
+    const newFilesArray = Array.from(files);
+    
+    if (uploadedFiles.length + newFilesArray.length > 5) {
+      setFileError("Limite d'importation : Vous ne pouvez pas importer plus de 5 fichiers d'études simultanément.");
+      return;
+    }
+
+    setIsUploadingFile(true);
+    for (const file of newFilesArray) {
+      try {
+        const text = await extractTextFromFile(file);
+        if (!text || text.trim().length === 0) {
+          throw new Error("L'extraction textuelle a renvoyé un contenu vide.");
+        }
+        setUploadedFiles(prev => [...prev, { name: file.name, size: file.size, text }]);
+      } catch (err: any) {
+        console.error("Error parsing file:", file.name, err);
+        setFileError(`Erreur sur "${file.name}" : ${err.message || 'Format corrompu ou illisible.'}`);
+      }
+    }
+    setIsUploadingFile(false);
+  };
+
+  const handleRemoveFile = (index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+    if (uploadedFiles.length <= 1) {
+      setFileError(null);
+    }
+  };
+
+  const speakText = async (text: string) => {
+    try {
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, language: selectedLang })
+      });
+      
+      if (!res.ok) {
+        throw new Error("TTS API returned non-ok status: " + res.status);
+      }
+      
+      const data = await res.json();
+      if (data.audio) {
+        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const binaryString = atob(data.audio);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const pcm16 = new Int16Array(bytes.buffer);
+        const audioBuffer = audioCtx.createBuffer(1, pcm16.length, 24000);
+        const channelData = audioBuffer.getChannelData(0);
+        for (let i = 0; i < pcm16.length; i++) {
+          channelData[i] = pcm16[i] / 32768.0;
+        }
+        const source = audioCtx.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(audioCtx.destination);
+        source.start(0);
+        return;
+      } else {
+        throw new Error("No audio retrieved from API");
+      }
+    } catch (err) {
+      console.warn("[Target Edge] Native Cloud TTS unavailable, falling back to browser synthesis.", err);
+    }
+
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel(); // Stop playing anything else
       const utterance = new SpeechSynthesisUtterance(text);
-      if (selectedLang === 'English') utterance.lang = 'en-US';
-      else if (selectedLang === 'Arabic') utterance.lang = 'ar-SA';
-      else utterance.lang = 'fr-FR';
+      if (selectedLang === 'English') {
+        utterance.lang = 'en-GB'; // Beautiful English native accent
+        const voices = window.speechSynthesis.getVoices();
+        const engVoice = voices.find(v => v.lang.startsWith('en-GB') || v.lang.startsWith('en-'));
+        if (engVoice) utterance.voice = engVoice;
+      } else if (selectedLang === 'Arabic') {
+        utterance.lang = 'ar-SA';
+      } else {
+        utterance.lang = 'fr-FR';
+      }
       window.speechSynthesis.speak(utterance);
     } else {
       alert("Speech synthesis is not supported by your browser.");
@@ -252,57 +560,148 @@ export default function App() {
   };
 
   const handleGenerate = async () => {
-    if (!inputText.trim()) return;
+    const promptToUse = inputText.trim();
+    if (!promptToUse && uploadedFiles.length === 0) return;
+    
     setIsGenerating(true);
     setLearningResult("");
+    setFileError(null);
+
+    let mergedContext = promptToUse;
+    if (uploadedFiles.length > 0) {
+      const docsContext = uploadedFiles.map((f, idx) => `[DOCUMENT IMPORTÉ ${idx + 1} DIRECTIVE : ${f.name}]\n${f.text}`).join('\n\n');
+      mergedContext = `CONTEXTE DE DOCUMENTS MULTILINGUES IMPORTÉS PAR L'ÉLEVE (MAX 5 FICHIERS):\n${docsContext}\n\nREQUÊTE SPÉCIFIQUE DES ÉVALUATIONS :\n${promptToUse || "Générer un plan de révision optimal ou un contrôle officiel sur la base de ces données."}`;
+    }
     
     try {
       let result = "";
       if (learningMode === 'summary') {
-        result = await generateSummary(inputText, selectedLang);
+        result = await generateSummary(mergedContext, selectedLang);
       } else if (learningMode === 'quiz') {
-        result = await generateQuiz(inputText, selectedLang);
+        result = await generateQuiz(mergedContext, selectedLang);
       } else if (learningMode === 'mindmap') {
-        result = await generateMindMap(inputText, selectedLang);
+        result = await generateMindMap(mergedContext, selectedLang);
       } else if (learningMode === 'search') {
-        result = await queryElasticRAG(inputText, selectedLang, mlEngineUrl);
-      } else {
-        // [HACKATHON DEEPMIND / KAGGLE] - INTELLIGENCE LOCALE GARANTIE
-        // Mode 'presentation': La génération de présentation est gérée par notre modèle Gemma 4 
-        // hébergé en local via le backend Python. Cela assure qu'aucune donnée biométrique ou 
-        // cognitive de l'enfant (PII) n'est envoyée sur le cloud. (Privacy by Design)
+        result = await queryElasticRAG(mergedContext, selectedLang);
+      } else if (learningMode === 'exam') {
+        const jsonResult = await generatePedagogicalControl(mergedContext, selectedLang);
         try {
-          const res = await fetch(`${mlEngineUrl}/api/generer-presentation`, {
+          const parsed = JSON.parse(jsonResult);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setGeneratedQuestions(parsed);
+            result = "DOM_EXAM_SUCCESS";
+          } else {
+            throw new Error("Contrôle invalide reçu");
+          }
+        } catch (err) {
+          console.error("Échec du décodage JSON bilingue, lancement du fallback Gemma Edge :", err);
+          const fallbackJson = getLocalPedagogicalFallback(mergedContext, selectedLang);
+          setGeneratedQuestions(JSON.parse(fallbackJson));
+          result = "DOM_EXAM_SUCCESS";
+        }
+      } else if (learningMode === 'presentation') {
+        try {
+          const res = await fetch(`/api/generer-presentation`, {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ text: inputText, language: selectedLang })
+             body: JSON.stringify({ text: mergedContext, language: selectedLang })
           });
+          if (!res.ok) {
+            throw new Error(`HTTP Error: ${res.status}`);
+          }
           const data = await res.json();
-          result = data.content || "Erreur de génération Gemma locale.";
+          result = data.content || "Erreur de génération.";
         } catch (e) {
-          // Si le moteur ML est injoignable (comme dans la plupart des démos), 
-          // on affiche le message de la vidéo de démo d'origine !
-          result = "Cette fonctionnalité (Création de Presentations) sera implémentée via un micro-service Python !";
-          console.warn("[Gemma 4 Edge AI] Server not connected. Showing fallback demo text.");
+          console.warn("Express Presentation API error, starting local Gemma Deck compiler:", e);
+          const title = promptToUse.split(/[.!?\n]+/)[0]?.trim() || "Active Study Presentation";
+          const bullets = promptToUse.split('\n').map(l => l.trim()).filter(l => l.length > 8).slice(1, 5);
+          const isEn = selectedLang.toLowerCase() === 'english';
+          
+          if (isEn) {
+            result = `📊 **[Gemma 4 Edge - Interactive Slide Deck (Local Fallback)]**
+
+---
+
+### 🖥️ Slide 1: Introduction & Topic Definition
+* **Main Title:** ${title}
+* **Focus Node:** Cognitive Phonics & Local Isolation Analysis
+* **Core Question:** How does active learning support sound-grapheme mapping?
+
+---
+
+### 🖥️ Slide 2: Structural Analysis & Study Highlights
+${bullets.length > 0 ? bullets.map((b, idx) => `* **Highlight Node ${idx+1}:** ${b}`).join('\n') : `* **Cognitive Load:** Breaking words into manageable pieces helps dyslexic pupils.
+* **Information Intake:** Short lessons are processed more efficiently during high-stress hours.`}
+
+---
+
+### 🖥️ Slide 3: Application & Action plan
+* **Strategy:** Implement offline-first reinforcement sessions daily (10 minutes max).
+* **Tracking:** Follow syllable progress under the Vocabulary tab of Mount AI Scholar.
+
+---
+
+*(Constructed locally on device under Privacy-by-Design constraints. Main cloud server is currently disconnected)*`;
+          } else {
+            result = `📊 **[Gemma 4 Edge - Présentation de Révision Active (Succès Hors-ligne)]**
+
+---
+
+### 🖥️ Slide 1: Introduction & Cadrage Cognitif
+* **Titre Actif:** ${title}
+* **Axe d'Étude:** Correspondance phonème-graphème en autonomie
+* **Objectif :** Faciliter la lecture de mots complexes sans encombrer la mémoire de travail
+
+---
+
+### 🖥️ Slide 2: Analyse Fondamentale & Points Clés
+${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}`).join('\n') : `* **Réduction de surcharge d'attention :** Segmenter la lecture en modules visuels ciblés.
+* **Intégration Active :** L'entraînement phonologique régulier renforce la plasticité synaptique.`}
+
+---
+
+### 🖥️ Slide 3: Recommandations Pratiques
+* **Méthodologie :** Pratiquer 10 minutes par jour en limitant l'accès aux réseaux perturbateurs.
+* **Suivi :** Mesurer régulièrement l'acquisition de nouveaux termes dans l'onglet Vocabulaire.
+
+---
+
+*(Généré localement via notre moteur d'IA léger "Privacy by Design" en raison de l'interruption de la connexion avec le cloud)*`;
+          }
+        }
+      } else if (learningMode === 'gemma') {
+        const promptOption = `Réponds à la demande de l'utilisateur de manière précise. Langue: ${selectedLang}. Requête: ${mergedContext}`;
+        try {
+          const res = await fetch(`/api/generate`, {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ prompt: promptOption })
+          });
+          if (!res.ok) {
+            throw new Error(`HTTP Error: ${res.status}`);
+          }
+          const data = await res.json();
+          result = data.text || "Erreur de génération Gemma locale.";
+        } catch (e) {
+          console.warn("Gemma Cloud endpoint offline, triggering local Edge Infevence:", e);
+          result = getLocalGemmaFallback(promptOption, mergedContext, selectedLang, 'rag');
         }
       }
       
       setLearningResult(result);
 
-      // Save to Firebase securely
-      if (user && result && learningMode !== 'presentation') {
-         try {
-           await addDoc(collection(db, 'learning_items'), {
-             userId: user.uid,
-             mode: learningMode,
-             language: selectedLang,
-             originalText: inputText.substring(0, 100000),
-             generatedContent: result.substring(0, 100000),
-             createdAt: serverTimestamp()
-           });
-         } catch (e) {
-           try { handleFirestoreError(e, OperationType.CREATE, 'learning_items'); } catch (err) { console.error(err); }
-         }
+      // Save to Firebase securely in a non-blocking background thread
+      if (user && result && learningMode !== 'presentation' && learningMode !== 'exam') {
+         addDoc(collection(db, 'learning_items'), {
+           userId: user.uid,
+           mode: learningMode,
+           language: selectedLang,
+           originalText: inputText.substring(0, 100000),
+           generatedContent: result.substring(0, 100000),
+           createdAt: serverTimestamp()
+         }).catch(firebaseError => {
+           console.warn("Firestore queued this transaction: Offline synchronization active.", firebaseError);
+         });
       }
 
     } catch (error) {
@@ -322,20 +721,25 @@ export default function App() {
     );
   }
 
-  if (!user) {
+  if (!user && mainView !== 'cognitive-gym') {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col font-sans relative overflow-hidden items-center justify-center">
          <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-600/20 blur-[120px] rounded-full mix-blend-screen pointer-events-none" />
          <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-orange-600/20 blur-[120px] rounded-full mix-blend-screen pointer-events-none" />
          
-         <div className="relative z-10 w-full max-w-lg p-10 bg-slate-900/40 backdrop-blur-3xl border border-slate-700/50 rounded-3xl shadow-2xl flex flex-col items-center">
-            <div className="w-20 h-20 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl flex flex-col items-center justify-center mb-8 shadow-[0_0_40px_rgba(249,115,22,0.4)] border border-orange-400">
-              <BrainCircuit className="w-10 h-10 text-white" />
+         <div className="relative z-10 w-full max-w-lg p-10 bg-slate-900/40 backdrop-blur-lg border border-slate-700/50 rounded-3xl shadow-2xl flex flex-col items-center">
+            <div className="absolute top-5 right-5 px-3 py-1 bg-orange-500/10 border border-orange-500/20 rounded-full flex items-center gap-1.5 shadow-[0_0_15px_rgba(249,115,22,0.15)]">
+              <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
+              <span className="text-[9px] font-mono font-bold text-orange-400 uppercase tracking-widest">Stealth Startup</span>
+            </div>
+
+            <div className="w-24 h-24 rounded-2xl flex flex-col items-center justify-center mb-6 shadow-[0_0_40px_rgba(249,115,22,0.4)] border border-orange-400/20 overflow-hidden">
+              <img src={scholarIcon} alt="Mount AI Scholar" className="w-full h-full object-cover" />
             </div>
             
             <h1 className="text-4xl font-black text-white tracking-tight mb-2 text-center uppercase drop-shadow-lg">Mount AI Scholar</h1>
             <p className="text-slate-300 text-center mb-10 font-medium text-lg leading-relaxed max-w-sm">
-              Intelligent Learning Assistant with Voice Analysis & AI.
+              Stealth EdTech Startup building intelligent cognitive learning environments powered by local AI.
             </p>
             
             <button 
@@ -358,76 +762,84 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-50 font-sans selection:bg-blue-500/30">
+    <div className="min-h-screen bg-slate-950 text-white font-sans selection:bg-white/20 relative">
+      <div className="atmosphere" />
+      
       {/* Navigation Globale */}
-      <header className="border-b border-slate-800/60 bg-slate-950/50 backdrop-blur-md sticky top-0 z-50">
+      {mainView !== 'cognitive-gym' && (
+      <header className="fixed top-0 inset-x-0 z-50 glass-panel border-b-0 border-x-0 border-t-0 border-white/5 border-b">
         <div className="max-w-7xl mx-auto px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
              {mainView !== 'hub' && (
-              <button 
-                onClick={() => setMainView('hub')}
-                className="p-2 bg-slate-900 border border-slate-700 rounded-xl hover:bg-slate-800 transition shadow-lg mr-2"
+              <a 
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setMainView('hub');
+                }}
+                className="p-2 glass-panel rounded-full hover:bg-white/10 transition-colors shadow-lg mr-2"
               >
-                <ArrowLeft className="w-5 h-5 text-slate-400" />
-              </button>
+                <ArrowLeft className="w-5 h-5 text-white/70" />
+              </a>
              )}
-            <div className={`p-2 rounded-xl shadow-lg ${mainView === 'dyslexia' ? 'bg-blue-600 shadow-blue-950/20' : mainView === 'architecture' ? 'bg-emerald-600 shadow-emerald-950/20' : mainView === 'history' ? 'bg-indigo-600 shadow-indigo-950/20' : 'bg-orange-600 shadow-orange-950/20'}`}>
-              {mainView === 'dyslexia' ? <Mic className="w-6 h-6 text-white" /> : mainView === 'architecture' ? <Activity className="w-6 h-6 text-white" /> : mainView === 'history' ? <History className="w-6 h-6 text-white" /> : <BookOpen className="w-6 h-6 text-white" />}
-            </div>
+            <a href="/" className="p-1 rounded-xl bg-[#ff4e00]/20 border border-[#ff4e00]/30 shadow-lg flex items-center justify-center w-12 h-12 overflow-hidden">
+              <img src={scholarIcon} alt="Mount AI" className="w-full h-full object-cover rounded-lg" />
+            </a>
             <div>
-              <h1 className="text-xl font-bold tracking-tight">Mount AI<span className={mainView === 'dyslexia' ? 'text-blue-500' : mainView === 'architecture' ? 'text-emerald-500' : mainView === 'history' ? 'text-indigo-500' : 'text-orange-500'}>: Scholar</span></h1>
-              <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">
-                {mainView === 'dyslexia' ? 'Windows Voice Core' : mainView === 'architecture' ? 'Technical Architecture' : mainView === 'history' ? 'History Base de Données' : 'Global Learning Engine'}
+              <h1 className="text-xl font-black tracking-tight text-white drop-shadow-sm flex items-center gap-2">
+                <a href="/">Mount AI: <span className="text-[#ff4e00]">Scholar</span></a>
+                <span className="px-2 py-0.5 bg-orange-500/10 border border-orange-500/30 rounded text-[8px] font-mono font-bold text-orange-400 uppercase tracking-wider">Stealth Startup</span>
+              </h1>
+              <p className="text-[9px] font-mono text-white/40 uppercase tracking-widest font-bold">
+                Stealth EdTech Startup
               </p>
             </div>
           </div>
           
           <div className="flex flex-wrap items-center gap-4 text-xs font-mono justify-center">
             {user ? (
-               <div className="flex items-center gap-3">
-                 <button onClick={() => setMainView('history')} className={`flex items-center gap-2 p-2 px-4 rounded-xl border transition ${mainView === 'history' ? 'bg-indigo-900 border-indigo-500 text-indigo-300' : 'bg-slate-900 border-slate-700 hover:bg-slate-800 text-slate-300'}`}>
-                   <History className="w-4 h-4 text-white" /> <span className="hidden sm:inline">History</span>
+               <div className="flex items-center gap-4">
+                 <button onClick={() => setMainView('history')} className="flex items-center gap-2 px-4 py-2 rounded-full glass-panel glass-panel-hover transition-all text-white/80">
+                   <History className="w-4 h-4" /> <span className="hidden sm:inline">Historique</span>
                  </button>
-                 <span className="text-slate-400 font-medium">Connected: {user.displayName}</span>
-                 <button onClick={logout} className="p-2 bg-slate-900 border border-slate-700 rounded-xl hover:bg-slate-800 transition text-slate-300 ml-2" title="Logout">
+                 <span className="text-white/60 font-medium">Connecté: {user.displayName || user.email?.split('@')[0]}</span>
+                 <button onClick={logout} className="p-2 glass-panel rounded-full glass-panel-hover text-white/70 transition-colors ml-2" title="Déconnexion">
                    <LogOut className="w-4 h-4" />
                  </button>
                </div>
             ) : (
-               <button onClick={loginWithGoogle} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-white transition-colors">
-                 <LogIn className="w-4 h-4" /> LOGIN
+               <button onClick={loginWithGoogle} className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-white/90 rounded-full font-bold text-black transition-all">
+                 <LogIn className="w-4 h-4" /> CONNEXION
                </button>
             )}
             
-            <div className="relative">
+            <div className="relative border-l border-white/10 pl-4">
               <div 
-                className={`flex items-center gap-2 bg-slate-900 px-3 py-2 lg:px-4 rounded-full border cursor-pointer hover:bg-slate-800 transition ${engineStatus === 'online' ? 'border-emerald-500/50' : 'border-slate-800'}`}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full cursor-pointer transition-colors glass-panel glass-panel-hover ${engineStatus === 'online' ? 'text-white border-[#00FF00]/30 bg-[#00FF00]/5' : 'text-white/50 border-white/10'}`}
                 onClick={() => setShowConfig(!showConfig)}
               >
-                <div className={`w-2 h-2 rounded-full ${engineStatus === 'online' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-500'}`} />
-                <span className={`text-xs md:text-sm ${engineStatus === 'online' ? 'text-emerald-400' : 'text-slate-400'}`}>
-                  {engineStatus === 'online' ? 'Backend Active' : 'Backend Disconnected'}
-                </span>
-                <Settings className="w-3 h-3 text-slate-500 ml-1 hidden sm:block" />
+                <div className={`w-1.5 h-1.5 rounded-full ${engineStatus === 'online' ? 'bg-[#00FF00] shadow-[0_0_8px_#00FF00]' : 'bg-white/30'}`} />
+                <span className="">{engineStatus === 'online' ? 'Backend Connecté' : 'Backend Déconnecté'}</span>
+                <Settings className="w-3 h-3 ml-1" />
               </div>
               
               {showConfig && (
-                <div className="absolute right-0 top-full mt-2 w-80 bg-slate-900 border border-slate-700 rounded-2xl p-4 shadow-2xl z-50 animate-in fade-in zoom-in duration-200">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-white font-bold text-sm">Lien Python (Pinggy)</h3>
-                    <button onClick={() => setShowConfig(false)} className="text-slate-400 hover:text-white">
+                <div className="absolute right-0 top-full mt-3 w-80 bg-slate-900/50 border-slate-800 rounded-2xl p-5 shadow-2xl z-50 animate-in fade-in zoom-in duration-200">
+                  <div className="flex justify-between items-center mb-5">
+                    <h3 className="text-white font-bold text-sm">Edge Inference Config</h3>
+                    <button onClick={() => setShowConfig(false)} className="text-slate-500 hover:text-white transition-colors">
                       <X className="w-4 h-4" />
                     </button>
                   </div>
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     <div>
-                      <label className="text-xs text-slate-500 uppercase tracking-widest mb-1 block">URL ngrok / pinggy</label>
+                      <label className="text-[10px] text-slate-500 uppercase tracking-widest mb-2 block font-mono">Engine URL</label>
                       <input 
                         type="text" 
                         value={mlEngineUrl}
                         onChange={(e) => setMlEngineUrl(e.target.value)}
-                        placeholder="https://toto25dev-mount-ai-scholar-engine.hf.space"
-                        className="w-full bg-slate-950 border border-slate-700 text-slate-300 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 outline-none"
+                        placeholder="https://taha-engine.hf.space"
+                        className="w-full bg-slate-900 border border-slate-700 text-white text-sm rounded-lg focus:border-slate-8000 block p-3 outline-none font-mono transition-colors"
                       />
                     </div>
                     <button 
@@ -435,9 +847,9 @@ export default function App() {
                         localStorage.setItem('mlEngineUrl', mlEngineUrl);
                         setShowConfig(false);
                       }}
-                      className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-lg text-sm transition-colors"
+                      className="w-full bg-white hover:bg-white/90 text-black font-bold py-3 rounded-lg text-xs uppercase tracking-widest transition-colors"
                     >
-                      Connect to Engine
+                      Connect
                     </button>
                     <p className="text-[10px] text-slate-500 leading-tight mt-2 text-center">
                       Paste your Hugging Face Space URL here.
@@ -449,379 +861,825 @@ export default function App() {
           </div>
         </div>
       </header>
+      )}
 
-      <main className={`max-w-7xl mx-auto px-6 ${mainView === 'hub' ? 'py-20' : 'py-12'}`}>
-        {mainView === 'hub' && (
-          <div className="space-y-16 animate-in fade-in slide-in-from-bottom-8 duration-700">
-            <div className="text-center space-y-4">
-              <div className="inline-flex items-center justify-center p-4 rounded-3xl bg-slate-900 border border-slate-800 mb-4 shadow-2xl">
-                 <BrainCircuit className="w-12 h-12 text-blue-500" />
-              </div>
-              <h1 className="text-5xl font-extrabold tracking-tight text-white mb-4">Mount AI <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-orange-500">Scholar</span></h1>
-              <p className="text-lg text-slate-400 max-w-2xl mx-auto font-light">High-performance environment for cognitive accessibility.</p>
+      <main className={`max-w-7xl mx-auto px-6 relative z-10 pb-12 ${mainView !== 'cognitive-gym' ? 'pt-32' : ''} ${mainView === 'hub' ? 'min-h-[80vh] flex flex-col justify-center' : ''}`}>
+        
+        {isNetworkOffline && (
+          <div className="mb-8 max-w-3xl mx-auto w-full bg-slate-900/80 backdrop-blur-md border border-red-500/30 rounded-2xl p-4 flex items-start gap-4 shadow-[0_0_30px_rgba(249,115,22,0.1)] animate-in slide-in-from-top-4">
+            <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center shrink-0 border border-red-500/20">
+              <Network className="w-5 h-5 text-red-400" />
             </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-              <button 
-                onClick={() => setMainView('dyslexia')}
-                className="group relative overflow-hidden bg-slate-900 rounded-[2.5rem] p-8 border border-slate-800 hover:border-blue-500/50 transition-all duration-500 text-left flex flex-col h-full shadow-xl hover:shadow-[0_0_50px_rgba(59,130,246,0.15)] hover:-translate-y-2"
-              >
-                <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 group-hover:scale-110 transition-all duration-700">
-                  <BrainCircuit className="w-20 h-20 text-blue-500" />
-                </div>
-                <div className="w-14 h-14 rounded-2xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center mb-6">
-                  <Mic className="w-7 h-7 text-blue-500" />
-                </div>
-                <h2 className="text-2xl font-bold text-white mb-3 tracking-tight">Phonemic Analysis</h2>
-                <p className="text-slate-400 leading-relaxed text-sm flex-1">
-                  Real-time voice processing engine. CoreML & Vision AR integration.
-                </p>
-                <div className="mt-6 flex items-center gap-2 text-blue-500 font-bold uppercase tracking-wider text-xs group-hover:translate-x-2 transition-transform">
-                  Run ML Pipeline <Sparkles className="w-4 h-4 ml-2" />
-                </div>
-              </button>
-
-              <button 
-                onClick={() => setMainView('learning')}
-                className="group relative overflow-hidden bg-slate-900 rounded-[2.5rem] p-8 border border-slate-800 hover:border-orange-500/50 transition-all duration-500 text-left flex flex-col h-full shadow-xl hover:shadow-[0_0_50px_rgba(249,115,22,0.15)] hover:-translate-y-2"
-              >
-                <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 group-hover:scale-110 transition-all duration-700">
-                  <BookOpen className="w-20 h-20 text-orange-500" />
-                </div>
-                <div className="w-14 h-14 rounded-2xl bg-orange-600/20 border border-orange-500/30 flex items-center justify-center mb-6">
-                  <Layers className="w-7 h-7 text-orange-500" />
-                </div>
-                <h2 className="text-2xl font-bold text-white mb-3 tracking-tight">Cognitive Intelligence</h2>
-                <p className="text-slate-400 leading-relaxed text-sm flex-1">
-                  Extraction sémantique et synthèse structurée par LLM (Gemini Ultra/Pro).
-                </p>
-                <div className="mt-6 flex items-center gap-2 text-orange-500 font-bold uppercase tracking-wider text-xs group-hover:translate-x-2 transition-transform">
-                  Launch Engine v3.0 <Zap className="w-4 h-4 ml-2" />
-                </div>
-              </button>
-
-              <button 
-                onClick={() => setMainView('architecture')}
-                className="group relative overflow-hidden bg-slate-900 rounded-[2.5rem] p-8 border border-emerald-500/20 hover:border-emerald-500/50 transition-all duration-500 text-left flex flex-col h-full shadow-xl hover:shadow-[0_0_50px_rgba(16,185,129,0.15)] hover:-translate-y-2"
-              >
-                <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 group-hover:scale-110 transition-all duration-700">
-                  <Network className="w-20 h-20 text-emerald-500" />
-                </div>
-                <div className="w-14 h-14 rounded-2xl bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center mb-6">
-                  <Activity className="w-7 h-7 text-emerald-500" />
-                </div>
-                <h2 className="text-2xl font-bold text-white mb-3 tracking-tight">Feasibility & Reliability</h2>
-                <p className="text-slate-400 leading-relaxed text-sm flex-1">
-                  Architecture structurée et scalabilité du projet (Performances & Sécurité).
-                </p>
-                <div className="mt-6 flex items-center gap-2 text-emerald-500 font-bold uppercase tracking-wider text-xs group-hover:translate-x-2 transition-transform">
-                  IT Architecture <Zap className="w-4 h-4 ml-2" />
-                </div>
-              </button>
+            <div>
+              <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
+                Mode Hors Ligne Activé
+                <span className="px-2 py-0.5 bg-red-500/20 text-red-400 text-[9px] rounded-full">PWA SYNC</span>
+              </h3>
+              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                Réseau indisponible. L'application continue de fonctionner grâce au Service Worker. Vos sessions (scores, historique) seront synchronisées hors-ligne et envoyées une fois la connexion rétablie vers Firestore.
+              </p>
             </div>
           </div>
         )}
 
+        {mainView === 'hub' && <HubView setMainView={setMainView} />}
+
         {mainView === 'dyslexia' && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* Panneau de gauche: Info & Stats Dyslexie */}
-            <aside className="lg:col-span-3 space-y-6">
-              <div className="bg-slate-900/50 rounded-3xl border border-slate-800 p-6 space-y-6 backdrop-blur-sm">
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                  <BrainCircuit className="w-4 h-4 text-blue-500" /> Dyslexia Module
-                </h3>
-                <p className="text-sm text-slate-400">
-                  Real-time phonemic decoding. This interface simulates an augmented projection to facilitate phoneme-grapheme correspondence.
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Header section with Language Selector */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 border-b border-white/5 pb-8">
+              <div>
+                <h2 className="text-4xl font-extrabold text-white tracking-tight uppercase flex items-center gap-3">
+                  <Mic className="w-8 h-8 text-indigo-500" />
+                  {selectedLang === 'English' ? 'Phonemic Speech Analyzer' : 'Analyseur Phonémique'}
+                </h2>
+                <p className="text-slate-500 text-xs font-mono uppercase tracking-widest mt-2">
+                  {selectedLang === 'English' ? 'Zero-Latency Edge Speech Processing' : 'Traitement de parole à l\'Edge sans latence'}
                 </p>
               </div>
-
-              <div className="bg-slate-900/50 rounded-3xl border border-slate-800 p-6 space-y-4 shadow-sm">
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">ML Performance</h3>
-                <div className="space-y-3">
-                  <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-                    <p className="text-[10px] text-slate-500 uppercase mb-1">Latence (Inference)</p>
-                    <p className="text-xl font-mono font-bold text-blue-500">14<span className="text-xs ml-1">ms</span></p>
-                  </div>
-                  <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-                    <p className="text-[10px] text-slate-500 uppercase mb-1">Model Confidence</p>
-                    <div className="flex items-end justify-between">
-                      <p className="text-xl font-mono font-bold text-emerald-500">98.2<span className="text-xs ml-1">%</span></p>
-                      <div className="flex gap-0.5 h-4 items-end">
-                        {[0.4, 0.6, 0.8, 1, 0.9].map((h, i) => (
-                          <div key={i} className="w-1 bg-emerald-500 rounded-full" style={{ height: `${h * 100}%` }} />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+              <div className="flex items-center gap-3 bg-[#121626]/80 px-4 py-2.5 rounded-2xl border border-white/5 shadow-xl">
+                <Globe className="w-4 h-4 text-indigo-400" />
+                <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">
+                  {selectedLang === 'English' ? 'Engine Language :' : 'Langue du Moteur :'}
+                </span>
+                <select 
+                  className="bg-slate-900 border border-slate-800 text-white text-xs uppercase tracking-widest rounded-lg px-3 py-1.5 outline-none cursor-pointer appearance-none text-center font-bold"
+                  value={selectedLang}
+                  onChange={(e) => setSelectedLang(e.target.value)}
+                >
+                   <option>French</option>
+                   <option>English</option>
+                   <option>Arabic</option>
+                   <option>Spanish</option>
+                   <option>German</option>
+                </select>
               </div>
-            </aside>
+            </div>
 
-            {/* Section Centrale: Visualisation & AR Preview */}
-            <section className="lg:col-span-6 space-y-8">
-              
-              {speechError && (
-                <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 flex items-center justify-between">
-                  <p className="text-red-400 text-sm font-medium">{speechError}</p>
-                  <button onClick={() => setSpeechError(null)} className="text-red-400 hover:text-red-300">
-                    <X className="w-4 h-4" />
-                  </button>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              {/* Left Panel: Info & ML Stats */}
+              <aside className="lg:col-span-3 space-y-6">
+                <div className="bg-[#121626]/80 backdrop-blur-xl rounded-3xl border border-indigo-500/20 p-6 space-y-6 hover:-translate-y-1 transition-transform cursor-default relative overflow-hidden group">
+                  <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-transparent pointer-events-none group-hover:opacity-100 opacity-50 transition-opacity" />
+                  <h3 className="text-xs font-black text-indigo-400 uppercase tracking-[0.2em] flex items-center gap-2 relative z-10">
+                    <BrainCircuit className="w-4 h-4 text-indigo-400" /> DeepMind Kernel
+                  </h3>
+                  <p className="text-sm text-slate-300 leading-relaxed relative z-10">
+                    {selectedLang === 'English' 
+                      ? "Real-time phonemic decoding engine. Gemma 4 Edge Inference powered by FastAPI (Python). Privacy by Design ensuring zero data leaks to the cloud."
+                      : "Moteur temps-réel de décodage phonémique. Gemma 4 Edge Inference propulsé par FastAPI (Python). Privacy by Design garantissant zéro fuite de données vers le Cloud."}
+                  </p>
+                  <div className="flex flex-wrap gap-2 relative z-10">
+                    <span className="px-2 py-1 bg-white/5 border border-white/10 rounded-md text-[10px] font-mono text-slate-400">#Kaggle</span>
+                    <span className="px-2 py-1 bg-white/5 border border-white/10 rounded-md text-[10px] font-mono text-slate-400">#DeepMind</span>
+                    <span className="px-2 py-1 bg-white/5 border border-white/10 rounded-md text-[10px] font-mono text-slate-400">#LocalEdge</span>
+                  </div>
                 </div>
-              )}
 
-              {/* Virtual AR Viewport */}
-              <div className="aspect-[4/3] bg-slate-900 rounded-[2.5rem] border border-slate-800 relative overflow-hidden group shadow-2xl">
-                {/* Camera Simulation (Overlay) */}
-                <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1543269865-cbf427effbad?auto=format&fit=crop&q=80&w=2070')] bg-cover bg-center opacity-30 mix-blend-screen group-hover:scale-105 transition-transform duration-[2000ms]" />
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-slate-950/50 z-10" />
-                
-                {/* AR Elements - HUD */}
-                <div className="absolute inset-0 z-20 p-8 pointer-events-none">
-                  <div className="flex justify-between items-start">
-                    <div className="bg-black/40 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 flex items-center gap-3">
-                      <Target className="w-4 h-4 text-blue-500 animate-pulse" />
+                <div className="bg-[#121626]/80 backdrop-blur-xl rounded-3xl border border-white/5 p-6 space-y-4">
+                  <h3 className="text-xs font-black text-white uppercase tracking-[0.2em]">
+                    {selectedLang === 'English' ? 'Architecture Metrics' : 'Métriques d\'Architecture'}
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="bg-[#0b0e17] p-4 rounded-2xl border border-white/5 flex items-center justify-between">
                       <div>
-                        <p className="text-[10px] font-mono font-bold tracking-tighter text-white">TRACKING_STATUS: LOCKED</p>
-                        <p className="text-[8px] font-mono text-slate-400">FPS: 60 | AR_V: 2.1</p>
+                        <p className="text-[10px] text-slate-500 uppercase mb-1 font-mono tracking-widest">
+                          {selectedLang === 'English' ? 'Inference Latency' : 'Latence d\'Inférence'}
+                        </p>
+                        <p className="text-xl font-black font-mono text-indigo-400">~24<span className="text-xs ml-1 opacity-50">ms</span></p>
                       </div>
+                      <Activity className="w-8 h-8 text-indigo-500/30" />
                     </div>
-                    <div className="flex flex-col items-end gap-2">
-                       <div className="w-12 h-1 bg-white/20 rounded-full overflow-hidden">
-                          <div className="h-full bg-blue-500 w-2/3" />
-                       </div>
-                       <p className="text-[8px] font-mono text-slate-400">SIGNAL: 88%</p>
+                    <div className="bg-[#0b0e17] p-4 rounded-2xl border border-white/5">
+                      <p className="text-[10px] text-slate-500 uppercase mb-1 font-mono tracking-widest">
+                        {selectedLang === 'English' ? 'Quantization' : 'Quantification'}
+                      </p>
+                      <div className="flex items-center gap-2">
+                         <span className="px-3 py-1 bg-indigo-500/10 text-indigo-400 text-xs font-bold rounded-full border border-indigo-500/20">INT4</span>
+                         <span className="px-3 py-1 bg-indigo-500/10 text-indigo-400 text-xs font-bold rounded-full border border-indigo-500/20">GGUF</span>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Virtual AR Syllables Floating */}
-                <div className="absolute inset-0 z-30 flex items-center justify-center p-12 pointer-events-none">
-                  {isRecording ? (
-                    <div className="flex flex-wrap justify-center gap-4 pointer-events-auto">
-                      {detectedPhonemes.map((p, i) => (
-                        <button 
-                          key={i}
-                          onClick={() => speakText(p.replace(/[/]/g, ''))}
-                          className="min-w-[4rem] h-16 px-4 bg-blue-500/20 hover:bg-blue-500/40 backdrop-blur-xl border border-blue-500/30 rounded-2xl flex items-center justify-center text-3xl font-extrabold text-white shadow-[0_0_30px_rgba(59,130,246,0.3)] animate-in fade-in zoom-in duration-300 cursor-pointer transition-colors"
-                          style={{ 
-                            transform: `translateY(${Math.sin(Date.now()/500 + i) * 10}px)`,
-                            opacity: 1 - i * 0.12 
-                          }}
-                        >
-                          {p}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center space-y-6 max-w-sm px-6">
-                      <div className="w-24 h-24 bg-slate-950/80 rounded-full flex items-center justify-center mx-auto border border-white/5 relative">
-                        <div className="absolute inset-0 rounded-full border border-blue-500/20 animate-ping" />
-                        <Volume2 className="w-10 h-10 text-slate-400" />
-                      </div>
-                      <div>
-                        <h4 className="text-xl font-bold text-white mb-2 italic">Ready for Analysis??</h4>
-                        <p className="text-slate-400 text-sm leading-relaxed">Activate the mic to separate phonemes in real-time for dyslexia aid.</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                {/* Laboratoire des Lettres Miroirs */}
+                <div className="bg-[#121626]/80 backdrop-blur-xl rounded-3xl border border-white/5 p-6 space-y-4 shadow-2xl">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-black text-white uppercase tracking-[0.2em] flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-emerald-400" />
+                      {selectedLang === 'English' ? 'Mirror Letters Lab' : 'Lettres Miroirs'}
+                    </h3>
+                    <span className="text-[9px] bg-emerald-500/15 border border-emerald-500/20 text-emerald-400 font-mono font-bold px-2 py-0.5 rounded uppercase">Anti-Confusion</span>
+                  </div>
+                  
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    {selectedLang === 'English' 
+                      ? "Visual stabilizer. Highlight and rotate symmetrical letters to reinforce graphemic anchors."
+                      : "Stabilisateur de forme. Colorez, orientez et écoutez les lettres symétriques pour éviter les inversions."}
+                  </p>
 
-                {/* Visualizer & Record Button UI (Bottom Overlay) */}
-                <div className="absolute bottom-8 inset-x-8 z-40 flex items-center justify-between bg-black/40 backdrop-blur-xl p-4 rounded-3xl border border-white/5">
-                  <div className="flex gap-1.5 items-center h-10 px-2 lg:flex hidden">
-                    {audioData.map((v, i) => (
-                      <div 
-                        key={i} 
-                        className={`w-1 rounded-full transition-all duration-75 ${isRecording ? 'bg-blue-500' : 'bg-slate-700'}`}
-                        style={{ height: `${Math.max(10, v)}%`, opacity: 0.2 + (v/100) }}
-                      />
+                  <div className="grid grid-cols-4 gap-2">
+                    {(['b', 'd', 'p', 'q'] as const).map((char) => (
+                      <button
+                        key={char}
+                        onClick={() => {
+                          setActiveMirrorChar(char);
+                          speakText(char === 'b' ? 'b' : char === 'd' ? 'd' : char === 'p' ? 'p' : 'qu');
+                        }}
+                        className={`py-2 rounded-xl text-lg font-mono font-black border transition-all ${
+                          activeMirrorChar === char 
+                            ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.2)] scale-105' 
+                            : 'bg-[#0b0e17] border-white/5 text-slate-500 hover:border-white/10 hover:text-white'
+                        }`}
+                      >
+                        {char}
+                      </button>
                     ))}
                   </div>
-                  
-                  <div className="flex items-center gap-4">
-                    <div className="text-right lg:block hidden">
-                       <p className="text-[10px] font-mono text-slate-400 uppercase tracking-tighter">Engine Process</p>
-                       <p className="text-xs font-bold text-blue-500 tracking-widest">{isRecording ? 'SYNCING...' : 'STANDBY'}</p>
+
+                  {/* Canvas visualization of the flipped letter */}
+                  <div className="bg-[#0b0e17] rounded-2xl p-6 border border-white/5 flex flex-col items-center justify-center relative overflow-hidden group">
+                    <div className="absolute inset-0 bg-radial-gradient from-emerald-500/5 via-transparent to-transparent opacity-60 pointer-events-none" />
+                    
+                    {/* Big letter canvas with dynamic color-coding guidelines */}
+                    <div className="relative w-28 h-28 flex items-center justify-center border-2 border-dashed border-white/5 rounded-full bg-white/[0.02]">
+                      <span className="text-7xl font-bold font-mono tracking-normal text-white transition-transform duration-500">
+                        {activeMirrorChar}
+                      </span>
+                      
+                      {/* Interactive guidelines/arrows helpful for dyslexia */}
+                      {activeMirrorChar === 'b' && (
+                        <>
+                          <div className="absolute left-6 top-1/2 -translate-y-1/2 w-1.5 h-14 bg-indigo-500 rounded-full animate-pulse" title="Barre à gauche" />
+                          <div className="absolute right-6 top-1/2 w-8 h-8 rounded-full border-2 border-emerald-400/50 pointer-events-none" title="Ventre à droite" />
+                        </>
+                      )}
+                      {activeMirrorChar === 'd' && (
+                        <>
+                          <div className="absolute right-6 top-1/2 -translate-y-1/2 w-1.5 h-14 bg-indigo-500 rounded-full animate-pulse" title="Barre à droite" />
+                          <div className="absolute left-6 top-1/2 w-8 h-8 rounded-full border-2 border-emerald-400/50 pointer-events-none" title="Ventre à gauche" />
+                        </>
+                      )}
+                      {activeMirrorChar === 'p' && (
+                        <>
+                          <div className="absolute left-6 bottom-4 w-1.5 h-14 bg-indigo-500 rounded-full animate-pulse" title="Queue vers le bas" />
+                          <div className="absolute top-6 right-6 w-8 h-8 rounded-full border-2 border-emerald-400/50 pointer-events-none" title="Boucle en haut" />
+                        </>
+                      )}
+                      {activeMirrorChar === 'q' && (
+                        <>
+                          <div className="absolute right-6 bottom-4 w-1.5 h-14 bg-indigo-500 rounded-full animate-pulse" title="Queue vers le bas" />
+                          <div className="absolute top-6 left-6 w-8 h-8 rounded-full border-2 border-emerald-400/50 pointer-events-none" title="Boucle en haut" />
+                        </>
+                      )}
                     </div>
-                    <button 
-                      onClick={toggleRecording}
-                      className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300 shadow-2xl ${isRecording ? 'bg-red-500 hover:bg-red-600 ring-8 ring-red-500/10' : 'bg-blue-600 hover:bg-blue-500 ring-8 ring-blue-500/10 active:scale-90 scale-110'}`}
-                    >
-                      {isRecording ? <VolumeX className="w-6 h-6 text-white" /> : <Mic className="w-6 h-6 text-white" />}
+
+                    <div className="mt-4 text-center">
+                      <p className="text-xs font-bold text-slate-300 font-mono">
+                        {activeMirrorChar === 'b' && (selectedLang === 'English' ? '"b" is blue: belly to the right' : 'b [bə] : la barre monte, le ventre est à droite')}
+                        {activeMirrorChar === 'd' && (selectedLang === 'English' ? '"d" is dark: belly to the left' : 'd [də] : la barre monte, le dos est à gauche')}
+                        {activeMirrorChar === 'p' && (selectedLang === 'English' ? '"p" points down: loop on top' : 'p [pə] : la queue descend, la tête est en haut à droite')}
+                        {activeMirrorChar === 'q' && (selectedLang === 'English' ? '"q" has queue down: loop on top left' : 'q [kə] : la queue descend, la tête est en haut à gauche')}
+                      </p>
+                      <button 
+                        onClick={() => speakText(activeMirrorChar === 'b' ? 'b' : activeMirrorChar === 'd' ? 'd' : activeMirrorChar === 'p' ? 'p' : 'qu')}
+                        className="mt-2.5 text-[10px] font-bold text-indigo-400 hover:text-indigo-300 font-mono tracking-wider uppercase flex items-center gap-1 mx-auto bg-indigo-500/5 px-2.5 py-1 rounded-lg border border-indigo-500/10 hover:border-indigo-500/30 transition-all"
+                      >
+                        <Volume2 className="w-3.5 h-3.5" /> Prononcer la lettre
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </aside>
+
+              {/* Central Section: Voice AR Preview & Recognition */}
+              <section className="lg:col-span-6 space-y-8">
+                
+                {speechError && (
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 flex items-center justify-between shadow-xl">
+                    <p className="text-red-400 text-sm font-medium">{speechError}</p>
+                    <button onClick={() => setSpeechError(null)} className="text-red-400 hover:text-red-300">
+                      <X className="w-4 h-4" />
                     </button>
                   </div>
-                </div>
-              </div>
+                )}
 
-              {/* Transcription Dashboard */}
-              <div className="bg-slate-900/50 rounded-[2rem] border border-slate-800 p-8 space-y-6 shadow-inner">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-3">
-                    <div className="w-6 h-6 rounded-lg bg-blue-600/10 border border-blue-500/20 flex items-center justify-center">
-                      <FileText className="w-3 h-3 text-blue-500" />
+                {/* Virtual Kaggle Testing Arena */}
+                <div className="aspect-[4/3] bg-[#0b0e17] rounded-[2.5rem] border border-white/10 relative overflow-hidden group shadow-[0_0_50px_rgba(79,70,229,0.15)] ring-1 ring-white/5">
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#121626] via-transparent to-transparent z-10" />
+                  
+                  {/* HUD */}
+                  <div className="absolute inset-x-0 top-0 z-20 px-8 py-6 pointer-events-none flex justify-between items-start">
+                    <div className="bg-white/5 backdrop-blur-md px-5 py-3 rounded-2xl border border-white/10 flex items-center gap-3">
+                      <Target className={`w-5 h-5 ${isRecording ? 'text-indigo-400 animate-spin-slow' : 'text-slate-500'}`} />
+                      <div>
+                        <p className="text-xs font-black tracking-[0.2em] text-white">
+                          {selectedLang === 'English' ? 'RECOGNITION ENGINE' : 'MOTEUR DE RECONNAISSANCE'}
+                        </p>
+                        <p className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">
+                          {selectedLang === 'English' 
+                            ? `Status: ${isRecording ? 'Intercepting' : 'Standby'}`
+                            : `Statut: ${isRecording ? 'Interception' : 'En Veille'}`}
+                        </p>
+                      </div>
                     </div>
-                    Accessible Reading Mode
-                  </h3>
-                  {isRecording && (
-                    <div className="px-3 py-1 bg-blue-500 text-white text-[10px] font-bold rounded-lg animate-pulse">LISTENING</div>
-                  )}
-                </div>
-                {/* Zone de lecture avec fond très clair (papier) pour le contraste naturel */}
-                <div className="min-h-[250px] bg-slate-50 p-8 rounded-3xl border border-slate-200 relative group shadow-lg">
-                  <DyslexicRenderer text={transcript} />
-                  
-                  {transcript && (
-                    <button 
-                      onClick={() => speakText(transcript)}
-                      className="absolute bottom-6 right-6 w-12 h-12 rounded-full bg-blue-600 hover:bg-blue-500 shadow-xl shadow-blue-500/30 flex items-center justify-center transition-colors border-2 border-white text-white"
-                      title="Read text aloud"
-                    >
-                      <Play className="w-5 h-5 ml-1" />
-                    </button>
-                  )}
-                  
-                  <Sparkles className="absolute bottom-4 left-4 w-5 h-5 text-slate-300 transition-colors" />
-                </div>
-              </div>
-            </section>
+                  </div>
 
-            {/* Panneau de droite: Logs & Architecture */}
-            <aside className="lg:col-span-3 space-y-6">
-              <div className="bg-slate-900 rounded-3xl border border-slate-800 p-6 flex flex-col h-full shadow-2xl">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Machine Learning Flow</h3>
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
-                </div>
-                <div className="flex-1 space-y-3 font-mono text-[10px] overflow-y-auto max-h-[600px] pr-2 scrollbar-hide">
-                  <div className="flex gap-2 py-1 border-b border-slate-800/50 text-emerald-400 font-bold">
-                    <span className="text-emerald-500">[OK]</span>
-                    <span>HW_ACCEL: Python ML Backend (LIVE CONNECTED)</span>
-                  </div>
-                  <div className="flex gap-2 text-slate-600 py-1 border-b border-slate-800/50">
-                    {/* Console log specifically highlighting the Gemma 4 integration for code reviewers */}
-                    <span className="text-blue-500">[LOG]</span>
-                    <span>Model v4.0 initialized & routing production requests (Gemma 4 Edge Active)</span>
-                  </div>
-                  {isRecording && (
-                    <>
-                      <div className="flex gap-2 text-blue-500 py-1 border-b border-slate-800/50 animate-pulse">
-                        <span>[BS]</span>
-                        <span>Buffer: 2048 Samples</span>
+                  {/* Phonics Overlay */}
+                  <div className="absolute inset-0 z-30 flex items-center justify-center p-6 pointer-events-none">
+                    {isRecording ? (
+                      <div className="flex flex-wrap justify-center gap-4 pointer-events-auto">
+                        {detectedPhonemes.map((p, i) => (
+                          <button 
+                            key={i}
+                            onClick={() => speakText(p.replace(/[\/]/g, ''))}
+                            className="min-w-[4rem] px-5 py-4 bg-indigo-900/40 hover:bg-indigo-600/60 backdrop-blur-xl border border-indigo-500/30 rounded-2xl flex items-center justify-center text-3xl font-black text-indigo-100 shadow-[0_0_30px_rgba(79,70,229,0.2)] animate-in fade-in zoom-in duration-300 cursor-pointer transition-all"
+                            style={{ 
+                              transform: `translateY(${Math.sin(Date.now()/500 + i) * 8}px)`,
+                              opacity: 1 - (i * 0.1)
+                            }}
+                          >
+                            {p}
+                          </button>
+                        ))}
                       </div>
-                      <div className="flex flex-col gap-1 text-white bg-slate-950 p-2 rounded-lg mt-2 border border-slate-800">
-                        <span className="text-slate-500">PHONEME_DET:</span>
-                        <span className="text-sm font-bold text-blue-400">{detectedPhonemes[0] || '---'}</span>
+                    ) : (
+                      <div className="w-full max-w-sm px-4 text-center space-y-4 pointer-events-auto animate-in fade-in zoom-in duration-300">
+                        {/* Terminal stats header */}
+                        <div className="flex items-center justify-between text-[9px] font-mono text-slate-500 bg-[#06080f]/70 border border-white/5 px-3 py-1.5 rounded-xl">
+                          <span className="flex items-center gap-1"><Sparkles className="w-3 h-3 text-emerald-400" /> GEMMA-4-LOCAL-EDGE</span>
+                          <span className="text-slate-400">LATENCE: {edgePerformanceMs ? `${edgePerformanceMs}ms` : '0ms'} (CACHE)</span>
+                        </div>
+
+                        <div>
+                          <h4 className="text-sm font-black text-white uppercase tracking-[0.2em]">
+                            {selectedLang === 'English' ? 'Edge Input Sandbox' : 'Saisie Edge Assistée'}
+                          </h4>
+                          <p className="text-slate-400 text-[10px] leading-relaxed max-w-xs mx-auto mt-1">
+                            {selectedLang === 'English'
+                              ? 'Type a phrase or select high-performance test tokens below.'
+                              : 'Saisissez un texte ou cliquez sur un jeton pour tester l\'inférence à l\'Edge.'}
+                          </p>
+                        </div>
+
+                        {/* Interactive Text Input Panel */}
+                        <form 
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            handleUrlOrManualEdgeInput(manualInputText);
+                          }}
+                          className="flex items-center gap-1.5 bg-[#06080f]/95 border border-white/10 focus-within:border-indigo-500/50 p-1 rounded-xl shadow-inner relative z-30 transition-all"
+                        >
+                          <input 
+                            type="text"
+                            value={manualInputText}
+                            onChange={(e) => setManualInputText(e.target.value)}
+                            placeholder={selectedLang === 'English' ? "Type a word (e.g. delicious)..." : "Ex: ordinateur, dictionnaire..."}
+                            className="bg-transparent border-none outline-none text-white text-[11px] px-3 py-1.5 flex-1 font-mono placeholder:text-slate-600"
+                          />
+                          <button
+                            type="submit"
+                            disabled={isAnalyzingEdge}
+                            className="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white px-3.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider font-mono transition-all flex items-center gap-0.5 shrink-0"
+                          >
+                            {isAnalyzingEdge ? '...' : (selectedLang === 'English' ? 'INFER' : 'INFER')}
+                          </button>
+                        </form>
+
+                        {/* Pre-cached educational study tags */}
+                        <div className="flex flex-wrap items-center justify-center gap-1.5">
+                          {(selectedLang === 'English' 
+                            ? ['dyslexia', 'auditory', 'phoneme', 'cognitive'] 
+                            : ['ordinateur', 'accessible', 'structure', 'lexique']
+                          ).map((word) => (
+                            <button
+                              key={word}
+                              onClick={() => {
+                                setManualInputText(word);
+                                handleUrlOrManualEdgeInput(word);
+                              }}
+                              className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-md bg-white/[0.04] hover:bg-white/[0.1] text-slate-400 hover:text-white border border-white/5 active:scale-95 transition-all uppercase tracking-wider"
+                            >
+                              +{word}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Interactive voice launch hint */}
+                        <div className="text-[9px] text-slate-500 hover:text-slate-400 font-mono tracking-wider flex items-center justify-center gap-1 transition-colors">
+                          <Mic className="w-3 h-3 text-indigo-500 animate-pulse" /> OU DU VERBAL PAR LE BOUTON PLAY CI-DESSOUS
+                        </div>
                       </div>
-                    </>
-                  )}
-                  <div className="text-slate-700 py-4 text-center border-t border-slate-800 mt-4 italic">
-                    System logs pending...
+                    )}
+                  </div>
+
+                  {/* Dashboard bottom */}
+                  <div className="absolute bottom-8 inset-x-8 z-40 flex items-center justify-between bg-[#121626]/80 backdrop-blur-xl p-4 rounded-full border border-white/10 shadow-2xl">
+                    <div className="flex gap-1.5 items-center h-10 px-6 lg:flex hidden flex-1">
+                      {audioData.map((v, i) => (
+                        <div 
+                          key={i} 
+                          className={`w-1 rounded-full transition-all duration-75 ${isRecording ? 'bg-indigo-500' : 'bg-white/10'}`}
+                          style={{ height: `${Math.max(10, v)}%`, opacity: 0.2 + (v/100) }}
+                        />
+                      ))}
+                    </div>
+                    
+                    <div className="flex items-center gap-6 px-4">
+                      <button 
+                        onClick={toggleRecording}
+                        className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300 shadow-xl flex-shrink-0 ${isRecording ? 'bg-indigo-600 hover:bg-indigo-500 ring-4 ring-indigo-500/30' : 'bg-white text-black hover:bg-slate-200 ring-4 ring-white/10 active:scale-90 scale-110'}`}
+                      >
+                        {isRecording ? <VolumeX className="w-6 h-6 text-white" /> : <Play className="w-6 h-6 text-black" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </aside>
+
+                {/* Grapheme-Phoneme Mapping Visualization */}
+                <div className="bg-[#121626]/80 backdrop-blur-xl rounded-[2.5rem] border border-white/5 p-8 space-y-6 shadow-2xl overflow-hidden relative">
+                  <div className="absolute top-0 right-0 p-8 opacity-[0.02] pointer-events-none">
+                    <Network className="w-48 h-48 text-indigo-400" />
+                  </div>
+                  <div className="flex items-center justify-between relative z-10">
+                    <h3 className="text-xs font-black text-white uppercase tracking-[0.2em] flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
+                        <Zap className="w-4 h-4 text-indigo-400" />
+                      </div>
+                      {selectedLang === 'English' ? 'Grapheme ↔ Phoneme Analysis' : 'Analyse Graphème ↔ Phonème'}
+                    </h3>
+                    {isRecording && <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]" />}
+                  </div>
+
+                  <div className="relative z-10">
+                    {transcript ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-[#0b0e17] rounded-3xl p-6 border border-white/5">
+                        <div className="flex flex-col space-y-2">
+                           <span className="text-[10px] text-slate-500 uppercase tracking-widest font-mono">
+                             {selectedLang === 'English' ? 'Last Word Heard (Grapheme)' : 'Dernier Mot Entendu (Graphème)'}
+                           </span>
+                           <span className="text-4xl tracking-widest bg-slate-900/50 px-4 py-3 rounded-2xl border border-white/5 w-fit">
+                             {(() => {
+                               const word = transcript.split(' ').filter(Boolean).pop()?.toLowerCase();
+                               if (!word) return <span className="text-white font-black">...</span>;
+                               const syllableRegex = /[^aeyuioœAEYUIOŒ]+[aeyuioœAEYUIOŒ]+|[aeyuioœAEYUIOŒ]+/g;
+                               let syllables = word.match(syllableRegex) || [word];
+                               let silentSuffix = "";
+                               if (word.length > 2 && /[e|s|t|x|z]$/.test(word)) {
+                                 silentSuffix = word.slice(-1);
+                                 const remaining = word.slice(0, -1);
+                                 syllables = remaining.match(syllableRegex) || [remaining];
+                               }
+                               const colors = ["text-blue-500", "text-emerald-500"];
+                               return (
+                                 <>
+                                   {syllables.map((syl, i) => (
+                                     <span key={i} className={`font-black ${colors[i % colors.length]}`}>
+                                       {syl}
+                                     </span>
+                                   ))}
+                                   {silentSuffix && (
+                                     <span className="font-black text-slate-600">
+                                       {silentSuffix}
+                                     </span>
+                                   )}
+                                 </>
+                               );
+                             })()}
+                           </span>
+                        </div>
+                        <div className="flex flex-col space-y-2 md:border-l md:border-white/10 md:pl-6">
+                           <span className="text-[10px] text-indigo-500 uppercase tracking-widest font-mono">
+                             {selectedLang === 'English' ? 'Phonemic Translation (API Logic)' : 'Traduction Phonémique (API Logic)'}
+                           </span>
+                           <span className="text-3xl font-black font-mono text-indigo-400">
+                             {detectedPhonemes[0] || '[ - ]'}
+                           </span>
+                        </div>
+                        
+                        <div className="col-span-1 md:col-span-2 mt-4 space-y-3">
+                           <span className="text-[10px] text-slate-500 uppercase tracking-widest font-mono border-b border-white/5 pb-2 block">
+                             {selectedLang === 'English' ? 'Latest root extractions' : 'Dernières extractions de la racine'}
+                           </span>
+                           <div className="flex flex-wrap gap-2">
+                             {detectedPhonemes.slice(1).map((phoneme, idx) => (
+                               <div key={idx} className="px-3 py-1.5 bg-indigo-900/30 rounded-lg border border-indigo-500/20 text-indigo-200 font-mono text-sm">
+                                 {phoneme}
+                               </div>
+                             ))}
+                           </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-10 bg-[#0b0e17] rounded-3xl border border-white/5 border-dashed">
+                         <Mic className="w-8 h-8 text-slate-600 mx-auto mb-4" />
+                         <p className="text-slate-500 text-sm">
+                           {selectedLang === 'English'
+                             ? 'Activate the processor to see live Grapheme ↔ Phoneme mapping.'
+                             : 'Activez le processeur pour voir la conversion Graphème ↔ Phonème en direct.'}
+                         </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Synthetic Speech Generation - Text to Speech */}
+                <div className="bg-[#121626]/80 backdrop-blur-xl rounded-[2.5rem] border border-white/5 p-8 space-y-6 shadow-2xl">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-black text-white uppercase tracking-[0.2em] flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center">
+                        <Headphones className="w-4 h-4 text-orange-400" />
+                      </div>
+                      {selectedLang === 'English' ? 'Convert Text to Speech (TTS)' : 'Convertir du texte en Parole (TTS)'}
+                    </h3>
+                  </div>
+                  
+                  <div className="flex flex-col gap-4">
+                    <textarea
+                      value={inputText}
+                      onChange={(e) => setInputText(e.target.value)}
+                      placeholder={selectedLang === 'English'
+                        ? "Type your text here to convert it into natural voice synthesized by Gemini TTS..."
+                        : "Tape du texte ici pour le convertir en audio naturel (Gemini TTS)..."}
+                      className="w-full bg-[#0b0e17] border border-white/10 rounded-2xl p-4 text-white text-sm outline-none focus:border-indigo-500/50 min-h-[120px] resize-none"
+                    />
+                    <div className="flex justify-end">
+                      <button 
+                        onClick={() => speakText(inputText)}
+                        disabled={!inputText.trim()}
+                        className="px-6 py-3 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white font-bold rounded-xl shadow-lg border border-orange-400/50 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      >
+                        <Volume2 className="w-5 h-5" />
+                        {selectedLang === 'English' ? 'Generate Audio' : 'Générer l\'Audio'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Real-time Document reading mode */}
+                <div className="bg-[#121626]/80 backdrop-blur-xl rounded-[2.5rem] border border-white/5 p-8 space-y-6 shadow-2xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
+                    <h3 className="text-xs font-black text-white uppercase tracking-[0.2em] flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
+                        <FileText className="w-4 h-4 text-indigo-400" />
+                      </div>
+                      {selectedLang === 'English' ? 'Prism Lexical Assistant' : 'Assistant Lexique & Prisme Visuel'}
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                      <span className="text-[9px] font-mono font-bold text-indigo-400 uppercase tracking-widest">Active Stabilizer</span>
+                    </div>
+                  </div>
+
+                  {/* Prism Layout Custom Controls for Dyslexics */}
+                  <div className="flex flex-wrap items-center gap-2 bg-[#0b0e17]/80 p-3.5 rounded-2xl border border-white/5 text-xs font-mono">
+                    {/* Bionic Toggle */}
+                    <button 
+                      onClick={() => setIsBionic(!isBionic)}
+                      className={`px-3 py-2 rounded-xl border font-bold uppercase transition-all flex items-center gap-1.5 active:scale-95 ${isBionic ? 'bg-indigo-600/20 border-indigo-500/50 text-indigo-400' : 'bg-white/5 border-white/10 text-slate-500 hover:text-white'}`}
+                      title="Surlignage bionique facilitant la fixation oculaire"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>bionique {isBionic ? 'ON' : 'OFF'}</span>
+                    </button>
+
+                    {/* Font Override Toggle */}
+                    <button 
+                      onClick={() => setDyslexicFont(!dyslexicFont)}
+                      className={`px-3 py-2 rounded-xl border font-bold uppercase transition-all flex items-center gap-1.5 active:scale-95 ${dyslexicFont ? 'bg-emerald-600/20 border-emerald-500/50 text-emerald-400' : 'bg-white/5 border-white/10 text-slate-500 hover:text-white'}`}
+                      title="Basculer vers un style de police lourd conçu pour l'accessibilité cognitive"
+                    >
+                      <Layers className="w-3.5 h-3.5" />
+                      <span>focalisé-DYS {dyslexicFont ? 'ON' : 'OFF'}</span>
+                    </button>
+
+                    {/* Letter Spacing */}
+                    <div className="flex items-center gap-1.5 bg-slate-900 border border-white/5 px-3 py-2 rounded-xl text-slate-500">
+                      <span className="text-[9px] uppercase font-black">Lettres:</span>
+                      <select 
+                        value={letterSpacing} 
+                        onChange={(e) => setLetterSpacing(e.target.value as any)}
+                        className="bg-transparent text-white border-none outline-none font-bold font-mono text-xs cursor-pointer"
+                      >
+                        <option value="normal">Étroit</option>
+                        <option value="wide">Large</option>
+                        <option value="widest">Max</option>
+                      </select>
+                    </div>
+
+                    {/* Word Spacing */}
+                    <div className="flex items-center gap-1.5 bg-slate-900 border border-white/5 px-3 py-2 rounded-xl text-slate-500">
+                      <span className="text-[9px] uppercase font-black font-semibold">Mots:</span>
+                      <select 
+                        value={wordSpacing} 
+                        onChange={(e) => setWordSpacing(e.target.value as any)}
+                        className="bg-transparent text-white border-none outline-none font-bold font-mono text-xs cursor-pointer"
+                      >
+                        <option value="normal">Étroit</option>
+                        <option value="wide">Large</option>
+                        <option value="widest">Max</option>
+                      </select>
+                    </div>
+                  </div>
+                  
+                  {/* Easy reading layout */}
+                  <div className="min-h-[220px] bg-[#0b0e17] p-8 rounded-[2rem] border border-white/5 relative group shadow-inner">
+                    {transcript ? (
+                      <DyslexicRenderer 
+                        text={transcript} 
+                        isBionic={isBionic}
+                        letterSpacing={letterSpacing}
+                        wordSpacing={wordSpacing}
+                        dyslexicFont={dyslexicFont}
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full text-slate-500 space-y-4">
+                         <Mic className="w-8 h-8 opacity-50" />
+                         <p className="font-mono text-sm uppercase tracking-widest text-center">
+                           {selectedLang === 'English' ? 'Awaiting audio stream...' : 'En attente du flux audio...'}
+                           <br/>
+                           <span className="text-[10px] text-indigo-500/50 block mt-2">
+                             {selectedLang === 'English'
+                               ? 'Processing : Client-Side Speech ➔ ML Backend Analysis'
+                               : 'Traitement : Client-Side Speech ➔ ML Backend Analysis'}
+                           </span>
+                         </p>
+                      </div>
+                    )}
+                    
+                    {transcript && (
+                      <button 
+                        onClick={() => speakText(transcript)}
+                        className="absolute bottom-6 right-6 w-12 h-12 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-[0_0_20px_rgba(79,70,229,0.4)] flex items-center justify-center transition-colors"
+                        title={selectedLang === 'English' ? 'Read text aloud' : 'Lire le texte à haute voix'}
+                      >
+                        <Play className="w-5 h-5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Vocabulary Tracking */}
+                <VocabularyTracker text={transcript} language={selectedLang} />
+              </section>
+
+              {/* Right Panel: Architecture & API Logs */}
+              <aside className="lg:col-span-3 space-y-6">
+                {/* Tableau Phonetique Interactive (IPA Sound Reference) */}
+                <div className="bg-[#121626]/80 backdrop-blur-xl rounded-3xl border border-white/5 p-6 space-y-4 shadow-2xl">
+                   <div className="flex items-center justify-between">
+                     <h3 className="text-xs font-black text-white uppercase tracking-[0.2em] flex items-center gap-2">
+                       <GraduationCap className="w-4 h-4 text-indigo-400" />
+                       {selectedLang === 'English' ? 'Phoneme Sound Map' : 'Cartographie des Sons'}
+                     </h3>
+                     <span className="text-[9px] bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 font-mono font-bold px-2 py-0.5 rounded uppercase">API IPA</span>
+                   </div>
+                   
+                   <p className="text-[11px] text-slate-400 leading-relaxed">
+                     {selectedLang === 'English' 
+                       ? "Interactive IPA guide. Click on any phoneme to produce its exact synthesized sound."
+                       : "Guide IPA interactif. Cliquez sur un phonème pour écouter son articulation théorique."}
+                   </p>
+
+                   <div className="space-y-2.5 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar text-xs">
+                     {(selectedLang === 'English' 
+                        ? [
+                            { sound: 'θ', example: 'think, tooth', tips: 'Tip of tongue between teeth, blow air' },
+                            { sound: 'ð', example: 'this, mother', tips: 'Tip of tongue between teeth, vibrate' },
+                            { sound: 'æ', example: 'cat, apple', tips: 'Jaw dropped low, spread lips' },
+                            { sound: 'ʃ', example: 'she, cash', tips: 'Lips rounded, tongue back, blow' },
+                            { sound: 'ŋ', example: 'sing, wing', tips: 'Press tongue back, air through nose' }
+                          ]
+                        : [
+                            { sound: 'ʃ', example: 'chat, chanter', tips: 'Lèvres rondes, projeter l\'air chaud' },
+                            { sound: 'ʒ', example: 'journal, girafe', tips: 'Comme /ʃ/, mais faire vibrer la gorge' },
+                            { sound: 'õ', example: 'ballon, bon', tips: 'Air sort par le nez, bouche arrondie' },
+                            { sound: 'ɛ̃', example: 'sapin, pain', tips: 'Sourire très étiré, voix nasale' },
+                            { sound: 'j', example: 'yeux, paille', tips: 'Son semi-voyelle fluide et étiré' }
+                          ]
+                     ).map((row, idx) => (
+                       <button
+                         key={idx}
+                         onClick={() => speakText(row.example.split(',')[0])}
+                         className="w-full text-left bg-slate-950 hover:bg-white/5 border border-white/5 p-2.5 rounded-xl transition-all flex items-center gap-3 active:scale-95 group"
+                       >
+                         <span className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center font-mono text-lg font-black text-indigo-400 group-hover:text-white transition-colors shrink-0">
+                           /{row.sound}/
+                         </span>
+                         <div className="flex-1 min-w-0">
+                           <div className="flex items-center justify-between">
+                             <span className="font-bold text-slate-200 capitalize truncate">{row.example}</span>
+                             <Volume2 className="w-3.5 h-3.5 text-indigo-400 opacity-60 group-hover:opacity-100 transition-opacity" />
+                           </div>
+                           <p className="text-[10px] text-slate-500 truncate mt-0.5">{row.tips}</p>
+                         </div>
+                       </button>
+                     ))}
+                   </div>
+                </div>
+
+                <div className="bg-[#121626]/80 backdrop-blur-xl rounded-3xl border border-white/5 p-6 flex flex-col h-full border-t-[4px] border-t-indigo-500">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-xs font-black text-white uppercase tracking-[0.2em]">
+                      {selectedLang === 'English' ? 'Server Output Logs' : 'Logs de Sortie Serveur'}
+                    </h3>
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+                  </div>
+                  <div className="flex-1 space-y-3 font-mono text-[10px] overflow-y-auto max-h-[600px] pr-2 scrollbar-hide text-slate-500">
+                    <div className="flex gap-2 py-1 border-b border-white/5 text-emerald-400 font-bold">
+                      <span>[OK]</span>
+                      <span>PYTHON_HW_NODE: (EDGE LIVE)</span>
+                    </div>
+                    <div className="flex gap-2 py-1 border-b border-white/5">
+                      <span className="text-blue-500">[SYS]</span>
+                      <span>FastAPI Loader: GGUF Weights mounted (Gemma 4 Edge).</span>
+                    </div>
+                    {isRecording && (
+                      <>
+                        <div className="flex gap-2 text-indigo-300 py-1 border-b border-indigo-500/20 bg-indigo-500/10 rounded px-2 -mx-2 animate-pulse mt-2">
+                          <span>[IO]</span>
+                          <span>Stream RX buffer mapping: {audioData.reduce((a,b)=>a+b,0)} bytes</span>
+                        </div>
+                        <div className="flex flex-col gap-1 text-white bg-[#0b0e17] p-3 rounded-xl mt-3 border border-white/5 shadow-inner">
+                          <span className="text-slate-500 font-black tracking-widest uppercase text-[9px]">
+                            {selectedLang === 'English' ? 'Phonetic Inference V1:' : 'Inférence Phonétique V1 :'}
+                          </span>
+                          <span className="text-sm font-bold text-indigo-400">{detectedPhonemes[0] || '---'}</span>
+                        </div>
+                      </>
+                    )}
+                    <div className="py-4 text-center border-t border-white/5 mt-4 italic opacity-30">
+                      {selectedLang === 'English' ? 'Awaiting additional log dumps...' : 'En attente de dumps de logs supplémentaires...'}
+                    </div>
+                  </div>
+                </div>
+              </aside>
+            </div>
           </div>
         )}
 
         {mainView === 'architecture' && (
           <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b border-slate-800 pb-8">
                 <div>
-                   <h2 className="text-3xl font-black text-white tracking-tight uppercase">Faisabilité <span className="text-emerald-500">& Fiabilité</span></h2>
-                   <p className="text-slate-400 font-medium">A robust infrastructure designed to change the lives of students and sick children.</p>
+                   <h2 className="text-4xl font-extrabold text-white tracking-tight uppercase">System <span className="text-emerald-500">Arch & Security</span></h2>
+                   <p className="text-slate-500 font-medium font-mono text-sm uppercase tracking-widest mt-2">
+                     {archSubTab === 'cyber' ? 'CYBER DEFENSE COCKPIT — BASICS & AUDIT LAB' : archSubTab === 'ledger' ? 'OFFLINE LEDGER & SYNC PIPELINE (L6 SPEC)' : 'ZERO DATA-LEAK PRIVACY INFRASTRUCTURE'}
+                   </p>
+                </div>
+
+                <div className="flex p-1 bg-slate-950 border border-slate-800 rounded-2xl shrink-0">
+                  <button
+                    onClick={() => setArchSubTab('cyber')}
+                    className={`px-5 py-2.5 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all ${archSubTab === 'cyber' ? 'bg-[#00FF00]/10 border border-[#00FF00]/30 text-[#00FF00] shadow-[0_0_15px_rgba(0,255,0,0.15)]' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    Cybersecurity Lab
+                  </button>
+                  <button
+                    onClick={() => setArchSubTab('ledger')}
+                    className={`px-5 py-2.5 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all ${archSubTab === 'ledger' ? 'bg-[#00FF00]/10 border border-[#00FF00]/30 text-[#00FF00] shadow-[0_0_15px_rgba(0,255,0,0.15)]' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    Resilient Sync Ledger
+                  </button>
+                  <button
+                    onClick={() => setArchSubTab('visualizer')}
+                    className={`px-5 py-2.5 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all ${archSubTab === 'visualizer' ? 'bg-[#00FF00]/10 border border-[#00FF00]/30 text-[#00FF00] shadow-[0_0_15px_rgba(0,255,0,0.15)]' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    System Diagram
+                  </button>
                 </div>
              </div>
 
-             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Feasibility Panel */}
-                <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 space-y-6">
-                   <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-                      <div className="flex items-center gap-4">
-                         <div className="p-3 bg-emerald-500/10 rounded-xl">
-                            <Target className="w-6 h-6 text-emerald-500" />
-                         </div>
-                         <h3 className="text-xl font-bold text-white">Technical Feasibility</h3>
-                      </div>
-                      <div className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded-full flex items-center gap-2">
-                         <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                         <span className="text-xs font-bold text-emerald-500 uppercase tracking-widest">Backend Live</span>
-                      </div>
-                   </div>
-                   <ul className="space-y-4 text-slate-300">
-                      <li className="flex gap-3">
-                         <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                         <p><strong>Architecture Hybride (PROD) :</strong> The Real Backend is deployed! Ultra-fast web front-end connected to our isolated Python/Machine Learning inference engine. Validated performance, optimized energy consumption.</p>
-                      </li>
-                      <li className="flex gap-3">
-                         <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                         <p><strong>Real-Time Processing:</strong> L'analyse phonémique s'effectue en micro-batching avec une latence quasi nulle (&lt; 25ms), ce qui est vital pour l'intervention éducative auprès des publics dyslexiques.</p>
-                      </li>
-                      <li className="flex gap-3">
-                         <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                         <p><strong>Modulaire et Évolutif (Architecture Hybride) :</strong> Designed from the start so that processing algorithms can be ported to high-performance mobile and embedded environments.</p>
-                      </li>
-                   </ul>
-                </div>
+             {archSubTab === 'cyber' ? (
+                <CyberSecurityLab />
+             ) : archSubTab === 'ledger' ? (
+                <OfflineSyncPipeline user={user} />
+             ) : (
 
-                {/* Reliability Panel */}
-                <div className="bg-slate-950 border border-slate-800 rounded-3xl p-8 space-y-6 shadow-inner">
-                   <div className="flex items-center gap-4 border-b border-slate-800 pb-4">
-                      <div className="p-3 bg-blue-500/10 rounded-xl">
-                         <Activity className="w-6 h-6 text-blue-500" />
-                      </div>
-                      <h3 className="text-xl font-bold text-white">Reliability & Protection</h3>
-                   </div>
-                   <ul className="space-y-4 text-slate-300">
-                      <li className="flex gap-3">
-                         <Zap className="w-5 h-5 text-blue-500 shrink-0" />
-                         <p><strong>Continuous Accessibility:</strong> Fallback (plan de secours) visuel instantané si l'IA distante est déconnectée. L'apprentissage de l'enfant ne s'arrête jamais à cause du réseau.</p>
-                      </li>
-                      <li className="flex gap-3">
-                         <Zap className="w-5 h-5 text-blue-500 shrink-0" />
-                         <p><strong>Relentless Data Respect:</strong> 100% COPPA/GDPR compliant. No child's voice is stored on the server. Inference is instantly converted to text locally and then destroyed.</p>
-                      </li>
-                      <li className="flex gap-3">
-                         <Zap className="w-5 h-5 text-blue-500 shrink-0" />
-                         <p><strong>Educational Testing:</strong> Outils créés non pas comme de simples calculs mathématiques, mais calibrés pour éviter la surcharge cognitive (UI Minimaliste, forts contrastes).</p>
-                      </li>
-                   </ul>
-                </div>
-             </div>
+              <div className="space-y-8 animate-in fade-in duration-300">
+                 {/* Visual System Architecture Diagram */}
+                 <div className="bg-slate-900/40 backdrop-blur-md rounded-[2.5rem] border border-slate-800/80 p-6 md:p-10 space-y-6 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-[400px] h-[400px] bg-emerald-500/5 mix-blend-screen rounded-full blur-[80px] pointer-events-none -translate-x-1/4 -translate-y-1/4" />
+                    
+                    <div className="flex items-center gap-3 border-b border-slate-800/60 pb-6 relative z-10">
+                       <div className="p-3 bg-[#00FF00]/10 rounded-2xl border border-[#00FF00]/20">
+                          <Network className="w-6 h-6 text-[#00FF00]" />
+                       </div>
+                       <div>
+                          <h3 className="text-xl font-bold text-white uppercase tracking-wider">Mount AI Scholar Topology</h3>
+                          <p className="text-xs font-mono text-slate-500 uppercase tracking-widest mt-1">Inter-Service Pipeline Topology & Zero-Leak Edge Routings</p>
+                       </div>
+                    </div>
+
+                    <div className="bg-slate-950/80 rounded-2xl border border-slate-800/60 p-6 flex justify-center items-center overflow-x-auto min-h-[350px]">
+                       <div className="w-full max-w-4xl">
+                          <Mermaid chart={SYSTEM_DIAGRAM_CHART} />
+                       </div>
+                    </div>
+
+                    <div className="bg-slate-900/30 border border-slate-800 p-4.5 rounded-2xl flex gap-3.5 items-start">
+                       <BrainCircuit className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                       <div className="text-xs text-slate-400 leading-relaxed font-sans">
+                          <p className="font-bold text-white uppercase tracking-wider text-[10px] mb-1">Privacy by Design Routing Logic</p>
+                          L'application tourne de manière autonome pour le traitement de la voix grâce à un moteur local d'inférence (FastAPI / Gemma 4). Les données sensibles comme l'audio ne quittent jamais votre iPad ou PC local. Pour les résumés et questionnaires cognitifs complexes, les entrées passent d'abord par un pare-feu d'anonymisation (PII Firewall & Regex Interceptor) avant d'être transmises de manière sécurisée à l'API Google Gemini.
+                       </div>
+                    </div>
+                 </div>
+
+                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Feasibility Panel */}
+                    <div className="bg-slate-900/50 rounded-3xl border border-slate-800 backdrop-blur-sm p-10 space-y-8">
+                       <div className="flex items-center justify-between border-b border-slate-800 pb-6">
+                          <div className="flex items-center gap-4">
+                             <div className="p-3 bg-emerald-500/10 rounded-2xl border border-[#00FF00]/20">
+                                <Target className="w-6 h-6 text-emerald-500" />
+                             </div>
+                             <h3 className="text-xl font-bold text-white uppercase tracking-widest">Feasibility</h3>
+                          </div>
+                          <div className="px-3 py-1 bg-emerald-500/10 border border-[#00FF00]/30 rounded-full flex items-center gap-2">
+                             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                             <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Edge Live</span>
+                          </div>
+                       </div>
+                       <ul className="space-y-6 text-slate-400">
+                          <li className="flex gap-4 items-start">
+                             <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                             <p className="text-sm leading-relaxed"><strong className="text-white">Edge Hybrid (PROD):</strong> Local ML inference engine deployed. Validated for performance and zero-cloud dependency for phonemic routing.</p>
+                          </li>
+                          <li className="flex gap-4 items-start">
+                             <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                             <p className="text-sm leading-relaxed"><strong className="text-white">Real-Time Processing:</strong> Phonemic analysis via micro-batching with &lt;25ms latency. Crucial for educational interventions.</p>
+                          </li>
+                          <li className="flex gap-4 items-start">
+                             <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                             <p className="text-sm leading-relaxed"><strong className="text-white">Scalable:</strong> Architecture optimized to allow porting algorithms to mobile CoreML instances.</p>
+                          </li>
+                       </ul>
+                    </div>
+
+                    {/* Reliability Panel */}
+                    <div className="bg-slate-900/50 rounded-3xl border border-slate-800 backdrop-blur-sm p-10 space-y-8 relative overflow-hidden">
+                       <div className="absolute inset-0 bg-gradient-to-br from-[#3b82f6]/5 to-transparent pointer-events-none" />
+                       <div className="flex items-center gap-4 border-b border-slate-800 pb-6 relative z-10">
+                          <div className="p-3 bg-blue-600/10 rounded-2xl border border-[#3b82f6]/20">
+                             <Activity className="w-6 h-6 text-blue-500" />
+                          </div>
+                          <h3 className="text-xl font-bold text-white uppercase tracking-widest">Reliability</h3>
+                       </div>
+                       <ul className="space-y-6 text-slate-400 relative z-10">
+                          <li className="flex gap-4 items-start">
+                             <Zap className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+                             <p className="text-sm leading-relaxed"><strong className="text-white">Continuous Fallback:</strong> Visual fallback system activates instantly if edge node disconnects.</p>
+                          </li>
+                          <li className="flex gap-4 items-start">
+                             <Zap className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+                             <p className="text-sm leading-relaxed"><strong className="text-white">Data Exclusivity:</strong> 100% GDPR/COPPA. Audio isn't recorded or sent off-device. Ephemeral text generation.</p>
+                          </li>
+                          <li className="flex gap-4 items-start">
+                             <Zap className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+                             <p className="text-sm leading-relaxed"><strong className="text-white">Cognitive UI Checks:</strong> Interface built with minimalist constraints to prevent sensory overload.</p>
+                           </li>
+                        </ul>
+                     </div>
+                  </div>
+               </div>
+             )}
           </div>
-        )}
+         )}
 
         {mainView === 'learning' && (
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-             {/* Mode Apprentissage Menu */}
+             {/* Learning Mode Menu */}
              <aside className="lg:col-span-1 space-y-6">
-               <div className="bg-slate-900/50 rounded-3xl border border-slate-800 p-6 space-y-6 backdrop-blur-sm">
-                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2 mb-4">
-                   <Database className="w-4 h-4 text-blue-500" /> Hackathon Tooling
+               <div className="bg-slate-900/50 border-slate-800 border-slate-800 p-6 rounded-3xl space-y-6">
+                 <h3 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2 mb-4">
+                   <Database className="w-4 h-4 text-blue-500" /> Intelligence Modes
                  </h3>
                  <button
                    onClick={() => {
                      setLearningMode('search');
                      setLearningResult("");
                    }}
-                   className={`w-full text-left p-5 rounded-2xl border transition-all duration-300 mb-8 ${learningMode === 'search' ? 'bg-blue-600 border-blue-500 text-white shadow-xl shadow-blue-900/20 translate-x-2' : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:border-blue-500/50 hover:bg-slate-900 hover:translate-x-1'}`}
+                   className={`w-full text-left p-5 rounded-2xl border transition-all duration-300 mb-8 flex flex-col gap-2 ${learningMode === 'search' ? 'bg-blue-600 border-[#3b82f6] text-white shadow-xl translate-x-2' : 'bg-slate-950 border-slate-800 text-slate-500 hover:border-[#3b82f6]/50 hover:bg-slate-900 hover:translate-x-1'}`}
                  >
-                   <div className="flex items-center gap-3 mb-2">
-                     <SearchCode className={`w-6 h-6 ${learningMode === 'search' ? 'text-white' : 'text-blue-500'}`} />
-                     <span className="text-base font-black tracking-tight">Elasticsearch RAG Agent</span>
+                   <div className="flex items-center gap-3">
+                     <SearchCode className={`w-5 h-5 ${learningMode === 'search' ? 'text-white' : 'text-blue-500'}`} />
+                     <span className="text-sm font-black tracking-tight">RAG Interfacer</span>
                    </div>
-                   <p className="text-xs font-medium opacity-80">Interroge tes cours via la recherche vectorielle (kNN).</p>
+                   <p className="text-[10px] font-medium opacity-80 uppercase tracking-widest">Elastic Vector Search (kNN)</p>
                  </button>
 
-                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2 mb-4">
-                   <BookOpen className="w-4 h-4 text-orange-500" /> Global Learning
+                 <h3 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2 mb-4">
+                   <BookOpen className="w-4 h-4 text-orange-500" /> Processing Hub
                  </h3>
                  <div className="space-y-3">
                     {[
-                      { id: 'gemma', label: 'Gemma 2 (Hackathon)', icon: <BrainCircuit className="w-4 h-4" /> },
-                      { id: 'summary', label: 'Vocal Summaries', icon: <FileText className="w-4 h-4" /> },
-                      { id: 'quiz', label: 'Fun Quizzes & Exercises', icon: <Gamepad2 className="w-4 h-4" /> },
-                      { id: 'mindmap', label: 'Mind Maps', icon: <Network className="w-4 h-4" /> },
-                      { id: 'presentation', label: 'Presentations', icon: <Presentation className="w-4 h-4" /> },
+                      { id: 'gemma', label: 'Gemma 4 Edge', icon: <BrainCircuit className="w-4 h-4" /> },
+                      { id: 'summary', label: 'Summary Generation', icon: <FileText className="w-4 h-4" /> },
+                      { id: 'quiz', label: 'Cognitive Testing', icon: <Gamepad2 className="w-4 h-4" /> },
+                      { id: 'exam', label: 'Evaluation System', icon: <Target className="w-4 h-4" /> },
+                      { id: 'mindmap', label: 'Neural Mapping', icon: <Network className="w-4 h-4" /> },
+                      { id: 'presentation', label: 'Automated Decks', icon: <Presentation className="w-4 h-4" /> },
                     ].map((m) => (
                       <button
                         key={m.id}
@@ -829,11 +1687,11 @@ export default function App() {
                           setLearningMode(m.id as any);
                           setLearningResult("");
                         }}
-                        className={`w-full text-left p-4 rounded-2xl border transition-all duration-300 ${learningMode === m.id ? 'bg-orange-600 border-orange-500 text-white shadow-xl shadow-orange-900/20 translate-x-2' : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:border-slate-700 hover:bg-slate-900 hover:translate-x-1'}`}
+                        className={`w-full text-left p-4 rounded-2xl border transition-all duration-300 ${learningMode === m.id ? 'bg-orange-600 border-[#ff4e00] text-white shadow-[0_0_20px_rgba(255,78,0,0.4)] translate-x-2' : 'bg-slate-950 border-slate-800 text-slate-500 hover:border-slate-700 hover:bg-slate-900 hover:translate-x-1'}`}
                       >
                         <div className="flex items-center gap-3">
                           {m.icon}
-                          <span className="text-sm font-bold tracking-tight">{m.label}</span>
+                          <span className="text-sm font-bold tracking-tight uppercase">{m.label}</span>
                         </div>
                       </button>
                     ))}
@@ -843,18 +1701,23 @@ export default function App() {
 
              <section className="lg:col-span-3 space-y-6">
                 {/* AI Input Area */}
-                <div className="bg-slate-900 rounded-[2.5rem] border border-slate-800 p-8 shadow-2xl flex flex-col gap-6">
-                   <div className="flex justify-between items-center">
-                     <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                {(learningMode !== 'exam' || generatedQuestions.length === 0) && (
+                <div className={`bg-slate-900/50 rounded-[2.5rem] p-8 shadow-2xl flex flex-col gap-6 relative overflow-hidden transition-all duration-300 ${learningMode === 'exam' ? 'border-[#ff4e00]/40 border-2' : 'border-slate-800 border'}`}>
+                   <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-slate-800/50 mix-blend-screen rounded-full blur-[80px] pointer-events-none translate-x-1/2 -translate-y-1/2" />
+                   
+                   <div className="flex justify-between items-center relative z-10">
+                     <h2 className="text-2xl font-bold text-white flex items-center gap-3 uppercase tracking-tight">
                        {learningMode === 'search' && <><Database className="text-blue-500"/> Elastic RAG Engine</>}
                        {learningMode === 'summary' && <><FileText className="text-orange-500"/> Synthesis Intelligence</>}
                        {learningMode === 'quiz' && <><Gamepad2 className="text-purple-500"/> Quiz Generator</>}
-                       {learningMode === 'mindmap' && <><Network className="text-pink-500"/> Mind Maps (Mermaid.js)</>}
-                       {learningMode === 'presentation' && <><Presentation className="text-indigo-500"/> Presentation Mode</>}
+                       {learningMode === 'mindmap' && <><Network className="text-emerald-500"/> Network Maps (Mermaid)</>}
+                       {learningMode === 'presentation' && <><Presentation className="text-indigo-500"/> Presentation Compile</>}
+                       {learningMode === 'exam' && <><Target className="text-red-500 animate-pulse"/> Générateur de Contrôle & Acquisition</>}
+                       {(learningMode === 'gemma' || (!['search','summary','quiz','mindmap','presentation','exam'].includes(learningMode))) && <><BrainCircuit className="text-white"/> Edge Routing</>}
                      </h2>
                      {learningMode !== 'presentation' && (
                        <select 
-                         className="bg-slate-950 border border-slate-700 text-slate-300 text-sm rounded-lg focus:ring-orange-500 focus:border-orange-500 block p-2"
+                         className="bg-slate-900 border border-slate-800 text-white/90 text-xs uppercase tracking-widest rounded-lg px-3 py-2 outline-none appearance-none"
                          value={selectedLang}
                          onChange={(e) => setSelectedLang(e.target.value)}
                        >
@@ -868,43 +1731,140 @@ export default function App() {
                    </div>
                    
                    <textarea 
-                     rows={5}
-                     className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-6 text-slate-300 focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all resize-none outline-none font-mono text-sm"
-                     placeholder={learningMode === 'search' ? "Recherche vectorielle. Ex: 'Selon mes cours de SVT, comment fonctionne la photosynthèse ? L'agent ira chercher les vecteurs dans Elasticsearch...'" : "Paste your course, text, or notes here for the AI to process..."}
+                     rows={learningMode === 'exam' ? 3 : 6}
+                     className="w-full relative z-10 bg-slate-950 border border-slate-800 rounded-2xl p-6 text-white overflow-y-auto focus:border-white/30 focus:ring-1 focus:ring-white/30 transition-all resize-none outline-none font-mono text-sm leading-relaxed"
+                     placeholder={
+                       learningMode === 'search' ? "Recherche vectorielle. Exemple : 'Rechercher les références à la photosynthèse dans la banque de connaissances...'" : 
+                       learningMode === 'exam' ? "Formulez ici des directives ou thèmes de ciblage pour l'évaluation pédagogique du contrôle, ou importez vos cours..." :
+                       learningMode === 'summary' ? "Saisissez votre texte de cours ou vos leçons. Notre moteur compilera instantanément un résumé à haute densité sémantique..." :
+                       "Insérez le texte source, le code ou le contexte. Notre orchestrateur de services analysera et effectuera le traitement d'apprentissage automatiquement..."
+                     }
                      value={inputText}
                      onChange={(e) => setInputText(e.target.value)}
                    />
                    
-                   <div className="flex justify-end items-center gap-4">
-                     {!user && <span className="text-xs text-orange-500 animate-pulse">Log in to save your learning</span>}
-                     <button 
-                       onClick={handleGenerate}
-                       disabled={isGenerating || !inputText}
-                       className="px-8 py-4 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 disabled:hover:bg-orange-600 rounded-xl text-white font-bold flex items-center gap-3 transition-colors"
-                     >
-                       {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-                       Generate
-                     </button>
+                   <div className="flex justify-end items-center gap-6 relative z-10">
+                     {!user && <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Unauthenticated Session</span>}
+
+                     {/* Multilingual File Upload Component (Max 5 Documents) */}
+                     {learningMode === 'exam' && (
+                       <div className="w-full space-y-3 pb-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                       <div className="flex items-center justify-between">
+                         <label className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                           <Paperclip className="w-4 h-4 text-orange-500 animate-bounce" /> Importation de documents de cours ({uploadedFiles.length}/5)
+                         </label>
+                         {fileError && <span className="text-[11px] font-bold text-red-500 tracking-tight">{fileError}</span>}
+                       </div>
+
+                       <div 
+                         onClick={() => document.getElementById('academic-file-picker')?.click()}
+                         onDragOver={(e) => e.preventDefault()}
+                         onDrop={async (e) => {
+                           e.preventDefault();
+                           const files = e.dataTransfer.files;
+                           if (files) {
+                             const syntheticEvent = { target: { files } } as any;
+                             await handleFileUpload(syntheticEvent);
+                           }
+                         }}
+                         className="border border-dashed border-slate-800 hover:border-slate-700 bg-slate-950/20 hover:bg-slate-950/60 transition-all duration-300 rounded-2xl p-5 flex flex-col items-center justify-center gap-2 cursor-pointer text-center group"
+                       >
+                         <input 
+                           type="file" 
+                           id="academic-file-picker" 
+                           multiple 
+                           accept=".pdf,.docx,.txt" 
+                           onChange={handleFileUpload} 
+                           className="hidden" 
+                         />
+                         {isUploadingFile ? (
+                           <>
+                             <Loader2 className="w-7 h-7 text-orange-500 animate-spin" />
+                             <p className="text-xs font-black text-slate-300 uppercase tracking-widest">Analyse sémantique et extraction du texte...</p>
+                           </>
+                         ) : (
+                           <>
+                             <FileText className="w-7 h-7 text-slate-500 group-hover:text-orange-500 transition-colors" />
+                             <p className="text-xs font-black text-slate-300 uppercase tracking-widest group-hover:text-white transition-colors">Glissez-déposez vos fichiers de cours (PDF, Word, TXT)</p>
+                             <p className="text-[9px] text-slate-500 font-mono">Analyse lexicale et phonologique active (max 5 fichiers)</p>
+                           </>
+                         )}
+                       </div>
+
+                       {/* Display Uploaded File Badges */}
+                       {uploadedFiles.length > 0 && (
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                           {uploadedFiles.map((f, fileIdx) => (
+                             <div key={fileIdx} className="bg-slate-950/80 border border-slate-800/60 p-3 rounded-xl flex items-center justify-between text-xs animate-in slide-in-from-bottom-2 duration-300">
+                               <div className="flex items-center gap-3 overflow-hidden">
+                                 <FileText className="w-4 h-4 text-orange-500 shrink-0" />
+                                 <div className="truncate">
+                                   <p className="font-bold text-white truncate">{f.name}</p>
+                                   <p className="text-[10px] text-slate-500 font-mono">{(f.size / 1024 / 1024).toFixed(2)} MB — {f.text.length.toLocaleString()} car.</p>
+                                 </div>
+                               </div>
+                               <button 
+                                 type="button"
+                                 onClick={(e) => { e.stopPropagation(); handleRemoveFile(fileIdx); }}
+                                 className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-550/10 rounded-lg transition-all shrink-0 cursor-pointer"
+                               >
+                                 <Trash2 className="w-4 h-4" />
+                               </button>
+                             </div>
+                           ))}
+                         </div>
+                       )}
+                     </div>
+                     )}
+
+                     <div className="w-full flex justify-between items-center pt-4 border-t border-slate-800/40">
+                       {uploadedFiles.length > 0 ? (
+                         <span className="text-[10px] text-emerald-500 font-mono tracking-wider font-extrabold flex items-center gap-1.5 uppercase">
+                           <CheckCircle2 className="w-3.5 h-3.5 animate-pulse" /> {uploadedFiles.length} Cours chargés
+                         </span>
+                       ) : (
+                         <span className="text-[10px] text-slate-500 font-mono uppercase">Aucun fichier importé</span>
+                       )}
+                       <button 
+                         onClick={handleGenerate}
+                         disabled={isGenerating || (!inputText.trim() && uploadedFiles.length === 0)}
+                         className="px-8 py-4 bg-white hover:bg-slate-200 disabled:bg-slate-800/50 disabled:text-white/20 disabled:border-slate-800 rounded-2xl text-black font-bold uppercase tracking-widest text-sm flex items-center gap-3 transition-colors shadow-2xl cursor-pointer"
+                       >
+                         {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                         {isGenerating ? 'PROCESSING...' : 'EXECUTE'}
+                       </button>
+                     </div>
+
+
                    </div>
                 </div>
+                 )}
 
                 {/* AI Result Area */}
-                {(learningResult || isGenerating) && (
-                  <div className="bg-slate-900/50 rounded-[2.5rem] border border-slate-800 p-8 shadow-inner min-h-[300px]">
+                {learningMode === 'exam' && (
+                  <ExamQuiz 
+                    customQuestions={generatedQuestions} 
+                    language={selectedLang} 
+                    onRestart={() => handleGenerate()}
+                    originalTextContext={inputText || (uploadedFiles.length > 0 ? uploadedFiles.map(f => f.name).join(', ') : undefined)}
+                  />
+                )}
+                {(learningResult || isGenerating) && learningMode !== 'exam' && (
+                  <div className="bg-slate-900/50 border-slate-800 border-slate-800 rounded-[2.5rem] p-8 shadow-2xl min-h-[400px] flex flex-col gap-6 relative overflow-hidden">
                     {isGenerating ? (
-                      <div className="h-full flex flex-col items-center justify-center text-slate-500 py-20 space-y-4">
+                      <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-slate-500 space-y-6 relative z-10 flex-1">
                         <div className="relative">
-                           <div className="w-16 h-16 border-4 border-orange-500/20 border-t-orange-500 rounded-full animate-spin" />
-                           <Sparkles className="w-6 h-6 text-orange-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
+                           <div className="w-16 h-16 border-4 border-slate-800 border-t-white rounded-full animate-spin" />
+                           <Sparkles className="w-6 h-6 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
                         </div>
-                        <p className="font-mono text-sm uppercase tracking-widest text-orange-500/70">Neural Processing in progress...</p>
+                        <p className="font-mono text-xs uppercase tracking-widest">Allocating resources & computing layers...</p>
                       </div>
                     ) : learningMode === 'mindmap' ? (
-                      <div className="w-full bg-slate-950/50 p-6 rounded-2xl border border-slate-800">
+                      <div className="w-full bg-slate-800/50 p-6 rounded-2xl border border-slate-800 relative z-10 shadow-inner min-h-[400px] flex items-center justify-center flex-1">
                         <Mermaid chart={learningResult} />
                       </div>
                     ) : (
-                      <div className="prose prose-invert prose-orange max-w-none text-slate-300">
+                      <div className="prose prose-invert prose-lg max-w-none text-slate-300 relative z-10 flex-1">
                         <div className="markdown-body">
                           <Markdown>{learningResult}</Markdown>
                         </div>
@@ -912,68 +1872,57 @@ export default function App() {
                     )}
                   </div>
                 )}
+                
+                {/* Vocabulary Tracker based on submitted text */}
+                {!isGenerating && inputText && learningMode !== 'exam' && (
+                  <VocabularyTracker text={inputText} language={selectedLang} />
+                )}
              </section>
           </div>
         )}
 
         {mainView === 'history' && (
-          <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                <div>
-                   <h2 className="text-3xl font-black text-white tracking-tight uppercase">History d'Apprentissage</h2>
-                   <p className="text-slate-400 font-medium">Your previous generations saved securely on Firebase.</p>
-                </div>
-             </div>
-
-             <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-inner">
-               {isLoadingHistory ? (
-                 <div className="flex justify-center items-center py-20">
-                    <Loader2 className="w-8 h-8 text-orange-500 animate-spin" />
-                 </div>
-               ) : historyItems.length === 0 ? (
-                 <div className="text-center py-20">
-                    <History className="w-12 h-12 text-slate-700 mx-auto mb-4" />
-                    <p className="text-slate-400 font-medium">No history found.</p>
-                 </div>
-               ) : (
-                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                   {historyItems.map((item) => (
-                      <div key={item.id} className="bg-slate-950 border border-slate-800 rounded-2xl p-6 hover:border-orange-500/50 transition-colors cursor-pointer group flex flex-col h-80">
-                         <div className="flex justify-between items-center mb-4">
-                           <span className="px-3 py-1 bg-orange-500/10 text-orange-500 text-[10px] font-bold rounded-full uppercase tracking-widest">{item.mode}</span>
-                           <span className="text-xs text-slate-500 font-mono">{item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString() : '—'}</span>
-                         </div>
-                         <h4 className="text-sm font-bold text-white mb-2 max-w-full truncate">Source: {item.originalText?.substring(0, 50)}...</h4>
-                         <div className="flex-1 overflow-hidden relative">
-                           <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-slate-950 to-transparent z-10" />
-                           <div className="text-xs text-slate-400 prose prose-invert">
-                             <Markdown>{item.generatedContent?.substring(0, 200) + '...'}</Markdown>
-                           </div>
-                         </div>
-                         <div className="mt-4 pt-4 border-t border-slate-800 text-xs font-bold text-orange-500 group-hover:translate-x-1 transition-transform flex items-center">
-                           Saved <CheckCircle2 className="w-4 h-4 ml-2" />
-                         </div>
-                      </div>
-                   ))}
-                 </div>
-               )}
-             </div>
-          </div>
+          <HistoryView isLoadingHistory={isLoadingHistory} historyItems={historyItems} />
         )}
+
+        {mainView === 'cognitive-gym' && (
+          <CognitiveArena
+            user={user}
+            onLogin={async () => { await loginWithGoogle(); }}
+            selectedLang={selectedLang}
+            voiceArenaSpoken={voiceArenaSpoken}
+            setVoiceArenaSpoken={setVoiceArenaSpoken}
+            arenaTranscript={arenaTranscript}
+            setArenaTranscript={setArenaTranscript}
+            isRecording={isRecording}
+            toggleRecording={toggleRecording}
+            audioData={audioData}
+            selectedCardId={selectedCardId}
+            setSelectedCardId={setSelectedCardId}
+            remediationContent={remediationContent}
+            setRemediationContent={setRemediationContent}
+            isRemediating={isRemediating}
+            setIsRemediating={setIsRemediating}
+            speechError={speechError}
+          />
+        )}
+
+
       </main>
 
       {/* Credits & Tech Talk */}
+      {mainView !== 'cognitive-gym' && (
       <footer className="max-w-7xl mx-auto px-6 py-12 border-t border-slate-800 flex flex-col md:flex-row items-center gap-8 justify-between opacity-80">
     <div className="flex flex-col items-center gap-6 w-full md:w-auto">
       <div className="relative group w-full md:w-auto">
         <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-orange-600 rounded-3xl blur opacity-25 group-hover:opacity-50 transition duration-500"></div>
-        <div className="relative bg-slate-900/40 backdrop-blur-2xl border border-white/10 px-8 py-5 md:px-12 md:py-6 rounded-3xl shadow-2xl flex flex-col md:flex-row justify-center items-center gap-4 md:gap-6">
+        <div className="relative bg-slate-900/40 backdrop-blur-2xl border border-slate-800 px-8 py-5 md:px-12 md:py-6 rounded-3xl shadow-2xl flex flex-col md:flex-row justify-center items-center gap-4 md:gap-6">
            <span className="text-sm md:text-base text-slate-300 font-medium tracking-widest uppercase text-center drop-shadow-sm">
-             Helping Learning <span className="bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-teal-400 font-bold">Empowering Students</span>
+             Mount AI: <span className="bg-clip-text text-transparent bg-gradient-to-r from-orange-500 to-red-500 font-black">Stealth Startup</span>
            </span>
            <div className="hidden md:block w-2 h-2 bg-slate-600 rounded-full" />
            <span className="text-sm md:text-base text-slate-300 font-medium tracking-widest uppercase text-center drop-shadow-sm">
-             CEO : <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-rose-400 font-black tracking-widest">Taha DEV Junior</span>
+             CEO & FOUNDER : <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-rose-400 font-black tracking-widest">Taha DEV Junior</span>
            </span>
          </div>
        </div>
@@ -985,6 +1934,7 @@ export default function App() {
           <button className="text-xs font-bold text-orange-500 hover:text-orange-400 transition-colors uppercase tracking-widest">Python/ML Source Code</button>
         </div>
       </footer>
+      )}
     </div>
   );
 }

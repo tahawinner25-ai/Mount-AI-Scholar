@@ -24,6 +24,21 @@
         "createdAt": { "type": "string" }
       },
       "required": ["userId", "mode", "language", "originalText", "generatedContent", "createdAt"]
+    },
+    "SyncLedgerEntry": {
+      "title": "SyncLedgerEntry",
+      "description": "Cryptographic offline ledger synchronization record.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "seqId": { "type": "string" },
+        "mutationType": { "type": "string" },
+        "payloadJson": { "type": "string" },
+        "checksum": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "syncStatus": { "type": "string" }
+      },
+      "required": ["userId", "seqId", "mutationType", "payloadJson", "checksum", "timestamp", "syncStatus"]
     }
   },
   "firestore": {
@@ -34,6 +49,10 @@
     "/learning_items/{itemId}": {
       "schema": { "$ref": "#/entities/LearningItem" },
       "description": "Records of AI generations requests and responses"
+    },
+    "/sync_ledger/{txId}": {
+      "schema": { "$ref": "#/entities/SyncLedgerEntry" },
+      "description": "Offline-first transactional ledger verification log"
     }
   }
 }

@@ -8,7 +8,7 @@ service cloud.firestore {
     }
 
     // Primitives
-    function isSignedIn() { return request.auth != null; }
+    function isSignedIn() { return request.auth != null && request.auth.token.email_verified == true; }
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
@@ -30,6 +30,19 @@ service cloud.firestore {
              data.language is string && data.language.size() <= 50 &&
              data.originalText is string && data.originalText.size() <= 400000 &&
              data.generatedContent is string && data.generatedContent.size() <= 400000 &&
+             data.createdAt == request.time;
+    }
+
+    function isValidLedgerEntry(data) {
+      return data.keys().hasAll(['userId', 'seqId', 'mutationType', 'payloadJson', 'checksum', 'timestamp', 'syncStatus', 'createdAt']) &&
+             data.keys().size() == 8 &&
+             data.userId == request.auth.uid &&
+             data.seqId is string && data.seqId.size() <= 64 &&
+             data.mutationType is string && data.mutationType.size() <= 100 &&
+             data.payloadJson is string && data.payloadJson.size() <= 40000 &&
+             data.checksum is string && data.checksum.size() <= 256 &&
+             data.timestamp is string && data.timestamp.size() <= 128 &&
+             data.syncStatus is string && data.syncStatus.size() <= 50 &&
              data.createdAt == request.time;
     }
 
@@ -63,6 +76,23 @@ service cloud.firestore {
                     
       allow update: if false;
       allow delete: if false;
+    }
+
+    // sync_ledger Collection
+    match /sync_ledger/{txId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() &&
+                    isValidId(txId) &&
+                    isValidLedgerEntry(incoming()) &&
+                    exists(/databases/$(database)/documents/users/$(request.auth.uid));
+      allow update, delete: if false;
+    }
+
+    // arena_sessions Collection
+    match /arena_sessions/{sessionId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
     }
   }
 }

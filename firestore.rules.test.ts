@@ -25,7 +25,7 @@ afterEach(async () => {
 
 describe('Firestore Rules Tests', () => {
   it('cannot create user profile for another uid', async () => {
-    const context = testEnv.authenticatedContext('alice');
+    const context = testEnv.authenticatedContext('alice', { email_verified: true });
     const maliciousPayload = {
       userId: 'bob',
       role: 'student',
@@ -35,7 +35,7 @@ describe('Firestore Rules Tests', () => {
   });
 
   it('can create user profile for own uid', async () => {
-    const context = testEnv.authenticatedContext('alice');
+    const context = testEnv.authenticatedContext('alice', { email_verified: true });
     const validPayload = {
       userId: 'alice',
       role: 'student',
@@ -45,7 +45,7 @@ describe('Firestore Rules Tests', () => {
   });
 
   it('cannot query learning_items without the right userId filter', async () => {
-    const context = testEnv.authenticatedContext('alice');
+    const context = testEnv.authenticatedContext('alice', { email_verified: true });
     await assertFails(context.firestore().collection('learning_items').get());
   });
 });

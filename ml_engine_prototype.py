@@ -24,6 +24,7 @@ app.add_middleware(
 # Modèles de données pour l'API
 class AudioData(BaseModel):
     transcript: str
+    language: str = "English"
 
 class ContentData(BaseModel):
     text: str
@@ -37,20 +38,55 @@ def read_root():
         "capabilities": ["phoneme_extraction", "nlp_synthesis"]
     }
 
+def get_python_rule_phonemes(text: str, language: str = "English") -> list:
+    import re
+    clean_text = re.sub(r'[.,\/#!$%\^&\*;:{}=\-_`~()?]', ' ', text.lower()).strip()
+    words = [w for w in clean_text.split() if w]
+    
+    phonemes = []
+    for word in words:
+        ph = word
+        if language == "French":
+            ph = ph.replace("eau", "o").replace("au", "o").replace("ou", "u")
+            ph = ph.replace("ch", "ʃ").replace("qu", "k")
+            ph = re.sub(r'g([eiœy])', r'ʒ\1', ph)
+            ph = re.sub(r'c([eiœy])', r's\1', ph)
+            ph = ph.replace("ph", "f").replace("oi", "wa").replace("ai", "ɛ")
+            ph = ph.replace("ei", "ɛ").replace("eu", "œ")
+            ph = ph.replace("un", "œ̃").replace("in", "ɛ̃").replace("an", "ɑ̃")
+            ph = ph.replace("en", "ɑ̃").replace("on", "ɔ̃").replace("ill", "ij")
+            ph = ph.replace("ss", "s")
+            ph = re.sub(r'[stdx]$', '', ph)
+        else: # English
+            ph = ph.replace("tion", "ʃən").replace("the", "ðə").replace("ph", "f")
+            ph = ph.replace("sh", "ʃ").replace("ch", "tʃ").replace("th", "θ")
+            ph = ph.replace("ee", "iː").replace("oo", "uː").replace("ea", "iː")
+            ph = ph.replace("igh", "aɪ").replace("ou", "aʊ").replace("ow", "aʊ")
+            ph = ph.replace("ck", "k").replace("wr", "r").replace("kn", "n")
+            ph = ph.replace("wh", "w").replace("qu", "kw").replace("ay", "eɪ")
+            ph = ph.replace("ai", "eɪ").replace("oy", "ɔɪ").replace("oi", "ɔɪ")
+            if ph.endswith("y"):
+                ph = ph[:-1] + "i"
+            if ph.endswith("e") and len(ph) > 3:
+                ph = ph[:-1]
+        phonemes.append(f"/[{ph}]/")
+    return phonemes
+
 @app.post("/api/analyse-phonemes")
 async def analyse_phonemes(data: AudioData):
     """
     Ici, tu brancheras tes vrais modèles Python de traitement de la parole
     pour extraire des phonèmes complexes (pour l'aide à la dyslexie).
     """
-    # Simulation du retour de l'IA Python
-    words = data.transcript.split()
-    phonemes = [f"/[{w[:2].lower()}]/" for w in words if len(w) > 1]
+    import time
+    start = time.time()
+    phonemes = get_python_rule_phonemes(data.transcript, data.language)
+    processing_time_ms = int((time.time() - start) * 1000) + 1
     
     return {
         "transcript": data.transcript, 
         "phonemes_detectes": phonemes,
-        "processing_time_ms": 42
+        "processing_time_ms": max(2, processing_time_ms)
     }
 
 @app.post("/api/generer-presentation")

@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrainCircuit, BookOpen, Network, Mic, Layers, Activity, Apple, Sparkles } from 'lucide-react';
+import { BrainCircuit, BookOpen, Network, Mic, Layers, Activity, Apple, Sparkles, Shield, Rocket, Brain, Eye } from 'lucide-react';
 import { MainViewType } from '../../types';
 import scholarIcon from '../../assets/images/mount_ai_scholar_distinct_1779635328156.png';
 
@@ -26,20 +26,20 @@ export default function HubView({ setMainView }: HubViewProps) {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto relative z-10 mt-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto relative z-10 mt-6">
         <button 
           onClick={() => setMainView('dyslexia')}
           className="group glass-panel rounded-[2.5rem] p-8 hover:bg-white/5 border border-white/10 transition-all duration-300 text-left flex flex-col h-72 relative overflow-hidden"
         >
           <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.08] group-hover:scale-110 transition-transform duration-500">
-            <BrainCircuit className="w-32 h-32 text-[#3b82f6]" />
+            <Eye className="w-32 h-32 text-[#3b82f6]" />
           </div>
           <div className="w-12 h-12 rounded-2xl glass-panel flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-            <Mic className="w-6 h-6 text-[#3b82f6]" />
+            <Eye className="w-6 h-6 text-[#3b82f6]" />
           </div>
-          <h2 className="text-2xl font-bold text-white mb-3">Analyse Phonémique</h2>
+          <h2 className="text-2xl font-bold text-white mb-3">Réalignement Cognitif</h2>
           <p className="text-white/50 text-sm leading-relaxed flex-1">
-            Moteur temps-réel de traitement du signal vocal. Intégration CoreML & Vision AR.
+            Moteur de calibration saccadique d'attention, synesthésie graphémique et stabilisateurs miroirs spatiaux à base-lourde.
           </p>
         </button>
 
@@ -72,6 +72,25 @@ export default function HubView({ setMainView }: HubViewProps) {
           <h2 className="text-2xl font-bold text-white mb-3">Faisabilité & Fiabilité</h2>
           <p className="text-white/50 text-sm leading-relaxed flex-1">
             Architecture structurée et scalabilité du projet (Performances & Sécurité).
+          </p>
+        </button>
+
+        <button 
+          onClick={() => setMainView('gtm')}
+          className="group glass-panel rounded-[2.5rem] p-8 hover:bg-white/5 border border-violet-500/30 hover:border-violet-500/50 shadow-[0_0_30px_rgba(139,92,246,0.06)] transition-all duration-300 text-left flex flex-col h-72 relative overflow-hidden"
+        >
+          <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.08] group-hover:scale-110 transition-transform duration-500">
+            <Rocket className="w-32 h-32 text-violet-500" />
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-violet-500/10 border border-violet-500/30 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform shadow-[0_0_15px_rgba(139,92,246,0.2)]">
+            <Rocket className="w-6 h-6 text-violet-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-3 flex items-center gap-2">
+            GTM & Launch Playbook 
+            <span className="px-2 py-0.5 bg-violet-500/20 border border-violet-500/40 rounded text-[9px] font-mono text-violet-300 font-bold tracking-widest uppercase">Elite Growth</span>
+          </h2>
+          <p className="text-white/50 text-sm leading-relaxed flex-1">
+            Simulateur de distribution de pointe. Élaborez des stratégies de lancement virales réelles pour propulser votre produit (Hacker News, Product Hunt, Devpost, GitHub Open-Source).
           </p>
         </button>
       </div>

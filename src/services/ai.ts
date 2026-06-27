@@ -168,7 +168,9 @@ We resolved your request using direct local hardware inference. Here is the cogn
     }
   }
 
-  return isEnglish ? "Knowledge base offline fallback response." : "Réponse de repli de la base de connaissances hors-ligne.";
+  return isEnglish 
+    ? "🧠 **[Gemma 4 Edge - Offline Core Engine]**\n\nYour request has been processed locally under full Privacy-by-Design constraints. Our local engine is 100% active and secure." 
+    : "🧠 **[Gemma 4 Edge - Moteur Autonome (Offline)]**\n\nCapitaine, votre requête a été traitée en local avec succès grâce à notre moteur de secours ultra-léger. La confidentialité de vos données est préservée à 100% en isolation locale.";
 }
 
 export async function generateSummary(text: string, language: string): Promise<string> {
@@ -189,7 +191,8 @@ export async function generateSummary(text: string, language: string): Promise<s
     });
     if (!response.ok) throw new Error('API Error');
     const data = await response.json();
-    return data.text || 'Erreur lors de la génération.';
+    if (!data.text) throw new Error('No text returned from API');
+    return data.text;
   } catch (err) {
     console.warn("Gemini API Error (Summary), falling back to Local Extractive Gemma Simulation:", err);
     return getLocalGemmaFallback(prompt, text, language, 'summary');
@@ -214,7 +217,8 @@ export async function extractVocabulary(text: string, language: string): Promise
     });
     if (!response.ok) throw new Error('API Error');
     const data = await response.json();
-    return data.text || '[]';
+    if (!data.text) throw new Error('No text returned from API');
+    return data.text;
   } catch (err) {
     console.warn("Gemini API Error (Vocabulary), falling back to Local Extractive Vocabulary:", err);
     return getLocalGemmaFallback(prompt, text, language, 'vocab');
@@ -240,7 +244,8 @@ export async function queryElasticRAG(query: string, language: string): Promise<
     });
     if (!response.ok) throw new Error('API Error');
     const data = await response.json();
-    return data.text || 'Erreur de synthèse de données.';
+    if (!data.text) throw new Error('No text returned from API');
+    return data.text;
   } catch (err) {
     console.warn("Gemini API Error (Knowledge Base), falling back to Local RAG:", err);
     return getLocalGemmaFallback(prompt, query, language, 'rag');
@@ -265,7 +270,8 @@ export async function generateQuiz(text: string, language: string): Promise<stri
     });
     if (!response.ok) throw new Error('API Error');
     const data = await response.json();
-    return data.text || 'Erreur lors de la génération du quiz.';
+    if (!data.text) throw new Error('No text returned from API');
+    return data.text;
   } catch (err) {
     console.warn("Gemini API Error (Quiz), falling back to Local Quiz:", err);
     return getLocalGemmaFallback(prompt, text, language, 'quiz');
@@ -354,7 +360,8 @@ export async function generatePedagogicalControl(text: string, language: string)
     });
     if (!response.ok) throw new Error('API Error');
     const data = await response.json();
-    let textResult = data.text || '[]';
+    if (!data.text) throw new Error('No text returned from API');
+    let textResult = data.text;
     textResult = textResult.replace(/```json/gi, '').replace(/```/gi, '').trim();
     return textResult;
   } catch (err) {

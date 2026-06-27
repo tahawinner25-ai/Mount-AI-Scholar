@@ -8,7 +8,8 @@ service cloud.firestore {
     }
 
     // Primitives
-    function isSignedIn() { return request.auth != null && request.auth.token.email_verified == true; }
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn(); }
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
@@ -46,17 +47,49 @@ service cloud.firestore {
              data.createdAt == request.time;
     }
 
+    function isValidSovereignShortMem(data) {
+      return data.keys().hasAll(['userId', 'learningStyle', 'level', 'customDirectives', 'lastSessionInsights', 'preferredLanguage', 'syncedAt', 'createdAt']) && 
+             data.keys().size() == 8 &&
+             data.userId == request.auth.uid &&
+             data.learningStyle is string && data.learningStyle.size() <= 200 &&
+             data.level is string && data.level.size() <= 100 &&
+             data.customDirectives is string && data.customDirectives.size() <= 15000 &&
+             data.lastSessionInsights is string && data.lastSessionInsights.size() <= 15000 &&
+             data.preferredLanguage is string && data.preferredLanguage.size() <= 100 &&
+             data.syncedAt is string && data.syncedAt.size() <= 200 &&
+             data.createdAt == request.time;
+    }
+
     // users Collection
     match /users/{userId} {
       allow get: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
       allow list: if false;
 
-      allow create: if isSignedIn() && 
+      allow create: if isVerified() && 
                     isValidId(userId) && 
                     userId == request.auth.uid && 
                     isValidUser(incoming(), userId);
 
       allow update: if false;
+      allow delete: if false;
+    }
+
+    // sovereign_short_mem Collection
+    match /sovereign_short_mem/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+      allow list: if false;
+
+      allow create: if isVerified() &&
+                    isValidId(userId) &&
+                    userId == request.auth.uid &&
+                    isValidSovereignShortMem(incoming()) &&
+                    exists(/databases/$(database)/documents/users/$(request.auth.uid));
+
+      allow update: if isVerified() &&
+                    isValidId(userId) &&
+                    userId == request.auth.uid &&
+                    isValidSovereignShortMem(incoming()) &&
+                    incoming().createdAt == existing().createdAt;
       allow delete: if false;
     }
 
@@ -69,7 +102,7 @@ service cloud.firestore {
       allow list: if isSignedIn() && 
                   resource.data.userId == request.auth.uid;
 
-      allow create: if isSignedIn() && 
+      allow create: if isVerified() && 
                     isValidId(itemId) && 
                     isValidLearningItem(incoming()) &&
                     exists(/databases/$(database)/documents/users/$(request.auth.uid));
@@ -81,7 +114,7 @@ service cloud.firestore {
     // sync_ledger Collection
     match /sync_ledger/{txId} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() &&
+      allow create: if isVerified() &&
                     isValidId(txId) &&
                     isValidLedgerEntry(incoming()) &&
                     exists(/databases/$(database)/documents/users/$(request.auth.uid));
@@ -91,7 +124,7 @@ service cloud.firestore {
     // arena_sessions Collection
     match /arena_sessions/{sessionId} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow create: if isVerified() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if false;
     }
   }

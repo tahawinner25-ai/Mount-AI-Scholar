@@ -3,9 +3,10 @@ import { BrainCircuit, BookOpen, Mic, VolumeX, Activity, Send, Loader2, CheckCir
 import Markdown from 'react-markdown';
 import { queryElasticRAG } from '../services/ai';
 import arenaIcon from '../assets/images/mount_ai_arena_icon_1779634554191.png';
-import { db } from '../services/firebase';
+import { db, dbBatcher } from '../services/firebase';
 import { collection, addDoc, query, where, orderBy, getDocs, serverTimestamp, Timestamp } from 'firebase/firestore';
 import IQTestApp from './IQTestApp';
+import MemoryAgentView from './MemoryAgentView';
 
 export const gymCards = [
   {
@@ -56,6 +57,8 @@ interface CognitiveGymProps {
   isRemediating: boolean;
   setIsRemediating: React.Dispatch<React.SetStateAction<boolean>>;
   speechError?: string | null;
+  injectedExercise?: string;
+  onInjectedExerciseConsumed?: () => void;
 }
 
 export default function CognitiveGym({
@@ -65,7 +68,9 @@ export default function CognitiveGym({
   selectedCardId, setSelectedCardId,
   remediationContent, setRemediationContent,
   isRemediating, setIsRemediating,
-  speechError
+  speechError,
+  injectedExercise,
+  onInjectedExerciseConsumed
 }: CognitiveGymProps) {
   
   const [elasticQuery, setElasticQuery] = useState("");
@@ -75,7 +80,7 @@ export default function CognitiveGym({
   const [isSearching, setIsSearching] = useState(false);
   const [isRAGOpen, setIsRAGOpen] = useState(false); // Elasticsearch RAG dedicated floating window
   const [simulationInput, setSimulationInput] = useState(""); // Live feedback simulation input
-  const [activeTab, setActiveTab] = useState<'cards' | 'formulation'>('cards'); // Sub-tab switcher to toggle standard exercises vs custom formulate
+  const [activeTab, setActiveTab] = useState<'cards' | 'formulation' | 'memory'>('cards'); // Sub-tab switcher to toggle standard exercises vs custom formulate
   
   const [arenaView, setArenaView] = useState<'main' | 'history' | 'iq-test'>(() => {
     const params = new URLSearchParams(window.location.search);
@@ -89,6 +94,19 @@ export default function CognitiveGym({
   const [sessions, setSessions] = useState<any[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [customText, setCustomText] = useState("");
+
+  useEffect(() => {
+    if (injectedExercise) {
+      setCustomText(injectedExercise);
+      setActiveTab('formulation');
+      setVoiceArenaSpoken([]);
+      setSimulationInput("");
+      setRemediationContent("");
+      if (onInjectedExerciseConsumed) {
+        onInjectedExerciseConsumed();
+      }
+    }
+  }, [injectedExercise, onInjectedExerciseConsumed]);
 
   const handleSimulationChange = (text: string) => {
     setSimulationInput(text);
@@ -209,6 +227,14 @@ export default function CognitiveGym({
         missedWords: missedList,
         createdAt: serverTimestamp()
       });
+
+      // [SCALABILITY DESIGN] Queuing high-frequency stats updates with Write-Coalescing Buffer
+      dbBatcher.queueWrite("users", user.uid, {
+        lastActive: new Date().toISOString(),
+        score: progressPercentage, // Save current workout accuracy score safely
+        role: 'student'
+      });
+
       // Small visual feedback can be added here
       setArenaView('history'); // Go to history after save
     } catch (err) {
@@ -506,10 +532,10 @@ export default function CognitiveGym({
        <div className="max-w-7xl mx-auto grid grid-cols-1 xl:grid-cols-12 gap-6 relative z-10 animate-in fade-in duration-500 delay-150">
           
           {/* Left Columns - Training & Audio Interaction */}
-          <div className="xl:col-span-8 space-y-6 flex flex-col">
+          <div className={`${activeTab === 'memory' ? 'xl:col-span-12' : 'xl:col-span-8'} space-y-6 flex flex-col`}>
              
              {/* Mode Selector Hub Tabs */}
-             <div className="mb-6 flex bg-[#121626]/50 border border-white/5 rounded-2xl p-1.5 w-fit gap-1.5 backdrop-blur-sm self-start">
+             <div className="mb-6 flex flex-wrap bg-[#121626]/50 border border-white/5 rounded-2xl p-1.5 w-fit gap-1.5 backdrop-blur-sm self-start">
                <button
                  onClick={() => {
                    setActiveTab('cards');
@@ -540,7 +566,36 @@ export default function CognitiveGym({
                >
                  <Send className="w-3.5 h-3.5" /> Phrase Formulation Desk
                </button>
+               <button
+                 onClick={() => {
+                   setActiveTab('memory');
+                   setVoiceArenaSpoken([]);
+                   setSimulationInput("");
+                 }}
+                 className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase transition-all flex items-center gap-2 ${
+                   activeTab === 'memory'
+                   ? 'bg-[#8b5cf6]/20 border border-[#8b5cf6]/50 text-[#c084fc] shadow-sm'
+                   : 'text-slate-400 hover:text-white hover:bg-white/5'
+                 }`}
+               >
+                 <BrainCircuit className="w-3.5 h-3.5" /> Tuteur Adaptatif MemoryAgent
+               </button>
              </div>
+
+             {activeTab === 'memory' && (
+               <MemoryAgentView
+                 user={user}
+                 currentMissed={missedList}
+                 history={sessions}
+                 onInjectCustomExercise={(text) => {
+                   setActiveTab('formulation');
+                   setCustomText(text);
+                   setVoiceArenaSpoken([]);
+                   setSimulationInput("");
+                   setRemediationContent("");
+                 }}
+               />
+             )}
 
              {/* Selected Phonics Cards Selection */}
              <div className={`grid grid-cols-1 md:grid-cols-4 gap-4 ${activeTab === 'cards' ? '' : 'hidden'}`}>
@@ -686,7 +741,7 @@ export default function CognitiveGym({
              )}
 
              {/* Speech Reading Area Card */}
-             <div className="bg-[#121626]/80 border border-white/5 rounded-[2.5rem] p-8 space-y-6 relative overflow-hidden backdrop-blur-xl flex-1 flex flex-col justify-between">
+             <div className={`bg-[#121626]/80 border border-white/5 rounded-[2.5rem] p-8 space-y-6 relative overflow-hidden backdrop-blur-xl flex-1 flex flex-col justify-between ${activeTab === 'memory' ? 'hidden' : ''}`}>
                 <div>
                   <div className="flex items-center justify-between border-b border-white/5 pb-4 mb-6">
                     <span className="text-xs uppercase tracking-[0.2em] font-bold text-slate-400 flex items-center gap-2">
@@ -798,7 +853,7 @@ export default function CognitiveGym({
           </div>
 
           {/* Right Columns - Metrics & AI Remediation */}
-          <div className="xl:col-span-4 space-y-6">
+          <div className={`xl:col-span-4 space-y-6 ${activeTab === 'memory' ? 'hidden' : ''}`}>
              
              {/* Live Performance Panel */}
              <div className="bg-[#121626]/80 border border-white/5 rounded-3xl p-6 space-y-6 backdrop-blur-md">

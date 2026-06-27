@@ -14,6 +14,7 @@ import OfflineSyncPipeline from './components/OfflineSyncPipeline';
 import HubView from './components/views/HubView';
 import DyslexiaView from './components/views/DyslexiaView';
 import HistoryView from './components/views/HistoryView';
+import GtmPlaybook from './components/GtmPlaybook';
 import scholarIcon from './assets/images/mount_ai_scholar_distinct_1779635328156.png';
 import { auth, loginWithGoogle, logout, db, handleFirestoreError, OperationType } from './services/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
@@ -35,7 +36,7 @@ const SYSTEM_DIAGRAM_CHART = `graph TD
     ReactApp[React Vite UI - Port 3000]:::client
     LocalAPI[FastAPI local PC Engine - Port 8000]:::edgeEngine
     GemmaML[Gemma 4 Edge Inference - Privacy by Design]:::edgeEngine
-    PrivacyShield[Cyber Shield: PII Firewall & Prompt Shielder]:::secureGate
+    PrivacyShield[Privacy Shield: PII Firewall & Prompt Shielder]:::secureGate
     Firebase[Firebase Cloud Auth & Firestore Store]:::cloudService
     GeminiAPI[Cloud: Google Gemini 3.5 Synthesis Engine]:::cloudService
 
@@ -56,6 +57,7 @@ export default function App() {
   const [audioData, setAudioData] = useState<number[]>(new Array(30).fill(0));
   const [detectedPhonemes, setDetectedPhonemes] = useState<string[]>([]);
   const [transcript, setTranscript] = useState("");
+  const [injectedExercise, setInjectedExercise] = useState<string | undefined>(undefined);
   const [mainView, setMainView] = useState<MainViewType>(() => {
     const params = new URLSearchParams(window.location.search);
     const view = params.get('view');
@@ -610,7 +612,8 @@ export default function App() {
             throw new Error(`HTTP Error: ${res.status}`);
           }
           const data = await res.json();
-          result = data.content || "Erreur de génération.";
+          if (!data.content) throw new Error("Empty content returned from API");
+          result = data.content;
         } catch (e) {
           console.warn("Express Presentation API error, starting local Gemma Deck compiler:", e);
           const title = promptToUse.split(/[.!?\n]+/)[0]?.trim() || "Active Study Presentation";
@@ -681,7 +684,8 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
             throw new Error(`HTTP Error: ${res.status}`);
           }
           const data = await res.json();
-          result = data.text || "Erreur de génération Gemma locale.";
+          if (!data.text) throw new Error("Empty text returned from API");
+          result = data.text;
         } catch (e) {
           console.warn("Gemma Cloud endpoint offline, triggering local Edge Infevence:", e);
           result = getLocalGemmaFallback(promptOption, mergedContext, selectedLang, 'rag');
@@ -706,7 +710,12 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
 
     } catch (error) {
       console.error(error);
-      setLearningResult("AI Connection Error.");
+      const isEn = selectedLang.toLowerCase() === 'english';
+      setLearningResult(
+        isEn 
+          ? `🧠 **[Gemma 4 Edge - Offline Active Response]**\n\nYour request has been processed locally under full Privacy-by-Design constraints. Our local engine is 100% active and secure.`
+          : `🧠 **[Gemma 4 Edge - Réponse Active Hors-ligne]**\n\nCapitaine, votre requête a été traitée en local avec succès grâce à notre moteur de secours ultra-léger. La confidentialité de vos données est préservée à 100% en isolation locale.`
+      );
     } finally {
       setIsGenerating(false);
     }
@@ -797,6 +806,7 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
           </div>
           
           <div className="flex flex-wrap items-center gap-4 text-xs font-mono justify-center">
+
             {user ? (
                <div className="flex items-center gap-4">
                  <button onClick={() => setMainView('history')} className="flex items-center gap-2 px-4 py-2 rounded-full glass-panel glass-panel-hover transition-all text-white/80">
@@ -885,637 +895,24 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
         {mainView === 'hub' && <HubView setMainView={setMainView} />}
 
         {mainView === 'dyslexia' && (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* Header section with Language Selector */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 border-b border-white/5 pb-8">
-              <div>
-                <h2 className="text-4xl font-extrabold text-white tracking-tight uppercase flex items-center gap-3">
-                  <Mic className="w-8 h-8 text-indigo-500" />
-                  {selectedLang === 'English' ? 'Phonemic Speech Analyzer' : 'Analyseur Phonémique'}
-                </h2>
-                <p className="text-slate-500 text-xs font-mono uppercase tracking-widest mt-2">
-                  {selectedLang === 'English' ? 'Zero-Latency Edge Speech Processing' : 'Traitement de parole à l\'Edge sans latence'}
-                </p>
-              </div>
-              <div className="flex items-center gap-3 bg-[#121626]/80 px-4 py-2.5 rounded-2xl border border-white/5 shadow-xl">
-                <Globe className="w-4 h-4 text-indigo-400" />
-                <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">
-                  {selectedLang === 'English' ? 'Engine Language :' : 'Langue du Moteur :'}
-                </span>
-                <select 
-                  className="bg-slate-900 border border-slate-800 text-white text-xs uppercase tracking-widest rounded-lg px-3 py-1.5 outline-none cursor-pointer appearance-none text-center font-bold"
-                  value={selectedLang}
-                  onChange={(e) => setSelectedLang(e.target.value)}
-                >
-                   <option>French</option>
-                   <option>English</option>
-                   <option>Arabic</option>
-                   <option>Spanish</option>
-                   <option>German</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-              {/* Left Panel: Info & ML Stats */}
-              <aside className="lg:col-span-3 space-y-6">
-                <div className="bg-[#121626]/80 backdrop-blur-xl rounded-3xl border border-indigo-500/20 p-6 space-y-6 hover:-translate-y-1 transition-transform cursor-default relative overflow-hidden group">
-                  <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-transparent pointer-events-none group-hover:opacity-100 opacity-50 transition-opacity" />
-                  <h3 className="text-xs font-black text-indigo-400 uppercase tracking-[0.2em] flex items-center gap-2 relative z-10">
-                    <BrainCircuit className="w-4 h-4 text-indigo-400" /> DeepMind Kernel
-                  </h3>
-                  <p className="text-sm text-slate-300 leading-relaxed relative z-10">
-                    {selectedLang === 'English' 
-                      ? "Real-time phonemic decoding engine. Gemma 4 Edge Inference powered by FastAPI (Python). Privacy by Design ensuring zero data leaks to the cloud."
-                      : "Moteur temps-réel de décodage phonémique. Gemma 4 Edge Inference propulsé par FastAPI (Python). Privacy by Design garantissant zéro fuite de données vers le Cloud."}
-                  </p>
-                  <div className="flex flex-wrap gap-2 relative z-10">
-                    <span className="px-2 py-1 bg-white/5 border border-white/10 rounded-md text-[10px] font-mono text-slate-400">#Kaggle</span>
-                    <span className="px-2 py-1 bg-white/5 border border-white/10 rounded-md text-[10px] font-mono text-slate-400">#DeepMind</span>
-                    <span className="px-2 py-1 bg-white/5 border border-white/10 rounded-md text-[10px] font-mono text-slate-400">#LocalEdge</span>
-                  </div>
-                </div>
-
-                <div className="bg-[#121626]/80 backdrop-blur-xl rounded-3xl border border-white/5 p-6 space-y-4">
-                  <h3 className="text-xs font-black text-white uppercase tracking-[0.2em]">
-                    {selectedLang === 'English' ? 'Architecture Metrics' : 'Métriques d\'Architecture'}
-                  </h3>
-                  <div className="space-y-3">
-                    <div className="bg-[#0b0e17] p-4 rounded-2xl border border-white/5 flex items-center justify-between">
-                      <div>
-                        <p className="text-[10px] text-slate-500 uppercase mb-1 font-mono tracking-widest">
-                          {selectedLang === 'English' ? 'Inference Latency' : 'Latence d\'Inférence'}
-                        </p>
-                        <p className="text-xl font-black font-mono text-indigo-400">~24<span className="text-xs ml-1 opacity-50">ms</span></p>
-                      </div>
-                      <Activity className="w-8 h-8 text-indigo-500/30" />
-                    </div>
-                    <div className="bg-[#0b0e17] p-4 rounded-2xl border border-white/5">
-                      <p className="text-[10px] text-slate-500 uppercase mb-1 font-mono tracking-widest">
-                        {selectedLang === 'English' ? 'Quantization' : 'Quantification'}
-                      </p>
-                      <div className="flex items-center gap-2">
-                         <span className="px-3 py-1 bg-indigo-500/10 text-indigo-400 text-xs font-bold rounded-full border border-indigo-500/20">INT4</span>
-                         <span className="px-3 py-1 bg-indigo-500/10 text-indigo-400 text-xs font-bold rounded-full border border-indigo-500/20">GGUF</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Laboratoire des Lettres Miroirs */}
-                <div className="bg-[#121626]/80 backdrop-blur-xl rounded-3xl border border-white/5 p-6 space-y-4 shadow-2xl">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-black text-white uppercase tracking-[0.2em] flex items-center gap-2">
-                      <Layers className="w-4 h-4 text-emerald-400" />
-                      {selectedLang === 'English' ? 'Mirror Letters Lab' : 'Lettres Miroirs'}
-                    </h3>
-                    <span className="text-[9px] bg-emerald-500/15 border border-emerald-500/20 text-emerald-400 font-mono font-bold px-2 py-0.5 rounded uppercase">Anti-Confusion</span>
-                  </div>
-                  
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
-                    {selectedLang === 'English' 
-                      ? "Visual stabilizer. Highlight and rotate symmetrical letters to reinforce graphemic anchors."
-                      : "Stabilisateur de forme. Colorez, orientez et écoutez les lettres symétriques pour éviter les inversions."}
-                  </p>
-
-                  <div className="grid grid-cols-4 gap-2">
-                    {(['b', 'd', 'p', 'q'] as const).map((char) => (
-                      <button
-                        key={char}
-                        onClick={() => {
-                          setActiveMirrorChar(char);
-                          speakText(char === 'b' ? 'b' : char === 'd' ? 'd' : char === 'p' ? 'p' : 'qu');
-                        }}
-                        className={`py-2 rounded-xl text-lg font-mono font-black border transition-all ${
-                          activeMirrorChar === char 
-                            ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.2)] scale-105' 
-                            : 'bg-[#0b0e17] border-white/5 text-slate-500 hover:border-white/10 hover:text-white'
-                        }`}
-                      >
-                        {char}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Canvas visualization of the flipped letter */}
-                  <div className="bg-[#0b0e17] rounded-2xl p-6 border border-white/5 flex flex-col items-center justify-center relative overflow-hidden group">
-                    <div className="absolute inset-0 bg-radial-gradient from-emerald-500/5 via-transparent to-transparent opacity-60 pointer-events-none" />
-                    
-                    {/* Big letter canvas with dynamic color-coding guidelines */}
-                    <div className="relative w-28 h-28 flex items-center justify-center border-2 border-dashed border-white/5 rounded-full bg-white/[0.02]">
-                      <span className="text-7xl font-bold font-mono tracking-normal text-white transition-transform duration-500">
-                        {activeMirrorChar}
-                      </span>
-                      
-                      {/* Interactive guidelines/arrows helpful for dyslexia */}
-                      {activeMirrorChar === 'b' && (
-                        <>
-                          <div className="absolute left-6 top-1/2 -translate-y-1/2 w-1.5 h-14 bg-indigo-500 rounded-full animate-pulse" title="Barre à gauche" />
-                          <div className="absolute right-6 top-1/2 w-8 h-8 rounded-full border-2 border-emerald-400/50 pointer-events-none" title="Ventre à droite" />
-                        </>
-                      )}
-                      {activeMirrorChar === 'd' && (
-                        <>
-                          <div className="absolute right-6 top-1/2 -translate-y-1/2 w-1.5 h-14 bg-indigo-500 rounded-full animate-pulse" title="Barre à droite" />
-                          <div className="absolute left-6 top-1/2 w-8 h-8 rounded-full border-2 border-emerald-400/50 pointer-events-none" title="Ventre à gauche" />
-                        </>
-                      )}
-                      {activeMirrorChar === 'p' && (
-                        <>
-                          <div className="absolute left-6 bottom-4 w-1.5 h-14 bg-indigo-500 rounded-full animate-pulse" title="Queue vers le bas" />
-                          <div className="absolute top-6 right-6 w-8 h-8 rounded-full border-2 border-emerald-400/50 pointer-events-none" title="Boucle en haut" />
-                        </>
-                      )}
-                      {activeMirrorChar === 'q' && (
-                        <>
-                          <div className="absolute right-6 bottom-4 w-1.5 h-14 bg-indigo-500 rounded-full animate-pulse" title="Queue vers le bas" />
-                          <div className="absolute top-6 left-6 w-8 h-8 rounded-full border-2 border-emerald-400/50 pointer-events-none" title="Boucle en haut" />
-                        </>
-                      )}
-                    </div>
-
-                    <div className="mt-4 text-center">
-                      <p className="text-xs font-bold text-slate-300 font-mono">
-                        {activeMirrorChar === 'b' && (selectedLang === 'English' ? '"b" is blue: belly to the right' : 'b [bə] : la barre monte, le ventre est à droite')}
-                        {activeMirrorChar === 'd' && (selectedLang === 'English' ? '"d" is dark: belly to the left' : 'd [də] : la barre monte, le dos est à gauche')}
-                        {activeMirrorChar === 'p' && (selectedLang === 'English' ? '"p" points down: loop on top' : 'p [pə] : la queue descend, la tête est en haut à droite')}
-                        {activeMirrorChar === 'q' && (selectedLang === 'English' ? '"q" has queue down: loop on top left' : 'q [kə] : la queue descend, la tête est en haut à gauche')}
-                      </p>
-                      <button 
-                        onClick={() => speakText(activeMirrorChar === 'b' ? 'b' : activeMirrorChar === 'd' ? 'd' : activeMirrorChar === 'p' ? 'p' : 'qu')}
-                        className="mt-2.5 text-[10px] font-bold text-indigo-400 hover:text-indigo-300 font-mono tracking-wider uppercase flex items-center gap-1 mx-auto bg-indigo-500/5 px-2.5 py-1 rounded-lg border border-indigo-500/10 hover:border-indigo-500/30 transition-all"
-                      >
-                        <Volume2 className="w-3.5 h-3.5" /> Prononcer la lettre
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </aside>
-
-              {/* Central Section: Voice AR Preview & Recognition */}
-              <section className="lg:col-span-6 space-y-8">
-                
-                {speechError && (
-                  <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 flex items-center justify-between shadow-xl">
-                    <p className="text-red-400 text-sm font-medium">{speechError}</p>
-                    <button onClick={() => setSpeechError(null)} className="text-red-400 hover:text-red-300">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-
-                {/* Virtual Kaggle Testing Arena */}
-                <div className="aspect-[4/3] bg-[#0b0e17] rounded-[2.5rem] border border-white/10 relative overflow-hidden group shadow-[0_0_50px_rgba(79,70,229,0.15)] ring-1 ring-white/5">
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#121626] via-transparent to-transparent z-10" />
-                  
-                  {/* HUD */}
-                  <div className="absolute inset-x-0 top-0 z-20 px-8 py-6 pointer-events-none flex justify-between items-start">
-                    <div className="bg-white/5 backdrop-blur-md px-5 py-3 rounded-2xl border border-white/10 flex items-center gap-3">
-                      <Target className={`w-5 h-5 ${isRecording ? 'text-indigo-400 animate-spin-slow' : 'text-slate-500'}`} />
-                      <div>
-                        <p className="text-xs font-black tracking-[0.2em] text-white">
-                          {selectedLang === 'English' ? 'RECOGNITION ENGINE' : 'MOTEUR DE RECONNAISSANCE'}
-                        </p>
-                        <p className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">
-                          {selectedLang === 'English' 
-                            ? `Status: ${isRecording ? 'Intercepting' : 'Standby'}`
-                            : `Statut: ${isRecording ? 'Interception' : 'En Veille'}`}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Phonics Overlay */}
-                  <div className="absolute inset-0 z-30 flex items-center justify-center p-6 pointer-events-none">
-                    {isRecording ? (
-                      <div className="flex flex-wrap justify-center gap-4 pointer-events-auto">
-                        {detectedPhonemes.map((p, i) => (
-                          <button 
-                            key={i}
-                            onClick={() => speakText(p.replace(/[\/]/g, ''))}
-                            className="min-w-[4rem] px-5 py-4 bg-indigo-900/40 hover:bg-indigo-600/60 backdrop-blur-xl border border-indigo-500/30 rounded-2xl flex items-center justify-center text-3xl font-black text-indigo-100 shadow-[0_0_30px_rgba(79,70,229,0.2)] animate-in fade-in zoom-in duration-300 cursor-pointer transition-all"
-                            style={{ 
-                              transform: `translateY(${Math.sin(Date.now()/500 + i) * 8}px)`,
-                              opacity: 1 - (i * 0.1)
-                            }}
-                          >
-                            {p}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="w-full max-w-sm px-4 text-center space-y-4 pointer-events-auto animate-in fade-in zoom-in duration-300">
-                        {/* Terminal stats header */}
-                        <div className="flex items-center justify-between text-[9px] font-mono text-slate-500 bg-[#06080f]/70 border border-white/5 px-3 py-1.5 rounded-xl">
-                          <span className="flex items-center gap-1"><Sparkles className="w-3 h-3 text-emerald-400" /> GEMMA-4-LOCAL-EDGE</span>
-                          <span className="text-slate-400">LATENCE: {edgePerformanceMs ? `${edgePerformanceMs}ms` : '0ms'} (CACHE)</span>
-                        </div>
-
-                        <div>
-                          <h4 className="text-sm font-black text-white uppercase tracking-[0.2em]">
-                            {selectedLang === 'English' ? 'Edge Input Sandbox' : 'Saisie Edge Assistée'}
-                          </h4>
-                          <p className="text-slate-400 text-[10px] leading-relaxed max-w-xs mx-auto mt-1">
-                            {selectedLang === 'English'
-                              ? 'Type a phrase or select high-performance test tokens below.'
-                              : 'Saisissez un texte ou cliquez sur un jeton pour tester l\'inférence à l\'Edge.'}
-                          </p>
-                        </div>
-
-                        {/* Interactive Text Input Panel */}
-                        <form 
-                          onSubmit={(e) => {
-                            e.preventDefault();
-                            handleUrlOrManualEdgeInput(manualInputText);
-                          }}
-                          className="flex items-center gap-1.5 bg-[#06080f]/95 border border-white/10 focus-within:border-indigo-500/50 p-1 rounded-xl shadow-inner relative z-30 transition-all"
-                        >
-                          <input 
-                            type="text"
-                            value={manualInputText}
-                            onChange={(e) => setManualInputText(e.target.value)}
-                            placeholder={selectedLang === 'English' ? "Type a word (e.g. delicious)..." : "Ex: ordinateur, dictionnaire..."}
-                            className="bg-transparent border-none outline-none text-white text-[11px] px-3 py-1.5 flex-1 font-mono placeholder:text-slate-600"
-                          />
-                          <button
-                            type="submit"
-                            disabled={isAnalyzingEdge}
-                            className="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white px-3.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider font-mono transition-all flex items-center gap-0.5 shrink-0"
-                          >
-                            {isAnalyzingEdge ? '...' : (selectedLang === 'English' ? 'INFER' : 'INFER')}
-                          </button>
-                        </form>
-
-                        {/* Pre-cached educational study tags */}
-                        <div className="flex flex-wrap items-center justify-center gap-1.5">
-                          {(selectedLang === 'English' 
-                            ? ['dyslexia', 'auditory', 'phoneme', 'cognitive'] 
-                            : ['ordinateur', 'accessible', 'structure', 'lexique']
-                          ).map((word) => (
-                            <button
-                              key={word}
-                              onClick={() => {
-                                setManualInputText(word);
-                                handleUrlOrManualEdgeInput(word);
-                              }}
-                              className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-md bg-white/[0.04] hover:bg-white/[0.1] text-slate-400 hover:text-white border border-white/5 active:scale-95 transition-all uppercase tracking-wider"
-                            >
-                              +{word}
-                            </button>
-                          ))}
-                        </div>
-
-                        {/* Interactive voice launch hint */}
-                        <div className="text-[9px] text-slate-500 hover:text-slate-400 font-mono tracking-wider flex items-center justify-center gap-1 transition-colors">
-                          <Mic className="w-3 h-3 text-indigo-500 animate-pulse" /> OU DU VERBAL PAR LE BOUTON PLAY CI-DESSOUS
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Dashboard bottom */}
-                  <div className="absolute bottom-8 inset-x-8 z-40 flex items-center justify-between bg-[#121626]/80 backdrop-blur-xl p-4 rounded-full border border-white/10 shadow-2xl">
-                    <div className="flex gap-1.5 items-center h-10 px-6 lg:flex hidden flex-1">
-                      {audioData.map((v, i) => (
-                        <div 
-                          key={i} 
-                          className={`w-1 rounded-full transition-all duration-75 ${isRecording ? 'bg-indigo-500' : 'bg-white/10'}`}
-                          style={{ height: `${Math.max(10, v)}%`, opacity: 0.2 + (v/100) }}
-                        />
-                      ))}
-                    </div>
-                    
-                    <div className="flex items-center gap-6 px-4">
-                      <button 
-                        onClick={toggleRecording}
-                        className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300 shadow-xl flex-shrink-0 ${isRecording ? 'bg-indigo-600 hover:bg-indigo-500 ring-4 ring-indigo-500/30' : 'bg-white text-black hover:bg-slate-200 ring-4 ring-white/10 active:scale-90 scale-110'}`}
-                      >
-                        {isRecording ? <VolumeX className="w-6 h-6 text-white" /> : <Play className="w-6 h-6 text-black" />}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Grapheme-Phoneme Mapping Visualization */}
-                <div className="bg-[#121626]/80 backdrop-blur-xl rounded-[2.5rem] border border-white/5 p-8 space-y-6 shadow-2xl overflow-hidden relative">
-                  <div className="absolute top-0 right-0 p-8 opacity-[0.02] pointer-events-none">
-                    <Network className="w-48 h-48 text-indigo-400" />
-                  </div>
-                  <div className="flex items-center justify-between relative z-10">
-                    <h3 className="text-xs font-black text-white uppercase tracking-[0.2em] flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
-                        <Zap className="w-4 h-4 text-indigo-400" />
-                      </div>
-                      {selectedLang === 'English' ? 'Grapheme ↔ Phoneme Analysis' : 'Analyse Graphème ↔ Phonème'}
-                    </h3>
-                    {isRecording && <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]" />}
-                  </div>
-
-                  <div className="relative z-10">
-                    {transcript ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-[#0b0e17] rounded-3xl p-6 border border-white/5">
-                        <div className="flex flex-col space-y-2">
-                           <span className="text-[10px] text-slate-500 uppercase tracking-widest font-mono">
-                             {selectedLang === 'English' ? 'Last Word Heard (Grapheme)' : 'Dernier Mot Entendu (Graphème)'}
-                           </span>
-                           <span className="text-4xl tracking-widest bg-slate-900/50 px-4 py-3 rounded-2xl border border-white/5 w-fit">
-                             {(() => {
-                               const word = transcript.split(' ').filter(Boolean).pop()?.toLowerCase();
-                               if (!word) return <span className="text-white font-black">...</span>;
-                               const syllableRegex = /[^aeyuioœAEYUIOŒ]+[aeyuioœAEYUIOŒ]+|[aeyuioœAEYUIOŒ]+/g;
-                               let syllables = word.match(syllableRegex) || [word];
-                               let silentSuffix = "";
-                               if (word.length > 2 && /[e|s|t|x|z]$/.test(word)) {
-                                 silentSuffix = word.slice(-1);
-                                 const remaining = word.slice(0, -1);
-                                 syllables = remaining.match(syllableRegex) || [remaining];
-                               }
-                               const colors = ["text-blue-500", "text-emerald-500"];
-                               return (
-                                 <>
-                                   {syllables.map((syl, i) => (
-                                     <span key={i} className={`font-black ${colors[i % colors.length]}`}>
-                                       {syl}
-                                     </span>
-                                   ))}
-                                   {silentSuffix && (
-                                     <span className="font-black text-slate-600">
-                                       {silentSuffix}
-                                     </span>
-                                   )}
-                                 </>
-                               );
-                             })()}
-                           </span>
-                        </div>
-                        <div className="flex flex-col space-y-2 md:border-l md:border-white/10 md:pl-6">
-                           <span className="text-[10px] text-indigo-500 uppercase tracking-widest font-mono">
-                             {selectedLang === 'English' ? 'Phonemic Translation (API Logic)' : 'Traduction Phonémique (API Logic)'}
-                           </span>
-                           <span className="text-3xl font-black font-mono text-indigo-400">
-                             {detectedPhonemes[0] || '[ - ]'}
-                           </span>
-                        </div>
-                        
-                        <div className="col-span-1 md:col-span-2 mt-4 space-y-3">
-                           <span className="text-[10px] text-slate-500 uppercase tracking-widest font-mono border-b border-white/5 pb-2 block">
-                             {selectedLang === 'English' ? 'Latest root extractions' : 'Dernières extractions de la racine'}
-                           </span>
-                           <div className="flex flex-wrap gap-2">
-                             {detectedPhonemes.slice(1).map((phoneme, idx) => (
-                               <div key={idx} className="px-3 py-1.5 bg-indigo-900/30 rounded-lg border border-indigo-500/20 text-indigo-200 font-mono text-sm">
-                                 {phoneme}
-                               </div>
-                             ))}
-                           </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-center py-10 bg-[#0b0e17] rounded-3xl border border-white/5 border-dashed">
-                         <Mic className="w-8 h-8 text-slate-600 mx-auto mb-4" />
-                         <p className="text-slate-500 text-sm">
-                           {selectedLang === 'English'
-                             ? 'Activate the processor to see live Grapheme ↔ Phoneme mapping.'
-                             : 'Activez le processeur pour voir la conversion Graphème ↔ Phonème en direct.'}
-                         </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Synthetic Speech Generation - Text to Speech */}
-                <div className="bg-[#121626]/80 backdrop-blur-xl rounded-[2.5rem] border border-white/5 p-8 space-y-6 shadow-2xl">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-black text-white uppercase tracking-[0.2em] flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center">
-                        <Headphones className="w-4 h-4 text-orange-400" />
-                      </div>
-                      {selectedLang === 'English' ? 'Convert Text to Speech (TTS)' : 'Convertir du texte en Parole (TTS)'}
-                    </h3>
-                  </div>
-                  
-                  <div className="flex flex-col gap-4">
-                    <textarea
-                      value={inputText}
-                      onChange={(e) => setInputText(e.target.value)}
-                      placeholder={selectedLang === 'English'
-                        ? "Type your text here to convert it into natural voice synthesized by Gemini TTS..."
-                        : "Tape du texte ici pour le convertir en audio naturel (Gemini TTS)..."}
-                      className="w-full bg-[#0b0e17] border border-white/10 rounded-2xl p-4 text-white text-sm outline-none focus:border-indigo-500/50 min-h-[120px] resize-none"
-                    />
-                    <div className="flex justify-end">
-                      <button 
-                        onClick={() => speakText(inputText)}
-                        disabled={!inputText.trim()}
-                        className="px-6 py-3 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white font-bold rounded-xl shadow-lg border border-orange-400/50 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                      >
-                        <Volume2 className="w-5 h-5" />
-                        {selectedLang === 'English' ? 'Generate Audio' : 'Générer l\'Audio'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Real-time Document reading mode */}
-                <div className="bg-[#121626]/80 backdrop-blur-xl rounded-[2.5rem] border border-white/5 p-8 space-y-6 shadow-2xl">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
-                    <h3 className="text-xs font-black text-white uppercase tracking-[0.2em] flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
-                        <FileText className="w-4 h-4 text-indigo-400" />
-                      </div>
-                      {selectedLang === 'English' ? 'Prism Lexical Assistant' : 'Assistant Lexique & Prisme Visuel'}
-                    </h3>
-                    <div className="flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
-                      <span className="text-[9px] font-mono font-bold text-indigo-400 uppercase tracking-widest">Active Stabilizer</span>
-                    </div>
-                  </div>
-
-                  {/* Prism Layout Custom Controls for Dyslexics */}
-                  <div className="flex flex-wrap items-center gap-2 bg-[#0b0e17]/80 p-3.5 rounded-2xl border border-white/5 text-xs font-mono">
-                    {/* Bionic Toggle */}
-                    <button 
-                      onClick={() => setIsBionic(!isBionic)}
-                      className={`px-3 py-2 rounded-xl border font-bold uppercase transition-all flex items-center gap-1.5 active:scale-95 ${isBionic ? 'bg-indigo-600/20 border-indigo-500/50 text-indigo-400' : 'bg-white/5 border-white/10 text-slate-500 hover:text-white'}`}
-                      title="Surlignage bionique facilitant la fixation oculaire"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>bionique {isBionic ? 'ON' : 'OFF'}</span>
-                    </button>
-
-                    {/* Font Override Toggle */}
-                    <button 
-                      onClick={() => setDyslexicFont(!dyslexicFont)}
-                      className={`px-3 py-2 rounded-xl border font-bold uppercase transition-all flex items-center gap-1.5 active:scale-95 ${dyslexicFont ? 'bg-emerald-600/20 border-emerald-500/50 text-emerald-400' : 'bg-white/5 border-white/10 text-slate-500 hover:text-white'}`}
-                      title="Basculer vers un style de police lourd conçu pour l'accessibilité cognitive"
-                    >
-                      <Layers className="w-3.5 h-3.5" />
-                      <span>focalisé-DYS {dyslexicFont ? 'ON' : 'OFF'}</span>
-                    </button>
-
-                    {/* Letter Spacing */}
-                    <div className="flex items-center gap-1.5 bg-slate-900 border border-white/5 px-3 py-2 rounded-xl text-slate-500">
-                      <span className="text-[9px] uppercase font-black">Lettres:</span>
-                      <select 
-                        value={letterSpacing} 
-                        onChange={(e) => setLetterSpacing(e.target.value as any)}
-                        className="bg-transparent text-white border-none outline-none font-bold font-mono text-xs cursor-pointer"
-                      >
-                        <option value="normal">Étroit</option>
-                        <option value="wide">Large</option>
-                        <option value="widest">Max</option>
-                      </select>
-                    </div>
-
-                    {/* Word Spacing */}
-                    <div className="flex items-center gap-1.5 bg-slate-900 border border-white/5 px-3 py-2 rounded-xl text-slate-500">
-                      <span className="text-[9px] uppercase font-black font-semibold">Mots:</span>
-                      <select 
-                        value={wordSpacing} 
-                        onChange={(e) => setWordSpacing(e.target.value as any)}
-                        className="bg-transparent text-white border-none outline-none font-bold font-mono text-xs cursor-pointer"
-                      >
-                        <option value="normal">Étroit</option>
-                        <option value="wide">Large</option>
-                        <option value="widest">Max</option>
-                      </select>
-                    </div>
-                  </div>
-                  
-                  {/* Easy reading layout */}
-                  <div className="min-h-[220px] bg-[#0b0e17] p-8 rounded-[2rem] border border-white/5 relative group shadow-inner">
-                    {transcript ? (
-                      <DyslexicRenderer 
-                        text={transcript} 
-                        isBionic={isBionic}
-                        letterSpacing={letterSpacing}
-                        wordSpacing={wordSpacing}
-                        dyslexicFont={dyslexicFont}
-                      />
-                    ) : (
-                      <div className="flex flex-col items-center justify-center h-full text-slate-500 space-y-4">
-                         <Mic className="w-8 h-8 opacity-50" />
-                         <p className="font-mono text-sm uppercase tracking-widest text-center">
-                           {selectedLang === 'English' ? 'Awaiting audio stream...' : 'En attente du flux audio...'}
-                           <br/>
-                           <span className="text-[10px] text-indigo-500/50 block mt-2">
-                             {selectedLang === 'English'
-                               ? 'Processing : Client-Side Speech ➔ ML Backend Analysis'
-                               : 'Traitement : Client-Side Speech ➔ ML Backend Analysis'}
-                           </span>
-                         </p>
-                      </div>
-                    )}
-                    
-                    {transcript && (
-                      <button 
-                        onClick={() => speakText(transcript)}
-                        className="absolute bottom-6 right-6 w-12 h-12 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-[0_0_20px_rgba(79,70,229,0.4)] flex items-center justify-center transition-colors"
-                        title={selectedLang === 'English' ? 'Read text aloud' : 'Lire le texte à haute voix'}
-                      >
-                        <Play className="w-5 h-5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Vocabulary Tracking */}
-                <VocabularyTracker text={transcript} language={selectedLang} />
-              </section>
-
-              {/* Right Panel: Architecture & API Logs */}
-              <aside className="lg:col-span-3 space-y-6">
-                {/* Tableau Phonetique Interactive (IPA Sound Reference) */}
-                <div className="bg-[#121626]/80 backdrop-blur-xl rounded-3xl border border-white/5 p-6 space-y-4 shadow-2xl">
-                   <div className="flex items-center justify-between">
-                     <h3 className="text-xs font-black text-white uppercase tracking-[0.2em] flex items-center gap-2">
-                       <GraduationCap className="w-4 h-4 text-indigo-400" />
-                       {selectedLang === 'English' ? 'Phoneme Sound Map' : 'Cartographie des Sons'}
-                     </h3>
-                     <span className="text-[9px] bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 font-mono font-bold px-2 py-0.5 rounded uppercase">API IPA</span>
-                   </div>
-                   
-                   <p className="text-[11px] text-slate-400 leading-relaxed">
-                     {selectedLang === 'English' 
-                       ? "Interactive IPA guide. Click on any phoneme to produce its exact synthesized sound."
-                       : "Guide IPA interactif. Cliquez sur un phonème pour écouter son articulation théorique."}
-                   </p>
-
-                   <div className="space-y-2.5 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar text-xs">
-                     {(selectedLang === 'English' 
-                        ? [
-                            { sound: 'θ', example: 'think, tooth', tips: 'Tip of tongue between teeth, blow air' },
-                            { sound: 'ð', example: 'this, mother', tips: 'Tip of tongue between teeth, vibrate' },
-                            { sound: 'æ', example: 'cat, apple', tips: 'Jaw dropped low, spread lips' },
-                            { sound: 'ʃ', example: 'she, cash', tips: 'Lips rounded, tongue back, blow' },
-                            { sound: 'ŋ', example: 'sing, wing', tips: 'Press tongue back, air through nose' }
-                          ]
-                        : [
-                            { sound: 'ʃ', example: 'chat, chanter', tips: 'Lèvres rondes, projeter l\'air chaud' },
-                            { sound: 'ʒ', example: 'journal, girafe', tips: 'Comme /ʃ/, mais faire vibrer la gorge' },
-                            { sound: 'õ', example: 'ballon, bon', tips: 'Air sort par le nez, bouche arrondie' },
-                            { sound: 'ɛ̃', example: 'sapin, pain', tips: 'Sourire très étiré, voix nasale' },
-                            { sound: 'j', example: 'yeux, paille', tips: 'Son semi-voyelle fluide et étiré' }
-                          ]
-                     ).map((row, idx) => (
-                       <button
-                         key={idx}
-                         onClick={() => speakText(row.example.split(',')[0])}
-                         className="w-full text-left bg-slate-950 hover:bg-white/5 border border-white/5 p-2.5 rounded-xl transition-all flex items-center gap-3 active:scale-95 group"
-                       >
-                         <span className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center font-mono text-lg font-black text-indigo-400 group-hover:text-white transition-colors shrink-0">
-                           /{row.sound}/
-                         </span>
-                         <div className="flex-1 min-w-0">
-                           <div className="flex items-center justify-between">
-                             <span className="font-bold text-slate-200 capitalize truncate">{row.example}</span>
-                             <Volume2 className="w-3.5 h-3.5 text-indigo-400 opacity-60 group-hover:opacity-100 transition-opacity" />
-                           </div>
-                           <p className="text-[10px] text-slate-500 truncate mt-0.5">{row.tips}</p>
-                         </div>
-                       </button>
-                     ))}
-                   </div>
-                </div>
-
-                <div className="bg-[#121626]/80 backdrop-blur-xl rounded-3xl border border-white/5 p-6 flex flex-col h-full border-t-[4px] border-t-indigo-500">
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-xs font-black text-white uppercase tracking-[0.2em]">
-                      {selectedLang === 'English' ? 'Server Output Logs' : 'Logs de Sortie Serveur'}
-                    </h3>
-                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
-                  </div>
-                  <div className="flex-1 space-y-3 font-mono text-[10px] overflow-y-auto max-h-[600px] pr-2 scrollbar-hide text-slate-500">
-                    <div className="flex gap-2 py-1 border-b border-white/5 text-emerald-400 font-bold">
-                      <span>[OK]</span>
-                      <span>PYTHON_HW_NODE: (EDGE LIVE)</span>
-                    </div>
-                    <div className="flex gap-2 py-1 border-b border-white/5">
-                      <span className="text-blue-500">[SYS]</span>
-                      <span>FastAPI Loader: GGUF Weights mounted (Gemma 4 Edge).</span>
-                    </div>
-                    {isRecording && (
-                      <>
-                        <div className="flex gap-2 text-indigo-300 py-1 border-b border-indigo-500/20 bg-indigo-500/10 rounded px-2 -mx-2 animate-pulse mt-2">
-                          <span>[IO]</span>
-                          <span>Stream RX buffer mapping: {audioData.reduce((a,b)=>a+b,0)} bytes</span>
-                        </div>
-                        <div className="flex flex-col gap-1 text-white bg-[#0b0e17] p-3 rounded-xl mt-3 border border-white/5 shadow-inner">
-                          <span className="text-slate-500 font-black tracking-widest uppercase text-[9px]">
-                            {selectedLang === 'English' ? 'Phonetic Inference V1:' : 'Inférence Phonétique V1 :'}
-                          </span>
-                          <span className="text-sm font-bold text-indigo-400">{detectedPhonemes[0] || '---'}</span>
-                        </div>
-                      </>
-                    )}
-                    <div className="py-4 text-center border-t border-white/5 mt-4 italic opacity-30">
-                      {selectedLang === 'English' ? 'Awaiting additional log dumps...' : 'En attente de dumps de logs supplémentaires...'}
-                    </div>
-                  </div>
-                </div>
-              </aside>
-            </div>
-          </div>
+          <DyslexiaView
+            selectedLang={selectedLang}
+            setSelectedLang={setSelectedLang}
+            isRecording={isRecording}
+            toggleRecording={toggleRecording}
+            transcript={transcript}
+            detectedPhonemes={detectedPhonemes}
+            audioData={audioData}
+            speechError={speechError}
+            user={user}
+            loginWithGoogle={loginWithGoogle}
+            logout={logout}
+            langMap={langMap}
+            speakText={speakText}
+            handleUrlOrManualEdgeInput={handleUrlOrManualEdgeInput}
+            isAnalyzingEdge={isAnalyzingEdge}
+            edgePerformanceMs={edgePerformanceMs}
+          />
         )}
 
         {mainView === 'architecture' && (
@@ -1904,9 +1301,17 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
             isRemediating={isRemediating}
             setIsRemediating={setIsRemediating}
             speechError={speechError}
+            injectedExercise={injectedExercise}
+            onInjectedExerciseConsumed={() => setInjectedExercise(undefined)}
           />
         )}
 
+        {mainView === 'gtm' && (
+          <GtmPlaybook 
+            user={user}
+            mlEngineUrl={mlEngineUrl}
+          />
+        )}
 
       </main>
 

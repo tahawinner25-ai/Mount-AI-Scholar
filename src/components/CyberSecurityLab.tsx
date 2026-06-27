@@ -698,7 +698,7 @@ app = FastAPI()
 # Interdiction absolue du wildcard '*'
 origins = [
     "http://localhost:3000", # Port de dev de React
-    "https://mount-ai-scholar.netlify.app" # Port de prod
+    "https://ais-pre-5u3blxgak7knb6islvvfnt-112894933202.europe-west2.run.app" # Port de prod (AI Studio Shared App)
 ]
 
 app.add_middleware(

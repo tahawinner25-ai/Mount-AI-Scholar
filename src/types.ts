@@ -1,4 +1,4 @@
-export type MainViewType = 'hub' | 'dyslexia' | 'learning' | 'architecture' | 'history' | 'cognitive-gym';
+export type MainViewType = 'hub' | 'dyslexia' | 'learning' | 'architecture' | 'history' | 'cognitive-gym' | 'gtm';
 export type LearningModeType = 'mindmap' | 'quiz' | 'exam' | 'presentation' | 'summary' | 'search' | 'gemma';
 export type ArchSubTabType = 'visualizer' | 'cyber' | 'ledger';
 export type EngineStatusType = 'offline' | 'online';

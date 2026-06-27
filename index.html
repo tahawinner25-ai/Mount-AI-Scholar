@@ -7,6 +7,104 @@
     <meta name="description" content="Mount AI Scholar - Moteur IA d'apprentissage et d'accessibilité">
     <link rel="apple-touch-icon" href="/pwa-192x192.svg">
     <title>Cognitive Arena</title>
+    <script>
+      // Progressive Silent SW Purge & Network-First Cache Bypass
+      (function() {
+        var logs = [];
+        window.addEventListener('error', function(e) {
+          logs.push('[Error] ' + e.message + ' (' + e.filename + ':' + e.lineno + ')');
+        }, true);
+
+        // Immediate unregistration of obsolete Service Workers to solve mobile blank screens
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(regs) {
+            if (regs && regs.length > 0) {
+              var unregisteredAny = false;
+              var promises = regs.map(function(reg) {
+                return reg.unregister().then(function(success) {
+                  if (success) unregisteredAny = true;
+                });
+              });
+              Promise.all(promises).then(function() {
+                if (unregisteredAny) {
+                  if (window.caches) {
+                    caches.keys().then(function(keys) {
+                      Promise.all(keys.map(function(k) { return caches.delete(k); })).then(function() {
+                        // Force clean reload from network on first SW detection
+                        window.location.reload(true);
+                      });
+                    });
+                  } else {
+                    window.location.reload(true);
+                  }
+                }
+              });
+            }
+          }).catch(function(err) {
+            logs.push('[SW Error] ' + err);
+          });
+        }
+
+        // Silent Fallback: if React hasn't rendered after 3 seconds, forcefully refresh once
+        setTimeout(function() {
+          var root = document.getElementById('root');
+          if (!root || !root.innerHTML.trim()) {
+            if (!sessionStorage.getItem('__auto_refreshed')) {
+              sessionStorage.setItem('__auto_refreshed', 'true');
+              if (window.caches) {
+                caches.keys().then(function(keys) {
+                  keys.forEach(function(k) { caches.delete(k); });
+                  window.location.reload(true);
+                });
+              } else {
+                window.location.reload(true);
+              }
+            } else {
+              // If already refreshed once and still blank, show a micro clean button
+              var btn = document.createElement('button');
+              btn.textContent = "Réinitialiser et Forcer la Mise à jour 🔄";
+              btn.style.position = 'fixed';
+              btn.style.bottom = '16px';
+              btn.style.left = '50%';
+              btn.style.transform = 'translateX(-50%)';
+              btn.style.zIndex = '999999';
+              btn.style.padding = '12px 20px';
+              btn.style.background = '#3b82f6';
+              btn.style.color = '#fff';
+              btn.style.fontWeight = 'bold';
+              btn.style.border = 'none';
+              btn.style.borderRadius = '30px';
+              btn.style.boxShadow = '0 10px 15px -3px rgba(59, 130, 246, 0.4)';
+              btn.style.cursor = 'pointer';
+              btn.style.fontFamily = 'sans-serif';
+              btn.style.fontSize = '13px';
+              btn.addEventListener('click', function() {
+                sessionStorage.removeItem('__auto_refreshed');
+                if ('serviceWorker' in navigator) {
+                  navigator.serviceWorker.getRegistrations().then(function(regs) {
+                    var promises = regs.map(function(r) { return r.unregister(); });
+                    Promise.all(promises).then(function() {
+                      if (window.caches) {
+                        caches.keys().then(function(keys) {
+                          Promise.all(keys.map(function(k) { return caches.delete(k); })).then(function() {
+                            window.location.reload(true);
+                          });
+                        });
+                      } else {
+                        window.location.reload(true);
+                      }
+                    });
+                  });
+                } else {
+                  window.location.reload(true);
+                }
+              });
+              document.body.appendChild(btn);
+            }
+          }
+        }, 3000);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

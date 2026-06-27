@@ -39,12 +39,32 @@
         "syncStatus": { "type": "string" }
       },
       "required": ["userId", "seqId", "mutationType", "payloadJson", "checksum", "timestamp", "syncStatus"]
+    },
+    "SovereignShortMem": {
+      "title": "SovereignShortMem",
+      "description": "User learning preferences and short-term memory persistent store cached at the edge specifically for the Sovereign AI Agent.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "learningStyle": { "type": "string" },
+        "level": { "type": "string" },
+        "customDirectives": { "type": "string" },
+        "lastSessionInsights": { "type": "string" },
+        "preferredLanguage": { "type": "string" },
+        "syncedAt": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "learningStyle", "level", "customDirectives", "lastSessionInsights", "preferredLanguage"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/User" },
       "description": "User profile"
+    },
+    "/sovereign_short_mem/{userId}": {
+      "schema": { "$ref": "#/entities/SovereignShortMem" },
+      "description": "Sovereign context store and persistent adaptive parameters for Sovereign Agent"
     },
     "/learning_items/{itemId}": {
       "schema": { "$ref": "#/entities/LearningItem" },

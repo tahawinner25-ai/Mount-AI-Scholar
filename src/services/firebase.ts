@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore, enableMultiTabIndexedDbPersistence } from 'firebase/firestore';
+import { getFirestore, enableMultiTabIndexedDbPersistence, writeBatch, doc } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
@@ -15,6 +15,85 @@ enableMultiTabIndexedDbPersistence(db).catch((err) => {
   }
 });
 export const auth = getAuth();
+
+/**
+ * ARCHITECTURE DE SCALE (50% PILOTE - COMPRESSION DES ÉCRITURES)
+ * ScalableWriteBuffer (Write-Coalescing Buffer) :
+ * À 1 000 000 d'utilisateurs concurrents, écrire dans Firestore à chaque phonème détecté
+ * ou score de vocabulaire mis à jour détruit le budget cloud et surcharge la base de données.
+ * Cette classe tamponne et fusionne les requêtes d'écriture en arrière-plan, puis commite 
+ * sur Firestore via un WriteBatch atomique toutes les 5 secondes ou lorsque le buffer est plein (max 50 documents).
+ * Résultat : De 50 requêtes d'écriture individuelles, on passe à 1 seule opération groupée ultra-rapide.
+ */
+class ScalableWriteBuffer {
+  private queue: Map<string, any> = new Map(); // docPath -> merged payload
+  private timeoutId: NodeJS.Timeout | null = null;
+  private maxBatchSize = 50; // Limite théorique et pratique de Firestore WriteBatch
+  private flushIntervalMs = 5000; // 5 secondes de debounce
+
+  public async queueWrite(collectionName: string, docId: string, data: any) {
+    const docPath = `${collectionName}/${docId}`;
+    
+    // Fusion intelligente : si le même document est modifié plusieurs fois de suite,
+    // on fusionne les champs mis à jour localement avant de l'envoyer au réseau.
+    const existing = this.queue.get(docPath) || {};
+    this.queue.set(docPath, {
+      collectionName,
+      docId,
+      payload: { ...existing.payload, ...data, syncedAt: new Date().toISOString() }
+    });
+
+    console.log(`[SCALING_BUFFER] Document ${docPath} mis en cache tampon. Taille file : ${this.queue.size}`);
+
+    // Si on dépasse la taille max tolérée, on flush immédiatement sans attendre le timer
+    if (this.queue.size >= this.maxBatchSize) {
+      await this.flush();
+    } else {
+      this.scheduleFlush();
+    }
+  }
+
+  private scheduleFlush() {
+    if (this.timeoutId) return;
+    this.timeoutId = setTimeout(async () => {
+      await this.flush();
+    }, this.flushIntervalMs);
+  }
+
+  public async flush(): Promise<void> {
+    if (this.timeoutId) {
+      clearTimeout(this.timeoutId);
+      this.timeoutId = null;
+    }
+
+    if (this.queue.size === 0) return;
+
+    console.log(`[SCALING_BUFFER] Début de la fusion et du flush de ${this.queue.size} écritures vers Firestore...`);
+    const batch = writeBatch(db);
+    const transientQueue = Array.from(this.queue.values());
+    this.queue.clear();
+
+    try {
+      for (const item of transientQueue) {
+        const docRef = doc(db, item.collectionName, item.docId);
+        // Utilisation de merge: true pour préserver les autres états
+        batch.set(docRef, item.payload, { merge: true });
+      }
+
+      await batch.commit();
+      console.log(`[SCALING_BUFFER] [SUCCESS] Consolidé et persisté ${transientQueue.length} documents en 1 seul batch atomique.`);
+    } catch (error) {
+      console.error("[SCALING_BUFFER] [ERROR] Échec lors du flush du batch :", error);
+      // Remettre dans la file locale en cas d'erreur réseau pour garantir la tolérance aux pannes
+      for (const item of transientQueue) {
+        const docPath = `${item.collectionName}/${item.docId}`;
+        this.queue.set(docPath, item);
+      }
+    }
+  }
+}
+
+export const dbBatcher = new ScalableWriteBuffer();
 export const googleProvider = new GoogleAuthProvider();
 
 export enum OperationType {

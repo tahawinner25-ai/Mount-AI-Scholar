@@ -1334,9 +1334,143 @@ History Data: ${JSON.stringify(history)}`;
       }
 
       // Sentence level extractive summary
-      const sentences = userText.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 8);
-      const titleCandidate = sentences[0] || "Mount AI Scholar Study Hub";
-      const title = titleCandidate.length > 80 ? titleCandidate.substring(0, 80) + "..." : titleCandidate;
+      // Fix: If user text is a short keyword phrase (< 100 chars), use it directly as the title candidate
+      const sentences = userText.split(/[.!?\n]+/).map(s => s.trim()).filter(Boolean);
+      let title = "Mount AI Scholar Study Hub";
+      if (userText.length > 0 && userText.length < 100) {
+        title = userText;
+      } else if (sentences.length > 0) {
+        const candidate = sentences[0];
+        title = candidate.length > 80 ? candidate.substring(0, 80) + "..." : candidate;
+      }
+
+      // Topic detection database
+      const offlineTopicDatabase: Record<string, any> = {
+        "vecteurs": {
+          titleFr: "Les Vecteurs (Mathématiques)",
+          titleEn: "Vectors (Mathematics)",
+          summaryFr: [
+            "Un vecteur est un objet mathématique défini par une direction, un sens et une longueur (sa norme).",
+            "En physique, les vecteurs permettent de représenter des forces, des vitesses et des déplacements dans l'espace.",
+            "Les opérations sur les vecteurs incluent la somme (relation de Chasles), la colinéarité, et le produit scalaire."
+          ],
+          summaryEn: [
+            "A vector is a geometric object defined by a direction, a sense, and a magnitude (length).",
+            "In physics, vectors are essential to model forces, velocities, and displacements in space.",
+            "Vector operations include addition (Chasles relation / triangle rule), scalar multiplication, and dot products."
+          ],
+          quizFr: [
+            {
+              question: "Qu'est-ce qui caractérise entièrement un vecteur ?",
+              options: ["A) Seulement sa longueur", "B) Une direction, un sens et une norme (longueur)", "C) Uniquement son point de départ", "D) Une valeur numérique positive"],
+              answer: "B",
+              explanation: "Un vecteur est défini par sa direction (la droite support), son sens (l'orientation) et sa norme (la longueur)."
+            }
+          ],
+          quizEn: [
+            {
+              question: "What completely characterizes a vector?",
+              options: ["A) Only its length", "B) A direction, a sense, and a magnitude", "C) Only its starting point", "D) A positive numerical value"],
+              answer: "B",
+              explanation: "A vector is geometrically defined by its direction, its sense, and its magnitude."
+            }
+          ]
+        },
+        "fractions": {
+          titleFr: "Les Fractions (Arithmétique)",
+          titleEn: "Fractions (Arithmetic)",
+          summaryFr: [
+            "Une fraction exprime la division d'un tout en plusieurs parts égales.",
+            "Le numérateur (en haut) indique le nombre de parts choisies, tandis que le dénominateur (en bas) indique le nombre total de parts.",
+            "Pour additionner deux fractions, il faut obligatoirement réduire leurs expressions au même dénominateur."
+          ],
+          summaryEn: [
+            "A fraction represents the division of a whole into equal parts.",
+            "The numerator (top) shows the selected parts, while the denominator (bottom) shows the total number of parts.",
+            "To add or subtract fractions, you must reduce them to a common denominator."
+          ]
+        },
+        "atome": {
+          titleFr: "L'Atome et la Constitution de la Matière",
+          titleEn: "Atoms and Matter Structure",
+          summaryFr: [
+            "L'atome est le constituant fondamental de la matière.",
+            "Il comprend un noyau dense (formé de protons positifs et de neutrons neutres) et d'électrons négatifs en mouvement autour.",
+            "Le nombre de protons (numéro atomique Z) détermine l'élément chimique dans le tableau périodique."
+          ],
+          summaryEn: [
+            "An atom is the basic constituent unit of chemical matter.",
+            "It consists of a dense central nucleus (protons and neutrons) surrounded by an electron cloud.",
+            "The number of protons (atomic number Z) defines the chemical element's identity."
+          ]
+        },
+        "adn": {
+          titleFr: "L'ADN et l'Information Génétique",
+          titleEn: "DNA and Genetic Coding",
+          summaryFr: [
+            "L'ADN est la macromolécule biologique qui stocke les informations héréditaires de la cellule.",
+            "Elle est structurée sous forme de double hélice avec quatre bases complémentaires : A-T et C-G.",
+            "L'information est transcrite en ARN puis traduite en protéines indispensables à la vie."
+          ],
+          summaryEn: [
+            "DNA is the biological macromolecule that stores hereditary cell instructions.",
+            "It is structured as a double helix composed of complementary bases: A-T and C-G.",
+            "The genetic information is transcribed into RNA and then translated into functional proteins."
+          ]
+        },
+        "algorithmes": {
+          titleFr: "Les Algorithmes et la Pensée Logique",
+          titleEn: "Algorithms and Logical Thinking",
+          summaryFr: [
+            "Un algorithme est une suite finie et ordonnée d'instructions pour résoudre un problème donné.",
+            "C'est la fondation de tout programme informatique, exécutée par le processeur pour transformer les données.",
+            "L'efficacité s'exprime avec la notation Big O (complexité temporelle et spatiale)."
+          ],
+          summaryEn: [
+            "An algorithm is a finite, ordered sequence of instructions used to solve a problem.",
+            "It is the core foundation of computer software, dictating data transformations on processors.",
+            "Theoretical performance is evaluated using Big O complexity notation."
+          ]
+        },
+        "phonemes": {
+          titleFr: "Les Phonèmes et les Sons du Langage",
+          titleEn: "Phonemes and Speech Sounds",
+          summaryFr: [
+            "Un phonème est la plus petite unité de son distinctive d'une langue parlée.",
+            "Remplacer un phonème par un autre modifie le sens du mot (ex: 'pont' vs 'bon').",
+            "La transcription phonétique internationale (API) standardise la prononciation des sons humains."
+          ],
+          summaryEn: [
+            "A phoneme is the smallest distinct speech sound unit that distinguishes words.",
+            "Substituting one phoneme for another alters word meaning (e.g., 'pat' vs 'bat').",
+            "The International Phonetic Alphabet (IPA) provides a universal symbol for each human speech sound."
+          ]
+        },
+        "dyslexie": {
+          titleFr: "La Dyslexie et l'Accessibilité Cognitive",
+          titleEn: "Dyslexia and Cognitive Accessibility",
+          summaryFr: [
+            "La dyslexie est un trouble durable affectant l'acquisition de la lecture fluide.",
+            "Elle provient de difficultés à lier rapidement les lettres vues (graphèmes) et leurs sons associés (phonèmes).",
+            "L'accessibilité inclut les espacements adaptés et les repères de couleurs pour soulager l'attention."
+          ],
+          summaryEn: [
+            "Dyslexia is a persistent condition affecting reading fluency and decoding speed.",
+            "It is characterized by challenges mapping written characters (graphemes) to speech sounds (phonemes).",
+            "Cognitive accessibility includes spacing and custom color accents to reduce decoding effort."
+          ]
+        }
+      };
+
+      const norm = title.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      let matchedTopic: any = null;
+      if (norm.includes("vecteur")) matchedTopic = offlineTopicDatabase["vecteurs"];
+      else if (norm.includes("fraction")) matchedTopic = offlineTopicDatabase["fractions"];
+      else if (norm.includes("atome") || norm.includes("atom")) matchedTopic = offlineTopicDatabase["atome"];
+      else if (norm.includes("adn") || norm.includes("dna")) matchedTopic = offlineTopicDatabase["adn"];
+      else if (norm.includes("algorithme") || norm.includes("algorithm")) matchedTopic = offlineTopicDatabase["algorithmes"];
+      else if (norm.includes("phoneme")) matchedTopic = offlineTopicDatabase["phonemes"];
+      else if (norm.includes("dyslexie") || norm.includes("dyslexia")) matchedTopic = offlineTopicDatabase["dyslexie"];
 
       // Class 1: VOCABULARY EXTRACTOR
       if (/extract.*complex|difficult.*words|linguistique.*complexes|vocabulaire/i.test(prompt)) {
@@ -1373,23 +1507,91 @@ History Data: ${JSON.stringify(history)}`;
       // Class 2: DESIGN DIAGRAM (MERMAID)
       if (/mermaid|diagram|graph TD/i.test(prompt)) {
         const isFr = !isEnglish;
-        const nodeRoot = isFr ? "Sujet d'Analyse" : "Topic Overview";
-        const nodeA = isFr ? "Points Maîtres d'Étude" : "Key Pillars";
-        const nodeB = isFr ? "Phonétique Active" : "Edge Phonics";
-        const nodeC = isFr ? "Gemma 4 Edge Security" : "Gemma 4 Privacy";
-        
-        const graphCode = `graph TD
+        let graphCode = "";
+
+        if (matchedTopic) {
+          if (norm.includes("vecteur")) {
+            graphCode = `graph TD
+  Root["🧠 Les Vecteurs"] --> A["📏 Grandeur: Direction, Sens, Norme"]
+  Root --> B["➕ Opération: Relation de Chasles"]
+  Root --> C["⚡ Applications: Forces & Vitesses (Physique)"]
+  A --> D["Norme: Longueur ||v||"]
+  B --> E["Somme: AB + BC = AC"]`;
+          } else if (norm.includes("fraction")) {
+            graphCode = `graph TD
+  Root["🧠 Les Fractions"] --> A["🔢 Structure: Numérateur & Dénominateur"]
+  Root --> B["➕ Opérations: Même dénominateur commun"]
+  Root --> C["⚡ Simplification: Forme irréductible (PGCD)"]
+  A --> D["Haut: Numérateur (parts choisies)"]
+  A --> E["Bas: Dénominateur (parts totales)"]`;
+          } else if (norm.includes("atome") || norm.includes("atom")) {
+            graphCode = `graph TD
+  Root["🧠 L'Atome"] --> A["🌌 Noyau Central: Protons & Neutrons"]
+  Root --> B["☁️ Nuage Électronique: Électrons Orbitants"]
+  Root --> C["⚛️ Identité: Numéro atomique Z"]
+  A --> D["Protons (Charge +) et Neutrons (Neutres)"]
+  B --> E["Électrons (Charge -)"]`;
+          } else if (norm.includes("adn") || norm.includes("dna")) {
+            graphCode = `graph TD
+  Root["🧠 L'ADN"] --> A["🧬 Double Hélice: Brins complémentaires"]
+  Root --> B["🔗 Bases Azotées: A-T & C-G"]
+  Root --> C["⚙️ Expression: Transcription (ARN) & Traduction"]
+  A --> D["Sucre-Phosphate Backbone"]
+  B --> E["Complémentarité: A avec T, C avec G"]`;
+          } else if (norm.includes("algorithme") || norm.includes("algorithm")) {
+            graphCode = `graph TD
+  Root["🧠 Algorithmes"] --> A["📋 Étapes: Suite finie d'instructions"]
+  Root --> B["⚙️ Performance: Notation Grand O"]
+  Root --> C["⚡ Types: Tri, Recherche, Logique"]
+  A --> D["Entrées ➔ Traitement ➔ Sorties"]
+  B --> E["Complexité Temporelle & Spatiale"]`;
+          } else if (norm.includes("phoneme")) {
+            graphCode = `graph TD
+  Root["🧠 Les Phonèmes"] --> A["🗣️ Sons: Plus petite unité sonore"]
+  Root --> B["✍️ Correspondance: Graphème-Phonème"]
+  Root --> C["🌍 Alphabet: API (Alphabet Phonétique International)"]
+  A --> D["Voyelles & Consonnes distinctives"]
+  B --> E["Lecture & Décodage Syllabique"]`;
+          } else if (norm.includes("dyslexie") || norm.includes("dyslexia")) {
+            graphCode = `graph TD
+  Root["🧠 Dyslexie et Accessibilité"] --> A["⚠️ Difficulté: Décodage Graphème-Phonème"]
+  Root --> B["♿ Aménagements: Espacement & Code Couleurs"]
+  Root --> C["📚 Objectif: Alléger la Charge Cognitive"]
+  A --> D["Fatigue visuelle et attentionnelle"]
+  B --> E["Lecture syllabique balisée"]`;
+          }
+        }
+
+        if (!graphCode) {
+          const nodeRoot = isFr ? "Sujet d'Analyse" : "Topic Overview";
+          const nodeA = isFr ? "Points Maîtres d'Étude" : "Key Pillars";
+          const nodeB = isFr ? "Phonétique Active" : "Edge Phonics";
+          const nodeC = isFr ? "Gemma 4 Edge Security" : "Gemma 4 Privacy";
+          
+          graphCode = `graph TD
   Root["🧠 ${nodeRoot}"] --> A["📚 ${nodeA}: ${title.replace(/["]/g, "'")}"]
   Root --> B["🗣️ ${nodeB}"]
   Root --> C["🔒 ${nodeC}"]
   B --> D["Phonological Synthesis"]
   C --> E["Local Isolation"]`;
+        }
         
         return res.json({ text: graphCode });
       }
 
       // Class 3: COGNITIVE QUIZ
       if (/quiz|qcm|mcq|3-question/i.test(prompt)) {
+        if (matchedTopic && matchedTopic.quizFr) {
+          const qList = isEnglish ? (matchedTopic.quizEn || matchedTopic.quizFr) : matchedTopic.quizFr;
+          const quizResult = `🧠 **[Gemma 4 Edge - ${isEnglish ? 'Topic-Aware' : 'Thématique'} MCQ Quiz]**
+
+${qList.map((q: any, idx: number) => `**Question ${idx + 1}:** ${q.question}
+${q.options.map((opt: string) => `- ${opt}`).join('\n')}
+*${isEnglish ? 'Correct Answer' : 'Bonne Réponse'}: ${q.answer}*
+*${isEnglish ? 'Explanation' : 'Explication'}:* ${q.explanation}`).join('\n\n')}`;
+          return res.json({ text: quizResult });
+        }
+
         if (isEnglish) {
           const quizResult = `🧠 **[Gemma 4 Edge - Interactive Local MCQ Quiz]**
 
@@ -1442,48 +1644,72 @@ History Data: ${JSON.stringify(history)}`;
       }
 
       // Class 4: SYSTEM SUMMARY & FREE GENERATE COGNITIVE DEDUCTIONS
-      const extractiveSentences = sentences.slice(0, Math.min(sentences.length, 3));
-      
+      let titleStr = matchedTopic ? (isEnglish ? matchedTopic.titleEn : matchedTopic.titleFr) : title;
+      let extractiveSentences: string[] = [];
+
+      if (matchedTopic) {
+        extractiveSentences = isEnglish ? matchedTopic.summaryEn : matchedTopic.summaryFr;
+      } else if (userText.length < 150) {
+        if (isEnglish) {
+          extractiveSentences = [
+            `The active study of "${titleStr}" allows students to structure core academic knowledge and bridge practical applications.`,
+            `Conceptual analysis of "${titleStr}" highlights key interactions, definitions, and the foundational principles governing it.`,
+            `Mastering the terms and exercises related to "${titleStr}" reinforces cognitive pathways and supports durable memory retention.`
+          ];
+        } else {
+          extractiveSentences = [
+            `L'étude approfondie du thème "${titleStr}" permet à l'élève de structurer ses connaissances académiques et de relier la théorie aux cas concrets.`,
+            `L'analyse didactique de "${titleStr}" met en valeur les définitions clés, les formules et les principes logiques fondamentaux qui le régissent.`,
+            `La maîtrise des notions et entraînements liés à "${titleStr}" renforce l'autonomie d'apprentissage et prévient la fatigue cognitive.`
+          ];
+        }
+      } else {
+        extractiveSentences = sentences.filter(s => s.length > 8).slice(0, 3);
+        if (extractiveSentences.length === 0) {
+          extractiveSentences = sentences.slice(0, 3);
+        }
+      }
+
       const isFr = !isEnglish;
-      const stopWords = new Set(["dans", "avec", "pour", "sont", "est", "le", "la", "les", "une", "des", "avec", "nous", "vous", "leurs", "leur"]);
-      const candidateWords = userText.match(/\b[a-zA-Zà-ÿ]{5,15}\b/g) || ["Scholar", "Cognitive", "Inference"];
-      const uniqueKeywords = Array.from(new Set(candidateWords)).filter(w => !stopWords.has(w.toLowerCase())).slice(0, 4).map(k => k.toUpperCase());
+      const stopWordsList = new Set(["dans", "avec", "pour", "sont", "est", "le", "la", "les", "une", "des", "avec", "nous", "vous", "leurs", "leur"]);
+      const candidateWordsList = userText.match(/\b[a-zA-Zà-ÿ]{5,15}\b/g) || ["Scholar", "Cognitive", "Inference"];
+      const uniqueKeywords = Array.from(new Set(candidateWordsList)).filter(w => !stopWordsList.has(w.toLowerCase())).slice(0, 4).map(k => k.toUpperCase());
 
       if (isEnglish) {
         const summaryText = `🧠 **[Gemma 4 Edge - Offline Active Summary]**
         
-📚 **Study Core Topic:** *"${title}"*
+📚 **Study Core Topic:** *"${titleStr}"*
 
 📌 **Concepts Extracted:** ${uniqueKeywords.length > 0 ? uniqueKeywords.map(k => `\`${k}\``).join('  ') : '`COGNITIVE STUDY`'}
 
 ---
 
 ### 📝 Key Learning Highlights (Local Extractive Formulation)
-${extractiveSentences.length > 0 ? extractiveSentences.map((s, idx) => `* 💡 **Key Takeaway ${idx+1}:** ${s}.`).join('\n') : "* 💡 **Insight 1:** Active processing helps solidify cognitive reading foundations.\n* 💡 **Insight 2:** Keep tracking core vocabulary tags and phonology sounds in daily training."}
+${extractiveSentences.map((s, idx) => `* 💡 **Key Takeaway ${idx+1}:** ${s}`).join('\n')}
 
 ---
 
 ### 💡 Cognitive Dyslexic Reader Assist
-*Try breaking long sentences down. We detected ${uniqueKeywords.length} core complex words inside this block to assist sound-phoneme correspondence.*
+*Try breaking complex concepts down. We processed terms inside "${titleStr}" locally to assist sound-phoneme correspondence.*
 
 *(Generated locally via rule-based Edge NLP to guarantee maximal "Privacy by Design" even when disconnected from the Cloud)*`;
         return res.json({ text: summaryText });
       } else {
         const summaryText = `🧠 **[Gemma 4 Edge - Résumé d'Inférence Active Locale]**
         
-📚 **Sujet Principal Détecté :** *"${title}"*
+📚 **Sujet Principal Détecté :** *"${titleStr}"*
 
 📌 **Concepts Clés Extraits :** ${uniqueKeywords.length > 0 ? uniqueKeywords.map(k => `\`${k}\``).join('  ') : '`APPRENTISSAGE COGNITIF`'}
 
 ---
 
 ### 📝 Synthèse Algorithmique Simplifiée (Formulation Extractive)
-${extractiveSentences.length > 0 ? extractiveSentences.map((s, idx) => `* 💡 **Idée Fondamentale ${idx+1} :** ${s}.`).join('\n') : "* 💡 **Idée Fondamentale 1 :** L'analyse de décodage active locale renforce la mémoire de travail de l'apprenant.\n* 💡 **Idée Fondamentale 2 :** Les schémas de relecture phonologique réguliers préviennent les efforts d'attention inutiles."}
+${extractiveSentences.map((s, idx) => `* 💡 **Idée Fondamentale ${idx+1} :** ${s}`).join('\n')}
 
 ---
 
 ### 💡 Astuce de Lecture Cognitive (Dyslexie)
-*Séparez visuellement les compléments longs. Les mots complexes d'analyse décodés localement facilitent la correspondance graphème-phonème sans encombrer la mémoire de travail.*
+*Séparez visuellement les compléments longs. Les mots complexes associés à "${titleStr}" décodés localement facilitent la correspondance graphème-phonème.*
 
 *(Généré localement via Edge NLP pour garantir une confidentialité absolue "Privacy by Design" y compris sans Internet)*`;
         return res.json({ text: summaryText });

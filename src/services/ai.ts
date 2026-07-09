@@ -1,53 +1,493 @@
 // API calls relayed to backend avec un Cognitive Offline Fallback Engine robuste (Gemma 4 Edge Security)
 
+interface OfflineTopic {
+  titleFr: string;
+  titleEn: string;
+  summaryFr: string[];
+  summaryEn: string[];
+  quizFr: Array<{ question: string; options: string[]; answer: string; explanation: string }>;
+  quizEn: Array<{ question: string; options: string[]; answer: string; explanation: string }>;
+}
+
+const offlineTopicDatabase: Record<string, OfflineTopic> = {
+  "vecteurs": {
+    titleFr: "Les Vecteurs (Mathématiques)",
+    titleEn: "Vectors (Mathematics)",
+    summaryFr: [
+      "Un vecteur est un objet mathématique caractérisé par une direction, un sens et une longueur (appelée sa norme).",
+      "En physique, les vecteurs sont indispensables pour modéliser des grandeurs orientées comme les forces, les vecteurs vitesse et les déplacements.",
+      "Les opérations vectorielles usuelles incluent la somme de vecteurs (définie par la relation de Chasles), la colinéarité, et le produit scalaire pour analyser les angles."
+    ],
+    summaryEn: [
+      "A vector is a geometric object characterized by a direction, a sense, and a magnitude (length).",
+      "In physics, vectors are fundamental to represent directed quantities such as forces, velocity, and spatial displacements.",
+      "Common vector operations include vector addition (Triangle rule / Chasles relation), scalar multiplication, and dot product calculations."
+    ],
+    quizFr: [
+      {
+        question: "Qu'est-ce qui caractérise entièrement un vecteur en géométrie ?",
+        options: ["A) Seulement sa longueur", "B) Une direction, un sens et une norme (longueur)", "C) Uniquement son point de départ", "D) Une simple valeur numérique positive"],
+        answer: "B",
+        explanation: "Un vecteur est défini géométriquement par sa direction (la droite support), son sens (l'orientation de la flèche) et sa norme (sa longueur)."
+      },
+      {
+        question: "Quelle opération géométrique permet de simplifier la somme de deux vecteurs consécutifs ?",
+        options: ["A) La relation de Chasles", "B) Le produit vectoriel", "C) Le théorème de Pythagore", "D) Le produit scalaire"],
+        answer: "A",
+        explanation: "La relation de Chasles stipule que pour trois points A, B, C, le vecteur AB + le vecteur BC est égal au vecteur AC."
+      },
+      {
+        question: "En physique fondamentale, quel type de grandeur est représenté par un vecteur ?",
+        options: ["A) Une masse", "B) Une température", "C) Une force appliquée", "D) Une énergie cinétique"],
+        answer: "C",
+        explanation: "Une force a une direction d'action, un sens et une intensité, ce qui correspond exactement aux caractéristiques d'un vecteur."
+      }
+    ],
+    quizEn: [
+      {
+        question: "What completely characterizes a vector in geometry?",
+        options: ["A) Only its length", "B) A direction, a sense, and a magnitude", "C) Only its starting point", "D) A simple positive numerical value"],
+        answer: "B",
+        explanation: "A vector is geometrically defined by its direction (supporting line), its sense (orientation), and its magnitude (length)."
+      },
+      {
+        question: "Which mathematical relation allows simplifying the sum of two consecutive vectors?",
+        options: ["A) Chasles relation", "B) Cross product", "C) Pythagorean theorem", "D) Dot product"],
+        answer: "A",
+        explanation: "Chasles relation states that vector AB + vector BC is equal to vector AC."
+      },
+      {
+        question: "In physics, which quantity is represented by a vector?",
+        options: ["A) Mass", "B) Temperature", "C) An applied force", "D) Kinetic energy"],
+        answer: "C",
+        explanation: "A force is exerted in a specific direction with a certain strength, making it a vector quantity."
+      }
+    ]
+  },
+  "fractions": {
+    titleFr: "Les Fractions (Arithmétique)",
+    titleEn: "Fractions (Arithmetic)",
+    summaryFr: [
+      "Une fraction représente le partage d'une unité en plusieurs parts égales.",
+      "Elle est constituée d'un numérateur (nombre de parts considérées) placé au-dessus, et d'un dénominateur (nombre total de parts) placé au-dessous.",
+      "Pour additionner ou soustraire deux fractions, il est indispensable de les réduire au même dénominateur commun."
+    ],
+    summaryEn: [
+      "A fraction represents the division of a whole or a unit into equal parts.",
+      "It consists of a numerator (number of selected parts) on top, and a denominator (total number of parts) on the bottom.",
+      "To add or subtract fractions, they must first be converted to share a common denominator."
+    ],
+    quizFr: [
+      {
+        question: "Dans la fraction mathématique 3/5, comment appelle-t-on le nombre 3 ?",
+        options: ["A) Le dénominateur", "B) Le numérateur", "C) Le quotient", "D) Le diviseur"],
+        answer: "B",
+        explanation: "Le nombre du haut est le numérateur (parts choisies). Le nombre du bas (5) est le dénominateur (parts totales)."
+      },
+      {
+        question: "Quelle opération est indispensable avant d'additionner deux fractions ?",
+        options: ["A) Multiplier les numérateurs", "B) Simplifier par zéro", "C) Réduire au même dénominateur", "D) Inverser la seconde fraction"],
+        answer: "C",
+        explanation: "On ne peut additionner directement que des fractions représentant des parts de même taille, donc ayant le même dénominateur."
+      },
+      {
+        question: "Quelle est la forme irréductible de la fraction 6/12 ?",
+        options: ["A) 3/6", "B) 1/2", "C) 1/3", "D) 2/4"],
+        answer: "B",
+        explanation: "En divisant le numérateur et le dénominateur par leur plus grand commun diviseur (6), on obtient la fraction irréductible 1/2."
+      }
+    ],
+    quizEn: [
+      {
+        question: "In the fraction 3/5, what is the number 3 called?",
+        options: ["A) The denominator", "B) The numerator", "C) The quotient", "D) The divisor"],
+        answer: "B",
+        explanation: "The top number is the numerator. The bottom number (5) is the denominator."
+      },
+      {
+        question: "What is the mandatory step before adding two fractions?",
+        options: ["A) Multiply the numerators", "B) Simplify by zero", "C) Find a common denominator", "D) Invert the second fraction"],
+        answer: "C",
+        explanation: "Fractions must have the same denominator (shares of equal size) before you can perform addition."
+      },
+      {
+        question: "What is 6/12 simplified to its lowest terms?",
+        options: ["A) 3/6", "B) 1/2", "C) 1/3", "D) 2/4"],
+        answer: "B",
+        explanation: "Dividing both numerator and denominator by their greatest common divisor (6) yields 1/2."
+      }
+    ]
+  },
+  "atome": {
+    titleFr: "L'Atome et la Constitution de la Matière",
+    titleEn: "Atoms and Matter Structure",
+    summaryFr: [
+      "L'atome est la brique élémentaire et fondamentale qui compose toute matière de l'univers.",
+      "Il est structuré autour d'un noyau central lourd (protons chargés positivement et neutrons électriquement neutres) entouré d'électrons négatifs en mouvement.",
+      "Le nombre de protons (appelé numéro atomique Z) définit l'identité chimique unique de l'atome dans le tableau périodique des éléments."
+    ],
+    summaryEn: [
+      "An atom is the basic and fundamental building block of all chemical matter.",
+      "It consists of a heavy central nucleus (positive protons and neutral neutrons) surrounded by orbiting negative electrons.",
+      "The number of protons (atomic number Z) defines the unique identity of the chemical element in the periodic table."
+    ],
+    quizFr: [
+      {
+        question: "Quelles sont les particules de charge neutre situées dans le noyau d'un atome ?",
+        options: ["A) Les protons", "B) Les électrons", "C) Les neutrons", "D) Les photons"],
+        answer: "C",
+        explanation: "Les neutrons, comme leur nom l'indique, sont électriquement neutres et résident dans le noyau aux côtés des protons."
+      },
+      {
+        question: "Quelle particule élémentaire gravite autour du noyau de l'atome ?",
+        options: ["A) Le neutron", "B) L'électron", "C) Le proton", "D) Le quark"],
+        answer: "B",
+        explanation: "L'électron, de charge négative, forme un nuage électronique en mouvement perpétuel autour du noyau atomique."
+      },
+      {
+        question: "Quelle charge électrique porte globalement un atome à l'état stable neutre ?",
+        options: ["A) Une charge négative", "B) Une charge positive", "C) Une charge nulle (neutre)", "D) Une charge variable infinie"],
+        answer: "C",
+        explanation: "Un atome neutre possède exactement le même nombre de protons (positifs) et d'électrons (négatifs), s'annulant mutuellement."
+      }
+    ],
+    quizEn: [
+      {
+        question: "Which neutral particles reside inside the nucleus of an atom?",
+        options: ["A) Protons", "B) Electrons", "C) Neutrons", "D) Photons"],
+        answer: "C",
+        explanation: "Neutrons are electrically neutral and reside in the atom nucleus alongside positive protons."
+      },
+      {
+        question: "Which elementary particle orbits around the atomic nucleus?",
+        options: ["A) Neutron", "B) Electron", "C) Proton", "D) Quark"],
+        answer: "B",
+        explanation: "The electron, which has a negative charge, forms a cloud orbiting the heavy central atomic nucleus."
+      },
+      {
+        question: "What is the net electrical charge of a stable, neutral atom?",
+        options: ["A) Negative charge", "B) Positive charge", "C) Zero (neutral)", "D) Infinite variable charge"],
+        answer: "C",
+        explanation: "A neutral atom has an equal number of positive protons and negative electrons, canceling each other out."
+      }
+    ]
+  },
+  "adn": {
+    titleFr: "L'ADN et l'Information Génétique",
+    titleEn: "DNA and Genetic Coding",
+    summaryFr: [
+      "L'ADN (acide désoxyribonucléique) est la molécule biologique qui stocke l'ensemble de l'information génétique héréditaire.",
+      "Sa forme célèbre est une double hélice, constituée de bases azotées complémentaires : l'Adénine s'associe à la Thymine, et la Cytosine s'associe à la Guanine.",
+      "L'expression de l'ADN s'effectue par sa transcription en ARN messager, puis par sa traduction en protéines fonctionnelles dans l'organisme."
+    ],
+    summaryEn: [
+      "DNA (deoxyribonucleic acid) is the biological molecule that stores hereditary genetic instructions.",
+      "Its shape is a double helix, held together by complementary nitrogenous bases: Adenine (A) pairs with Thymine (T), and Cytosine (C) pairs with Guanine (G).",
+      "DNA is expressed through transcription into messenger RNA, which is then translated into functional proteins."
+    ],
+    quizFr: [
+      {
+        question: "Quelle est la forme structurelle universelle de la molécule d'ADN ?",
+        options: ["A) Une boucle circulaire fermée", "B) Une double hélice torsadée", "C) Une chaîne rectiligne rigide", "D) Une structure en grille"],
+        answer: "B",
+        explanation: "La molécule d'ADN est configurée en forme de double hélice, semblable à une échelle hélicoïdale en colimaçon."
+      },
+      {
+        question: "Quelle base s'associe toujours avec la Cytosine (C) dans l'ADN ?",
+        options: ["A) L'Adénine (A)", "B) L'Uracile (U)", "C) La Guanine (G)", "D) La Thymine (T)"],
+        answer: "C",
+        explanation: "Dans les paires de bases de l'ADN, la Cytosine (C) se lie spécifiquement et systématiquement avec la Guanine (G)."
+      },
+      {
+        question: "Dans quel but l'ADN est-il transcrit en ARN messager ?",
+        options: ["A) Pour détruire la cellule", "B) Pour être traduit en protéines", "C) Pour fabriquer des lipides", "D) Pour remplacer le noyau"],
+        answer: "B",
+        explanation: "L'ARN messager sert de copie temporaire pour transporter l'information vers les ribosomes, où s'effectue la synthèse des protéines."
+      }
+    ],
+    quizEn: [
+      {
+        question: "What is the universal structural shape of the DNA molecule?",
+        options: ["A) A closed circular loop", "B) A twisted double helix", "C) A rigid straight chain", "D) A grid-like structure"],
+        answer: "B",
+        explanation: "DNA is configured as a double helix, resembling a spiral staircase."
+      },
+      {
+        question: "Which base always pairs with Cytosine (C) in double-stranded DNA?",
+        options: ["A) Adenine (A)", "B) Uracil (U)", "C) Guanine (G)", "D) Thymine (T)"],
+        answer: "C",
+        explanation: "In DNA base pairings, Cytosine (C) specifically and systematically binds with Guanine (G)."
+      },
+      {
+        question: "What is the primary purpose of transcribing DNA into messenger RNA?",
+        options: ["A) To destroy the cell", "B) To be translated into proteins", "C) To manufacture lipids", "D) To replace the nucleus"],
+        answer: "B",
+        explanation: "Messenger RNA acts as a template to carry genetic instructions to ribosomes, which build proteins."
+      }
+    ]
+  },
+  "algorithmes": {
+    titleFr: "Les Algorithmes et la Pensée Logique",
+    titleEn: "Algorithms and Logical Thinking",
+    summaryFr: [
+      "Un algorithme est une suite ordonnée, logique et finie d'instructions rigoureuses permettant de résoudre un problème.",
+      "Ils forment le pilier central de l'informatique, dictant au processeur comment manipuler, trier et transformer les données.",
+      "L'efficacité d'un algorithme s'évalue principalement à travers sa complexité temporelle et spatiale (exprimée par la notation Grand O)."
+    ],
+    summaryEn: [
+      "An algorithm is a finite, ordered sequence of unambiguous instructions used to solve a problem or calculate a result.",
+      "They are the core pillars of computer science, instructing processors on how to manipulate, filter, and structure data.",
+      "Algorithm performance is mathematically evaluated using time and space complexity (Big O notation)."
+    ],
+    quizFr: [
+      {
+        question: "Comment définit-on un algorithme de manière simple ?",
+        options: ["A) Un ordinateur physique", "B) Une suite ordonnée d'instructions pour résoudre un problème", "C) Un langage de programmation spécifique", "D) Une base de données cloud"],
+        answer: "B",
+        explanation: "Un algorithme est une recette logique d'étapes ordonnées indépendantes du langage machine utilisé."
+      },
+      {
+        question: "Quelle notation utilise-t-on pour évaluer l'efficacité d'un algorithme ?",
+        options: ["A) La notation Grand O (Big O)", "B) Le code binaire", "C) L'échelle de Richter", "D) L'indice ASCII"],
+        answer: "A",
+        explanation: "La notation Grand O évalue le comportement du temps d'exécution ou de l'espace mémoire requis quand la taille des données d'entrée augmente."
+      },
+      {
+        question: "Que signifie un algorithme ayant une complexité temporelle de O(1) ?",
+        options: ["A) Son temps d'exécution augmente linéairement", "B) Il s'exécute en un temps constant, quelle que soit la taille des données", "C) Il ne s'arrête jamais", "D) Il requiert une seule variable"],
+        answer: "B",
+        explanation: "La complexité O(1) représente le cas idéal d'un temps d'exécution constant indépendant de la taille des données d'entrée."
+      }
+    ],
+    quizEn: [
+      {
+        question: "What is the definition of an algorithm?",
+        options: ["A) A physical computer hardware component", "B) An ordered sequence of steps to solve a problem", "C) A specific programming language", "D) A cloud database storage system"],
+        answer: "B",
+        explanation: "An algorithm is a logical recipe of structured steps, independent of the actual programming language."
+      },
+      {
+        question: "Which notation is used to measure the theoretical efficiency of an algorithm?",
+        options: ["A) Big O notation", "B) Binary representation", "C) Richter scale", "D) ASCII index"],
+        answer: "A",
+        explanation: "Big O notation describes the limiting behavior of execution time or memory space as input size grows."
+      },
+      {
+        question: "What does it mean if an algorithm has a time complexity of O(1)?",
+        options: ["A) Its execution time grows linearly", "B) It executes in constant time, regardless of data size", "C) It is broken and never terminates", "D) It only uses a single variable"],
+        answer: "B",
+        explanation: "O(1) represents constant complexity, the ideal performance scenario where execution time is fixed."
+      }
+    ]
+  },
+  "phonemes": {
+    titleFr: "Les Phonèmes et les Sons du Langage",
+    titleEn: "Phonemes and Speech Sounds",
+    summaryFr: [
+      "Un phonème est la plus petite unité sonore distinctive du langage parlé, capable d'introduire une distinction sémantique.",
+      "Par exemple, la substitution du phonème /p/ par le phonème /b/ transforme le mot 'pont' en 'bon'.",
+      "L'alphabet phonétique international (API) fournit un symbole unique pour chaque son produit par l'appareil vocal humain."
+    ],
+    summaryEn: [
+      "A phoneme is the smallest distinctive sound unit in a spoken language that distinguishes one word from another.",
+      "For example, replacing the phoneme /p/ with the phoneme /b/ changes the English word 'pat' to 'bat'.",
+      "The International Phonetic Alphabet (IPA) provides standard symbols representing all distinct speech sounds."
+    ],
+    quizFr: [
+      {
+        question: "Qu'est-ce qu'un phonème en linguistique ?",
+        options: ["A) Une lettre écrite", "B) La plus petite unité sonore distinctive du langage", "C) Une règle de grammaire", "D) Le sens général d'une phrase"],
+        answer: "B",
+        explanation: "Un phonème est un son parlé (vocalique ou consonantique). Les lettres écrites s'appellent des graphèmes."
+      },
+      {
+        question: "Quel outil utilise-t-on pour transcrire phonétiquement n'importe quelle langue de façon universelle ?",
+        options: ["A) L'Alphabet Phonétique International (API)", "B) Le clavier QWERTY", "C) Le dictionnaire de l'Académie", "D) L'index Unicode"],
+        answer: "A",
+        explanation: "L'API (ou IPA) associe chaque son à un symbole universel pour retranscrire fidèlement la prononciation."
+      },
+      {
+        question: "Comment appelle-t-on l'association entre une lettre écrite et son son correspondant ?",
+        options: ["A) La relation d'orthographe", "B) La correspondance graphème-phonème", "C) La traduction lexicale", "D) L'analyse sémantique"],
+        answer: "B",
+        explanation: "La liaison étroite entre la lettre vue (graphème) et le son entendu (phonème) est le socle de l'apprentissage de la lecture."
+      }
+    ],
+    quizEn: [
+      {
+        question: "What is a phoneme in linguistics?",
+        options: ["A) A written letter segment", "B) The smallest distinctive sound unit of spoken language", "C) A grammar rule", "D) The general semantic meaning of a sentence"],
+        answer: "B",
+        explanation: "A phoneme is a spoken sound. The written letters representing sounds are called graphemes."
+      },
+      {
+        question: "Which system is used to write down speech sounds of any language universally?",
+        options: ["A) International Phonetic Alphabet (IPA)", "B) QWERTY keyboard mapping", "C) Academic spelling dictionaries", "D) Unicode indexing"],
+        answer: "A",
+        explanation: "The IPA assigns a single, standardized symbol to every sound produced by human speech organs."
+      },
+      {
+        question: "What is the relationship between a written letter and its corresponding sound called?",
+        options: ["A) Spelling relation", "B) Grapheme-phoneme correspondence", "C) Lexical translation", "D) Semantic analysis"],
+        answer: "B",
+        explanation: "The connection between letters seen (graphemes) and sounds spoken (phonemes) is the foundation of reading."
+      }
+    ]
+  },
+  "dyslexie": {
+    titleFr: "La Dyslexie et l'Accessibilité Cognitive",
+    titleEn: "Dyslexia and Cognitive Accessibility",
+    summaryFr: [
+      "La dyslexie est un trouble durable d'origine neurobiologique affectant l'acquisition fluide de la lecture et de l'orthographe.",
+      "Elle se caractérise principalement par des difficultés à associer rapidement les lettres écrites (graphèmes) à leurs sons (phonèmes).",
+      "L'accessibilité cognitive utilise des repères colorés, des espacements accrus ou la lecture syllabique pour soulager la charge cognitive."
+    ],
+    summaryEn: [
+      "Dyslexia is a persistent neurodevelopmental condition affecting reading fluency, decoding speed, and spelling acquisition.",
+      "It primarily stems from difficulties in quickly connecting written letters (graphemes) to speech sounds (phonemes).",
+      "Cognitive accessibility strategies include increased character spacing, visual color-coding, or syllabic breakdown to lower memory fatigue."
+    ],
+    quizFr: [
+      {
+        question: "Quelle est la cause principale sous-jacente des troubles de la lecture comme la dyslexie ?",
+        options: ["A) Une paresse oculaire", "B) Une difficulté de décodage entre lettres (graphèmes) et sons (phonèmes)", "C) Un déficit d'intelligence globale", "D) Une mauvaise éducation scolaire"],
+        answer: "B",
+        explanation: "La dyslexie est un trouble d'origine neurobiologique qui rend difficile le décodage rapide des liens graphème-phonème."
+      },
+      {
+        question: "Quel dispositif d'affichage simple permet d'aider grandement un lecteur dyslexique ?",
+        options: ["A) Écrire en très petits caractères", "B) Augmenter l'espacement des mots, des lignes et utiliser des repères syllabiques colorés", "C) Afficher le texte à l'envers", "D) Masquer complètement la ponctuation"],
+        answer: "B",
+        explanation: "Des espacements généreux et une coloration des syllabes réduisent le phénomène d'encombrement visuel et facilitent le suivi."
+      },
+      {
+        question: "Que vise à atténuer l'accessibilité cognitive ?",
+        options: ["A) La vitesse d'écriture", "B) La charge cognitive et la fatigue de décodage", "C) Le nombre de livres lus", "D) L'usage d'écouteurs audio"],
+        answer: "B",
+        explanation: "Elle cherche à libérer de l'attention pour que l'énergie du lecteur se concentre sur le sens du texte plutôt que sur le déchiffrage."
+      }
+    ],
+    quizEn: [
+      {
+        question: "What is the primary underlying challenge in dyslexia?",
+        options: ["A) Extreme laziness of the eyes", "B) Difficulty mapping written letters (graphemes) to spoken sounds (phonemes)", "C) A general intelligence deficit", "D) Lack of proper schooling"],
+        answer: "B",
+        explanation: "Dyslexia is a neurobiological condition affecting phonetic decoding, making grapheme-phoneme mapping effortful."
+      },
+      {
+        question: "Which simple UI adjustment significantly helps a dyslexic reader?",
+        options: ["A) Using extremely small text sizes", "B) Increasing letter, word, and line spacing, and using colored syllabic aids", "C) Rotating text upside down", "D) Disabling punctuation marks"],
+        answer: "B",
+        explanation: "Generous spaces and syllable highlights bypass visual crowding, making character tracking smoother."
+      },
+      {
+        question: "What does cognitive accessibility primarily aim to lower?",
+        options: ["A) Writing velocity", "B) Cognitive load and reading fatigue", "C) The absolute number of books", "D) The necessity of headphones"],
+        answer: "B",
+        explanation: "It reduces decoding friction, allowing the reader's brain to focus on comprehension rather than laborious decoding."
+      }
+    ]
+  }
+};
+
+function getOfflineTopicData(text: string): OfflineTopic | null {
+  const norm = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  if (norm.includes("vecteur")) return offlineTopicDatabase["vecteurs"];
+  if (norm.includes("fraction")) return offlineTopicDatabase["fractions"];
+  if (norm.includes("atome") || norm.includes("atom")) return offlineTopicDatabase["atome"];
+  if (norm.includes("adn") || norm.includes("dna")) return offlineTopicDatabase["adn"];
+  if (norm.includes("algorithme") || norm.includes("algorithm")) return offlineTopicDatabase["algorithmes"];
+  if (norm.includes("phoneme")) return offlineTopicDatabase["phonemes"];
+  if (norm.includes("dyslexie") || norm.includes("dyslexia")) return offlineTopicDatabase["dyslexie"];
+  return null;
+}
+
 export function getLocalGemmaFallback(prompt: string, text: string, language: string, type: 'summary' | 'vocab' | 'quiz' | 'mindmap' | 'rag'): string {
   const isEnglish = language.toLowerCase() === 'english';
-  const sentences = text.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 8);
-  const titleCandidate = sentences[0] || "Mount AI Scholar";
-  const title = titleCandidate.length > 70 ? titleCandidate.substring(0, 70) + "..." : titleCandidate;
+  const cleanedText = text.trim();
+  const sentences = text.split(/[.!?\n]+/).map(s => s.trim()).filter(Boolean);
+  
+  // Clean short inputs and search keywords as primary title
+  let title = "Mount AI Scholar";
+  if (cleanedText.length > 0 && cleanedText.length < 100) {
+    title = cleanedText;
+  } else if (sentences.length > 0) {
+    const candidate = sentences[0];
+    title = candidate.length > 70 ? candidate.substring(0, 70) + "..." : candidate;
+  }
+
+  const topicData = getOfflineTopicData(title);
+  const norm = title.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   
   const stopWords = new Set(["dans", "avec", "pour", "sont", "est", "le", "la", "les", "une", "des", "avec", "nous", "vous", "leurs", "leur", "the", "and", "with", "this", "that"]);
   const candidateWords = text.match(/\b[a-zA-Zà-ÿ]{5,15}\b/g) || ["Scholar", "Cognitive", "Inference"];
   const uniqueKeywords = Array.from(new Set(candidateWords)).filter(w => !stopWords.has(w.toLowerCase())).slice(0, 4).map(k => k.toUpperCase());
 
   if (type === 'summary') {
-    const extractiveSentences = sentences.slice(0, Math.min(sentences.length, 3));
+    let titleStr = topicData ? (isEnglish ? topicData.titleEn : topicData.titleFr) : title;
+    let extractiveSentences: string[] = [];
+
+    if (topicData) {
+      extractiveSentences = isEnglish ? topicData.summaryEn : topicData.summaryFr;
+    } else if (cleanedText.length < 150) {
+      // Dynamic topic-aware explanation for generic short subject keywords
+      if (isEnglish) {
+        extractiveSentences = [
+          `The active study of "${titleStr}" allows students to structure core academic knowledge and bridge practical applications.`,
+          `Conceptual analysis of "${titleStr}" highlights key interactions, definitions, and the foundational principles governing it.`,
+          `Mastering the terms and exercises related to "${titleStr}" reinforces cognitive pathways and supports durable memory retention.`
+        ];
+      } else {
+        extractiveSentences = [
+          `L'étude approfondie du thème "${titleStr}" permet à l'élève de structurer ses connaissances académiques et de relier la théorie aux cas concrets.`,
+          `L'analyse didactique de "${titleStr}" met en valeur les définitions clés, les formules et les principes logiques fondamentaux qui le régissent.`,
+          `La maîtrise des notions et entraînements liés à "${titleStr}" renforce l'autonomie d'apprentissage et prévient la fatigue cognitive.`
+        ];
+      }
+    } else {
+      // Extractive sentences from actual long text split
+      extractiveSentences = sentences.filter(s => s.length > 8).slice(0, 3);
+      if (extractiveSentences.length === 0) {
+        extractiveSentences = sentences.slice(0, 3);
+      }
+    }
+
     if (isEnglish) {
       return `🧠 **[Gemma 4 Edge - Offline Active Summary (Local Fallback)]**
       
-📚 **Study Core Topic:** *"${title}"*
-
-📌 **Concepts Extracted:** ${uniqueKeywords.length > 0 ? uniqueKeywords.map(k => `\`${k}\``).join('  ') : '`COGNITIVE STUDY`'}
-
----
-
-### 📝 Key Learning Highlights (Local Extractive Formulation)
-${extractiveSentences.length > 0 ? extractiveSentences.map((s, idx) => `* 💡 **Key Takeaway ${idx+1}:** ${s}.`).join('\n') : "* 💡 **Insight 1:** Active processing helps solidify cognitive reading foundations.\n* 💡 **Insight 2:** Keep tracking core vocabulary tags and phonology sounds in daily training."}
-
----
-
-### 💡 Cognitive Dyslexic Reader Assist
-*Try breaking long sentences down. We detected ${uniqueKeywords.length} core complex words inside this block to assist sound-phoneme correspondence.*
-
-*(Generated locally via rule-based Edge NLP to guarantee maximal "Privacy by Design" even when disconnected from the Cloud)*`;
+      📚 **Study Core Topic:** *"${titleStr}"*
+      
+      📌 **Concepts Extracted:** ${uniqueKeywords.length > 0 ? uniqueKeywords.map(k => `\`${k}\``).join('  ') : '`COGNITIVE STUDY`'}
+      
+      ---
+      
+      ### 📝 Key Learning Highlights (Local Extractive Formulation)
+      ${extractiveSentences.map((s, idx) => `* 💡 **Key Takeaway ${idx+1}:** ${s}`).join('\n')}
+      
+      ---
+      
+      ### 💡 Cognitive Dyslexic Reader Assist
+      *Try breaking complex concepts down. We processed terms inside "${titleStr}" locally to assist sound-phoneme correspondence.*
+      
+      *(Generated locally via rule-based Edge NLP to guarantee maximal "Privacy by Design" even when disconnected from the Cloud)*`;
     } else {
       return `🧠 **[Gemma 4 Edge - Résumé d'Inférence Active Locale (Succès Hors-ligne)]**
       
-📚 **Sujet Principal Détecté :** *"${title}"*
-
-📌 **Concepts Clés Extraits :** ${uniqueKeywords.length > 0 ? uniqueKeywords.map(k => `\`${k}\``).join('  ') : '`APPRENTISSAGE COGNITIF`'}
-
----
-
-### 📝 Synthèse Algorithmique Simplifiée (Formulation Extractive Directe)
-${extractiveSentences.length > 0 ? extractiveSentences.map((s, idx) => `* 💡 **Idée Fondamentale ${idx+1} :** ${s}.`).join('\n') : "* 💡 **Idée Fondamentale 1 :** L'analyse de décodage active locale renforce la mémoire de travail de l'apprenant.\n* 💡 **Idée Fondamentale 2 :** Les schémas de relecture phonologique réguliers préviennent les efforts d'attention inutiles."}
-
----
-
-### 💡 Astuce de Lecture Cognitive (Dyslexie)
-*Séparez visuellement les compléments longs. Les mots complexes d'analyse décodés localement facilitent la correspondance graphème-phonème sans encombrer la mémoire de travail.*
-
-*(Généré localement via Edge NLP pour garantir une confidentialité absolue "Privacy by Design" y compris sans Internet)*`;
+      📚 **Sujet Principal Détecté :** *"${titleStr}"*
+      
+      📌 **Concepts Clés Extraits :** ${uniqueKeywords.length > 0 ? uniqueKeywords.map(k => `\`${k}\``).join('  ') : '`APPRENTISSAGE COGNITIF`'}
+      
+      ---
+      
+      ### 📝 Synthèse Algorithmique Simplifiée (Formulation Extractive Directe)
+      ${extractiveSentences.map((s, idx) => `* 💡 **Idée Fondamentale ${idx+1} :** ${s}`).join('\n')}
+      
+      ---
+      
+      ### 💡 Astuce de Lecture Cognitive (Dyslexie)
+      *Séparez visuellement les compléments longs. Les mots complexes associés à "${titleStr}" décodés localement facilitent la correspondance graphème-phonème.*
+      
+      *(Généré localement via Edge NLP pour garantir une confidentialité absolue "Privacy by Design" y compris sans Internet)*`;
     }
   }
   
@@ -79,6 +519,16 @@ ${extractiveSentences.length > 0 ? extractiveSentences.map((s, idx) => `* 💡 *
   }
 
   if (type === 'quiz') {
+    if (topicData) {
+      const qList = isEnglish ? topicData.quizEn : topicData.quizFr;
+      return `🧠 **[Gemma 4 Edge - ${isEnglish ? 'Topic-Aware' : 'Thématique'} MCQ Quiz]**
+
+${qList.map((q, idx) => `**Question ${idx + 1}:** ${q.question}
+${q.options.map(opt => `- ${opt}`).join('\n')}
+*${isEnglish ? 'Correct Answer' : 'Bonne Réponse'}: ${q.answer}*
+*${isEnglish ? 'Explanation' : 'Explication'}:* ${q.explanation}`).join('\n\n')}`;
+    }
+
     if (isEnglish) {
       return `🧠 **[Gemma 4 Edge - Interactive Local MCQ Quiz]**
 
@@ -130,13 +580,68 @@ ${extractiveSentences.length > 0 ? extractiveSentences.map((s, idx) => `* 💡 *
 
   if (type === 'mindmap') {
     const isFr = !isEnglish;
+    let titleStr = topicData ? (isFr ? topicData.titleFr : topicData.titleEn) : title;
+    
+    if (topicData) {
+      if (norm.includes("vecteur")) {
+        return `graph TD
+  Root["🧠 Les Vecteurs"] --> A["📏 Grandeur: Direction, Sens, Norme"]
+  Root --> B["➕ Opération: Relation de Chasles"]
+  Root --> C["⚡ Applications: Forces & Vitesses (Physique)"]
+  A --> D["Norme: Longueur ||v||"]
+  B --> E["Somme: AB + BC = AC"]`;
+      } else if (norm.includes("fraction")) {
+        return `graph TD
+  Root["🧠 Les Fractions"] --> A["🔢 Structure: Numérateur & Dénominateur"]
+  Root --> B["➕ Opérations: Même dénominateur commun"]
+  Root --> C["⚡ Simplification: Forme irréductible (PGCD)"]
+  A --> D["Haut: Numérateur (parts choisies)"]
+  A --> E["Bas: Dénominateur (parts totales)"]`;
+      } else if (norm.includes("atome") || norm.includes("atom")) {
+        return `graph TD
+  Root["🧠 L'Atome"] --> A["🌌 Noyau Central: Protons & Neutrons"]
+  Root --> B["☁️ Nuage Électronique: Électrons Orbitants"]
+  Root --> C["⚛️ Identité: Numéro atomique Z"]
+  A --> D["Protons (Charge +) et Neutrons (Neutres)"]
+  B --> E["Électrons (Charge -)"]`;
+      } else if (norm.includes("adn") || norm.includes("dna")) {
+        return `graph TD
+  Root["🧠 L'ADN"] --> A["🧬 Double Hélice: Brins complémentaires"]
+  Root --> B["🔗 Bases Azotées: A-T & C-G"]
+  Root --> C["⚙️ Expression: Transcription (ARN) & Traduction"]
+  A --> D["Sucre-Phosphate Backbone"]
+  B --> E["Complémentarité: A avec T, C avec G"]`;
+      } else if (norm.includes("algorithme") || norm.includes("algorithm")) {
+        return `graph TD
+  Root["🧠 Algorithmes"] --> A["📋 Étapes: Suite finie d'instructions"]
+  Root --> B["⚙️ Performance: Notation Grand O"]
+  Root --> C["⚡ Types: Tri, Recherche, Logique"]
+  A --> D["Entrées ➔ Traitement ➔ Sorties"]
+  B --> E["Complexité Temporelle & Spatiale"]`;
+      } else if (norm.includes("phoneme")) {
+        return `graph TD
+  Root["🧠 Les Phonèmes"] --> A["🗣️ Sons: Plus petite unité sonore"]
+  Root --> B["✍️ Correspondance: Graphème-Phonème"]
+  Root --> C["🌍 Alphabet: API (Alphabet Phonétique International)"]
+  A --> D["Voyelles & Consonnes distinctives"]
+  B --> E["Lecture & Décodage Syllabique"]`;
+      } else if (norm.includes("dyslexie") || norm.includes("dyslexia")) {
+        return `graph TD
+  Root["🧠 Dyslexie et Accessibilité"] --> A["⚠️ Difficulté: Décodage Graphème-Phonème"]
+  Root --> B["♿ Aménagements: Espacement & Code Couleurs"]
+  Root --> C["📚 Objectif: Alléger la Charge Cognitive"]
+  A --> D["Fatigue visuelle et attentionnelle"]
+  B --> E["Lecture syllabique balisée"]`;
+      }
+    }
+    
     const nodeRoot = isFr ? "Sujet d'Analyse" : "Topic Overview";
     const nodeA = isFr ? "Points Maîtres d'Étude" : "Key Pillars";
     const nodeB = isFr ? "Phonétique Active" : "Edge Phonics";
     const nodeC = isFr ? "Gemma 4 Edge Security" : "Gemma 4 Privacy";
     
     return `graph TD
-  Root["🧠 ${nodeRoot}"] --> A["📚 ${nodeA}: ${title.replace(/["]/g, "'")}"]
+  Root["🧠 ${nodeRoot}"] --> A["📚 ${nodeA}: ${titleStr.replace(/["]/g, "'")}"]
   Root --> B["🗣️ ${nodeB}"]
   Root --> C["🔒 ${nodeC}"]
   B --> D["Phonological Synthesis"]
@@ -145,6 +650,31 @@ ${extractiveSentences.length > 0 ? extractiveSentences.map((s, idx) => `* 💡 *
 
   if (type === 'rag') {
     const isFr = !isEnglish;
+    let titleStr = topicData ? (isFr ? topicData.titleFr : topicData.titleEn) : title;
+    
+    if (topicData) {
+      const summaryText = isFr ? topicData.summaryFr[0] : topicData.summaryEn[0];
+      return isFr 
+        ? `🧠 **[Gemma 4 Edge - Assistant Cognitif Autonome (Offline)]**
+        
+*Sujet analysé à chaud :* "${titleStr}"
+
+Voici les connaissances locales d'accessibilité chargées :
+
+* 📖 **Information :** ${summaryText}
+* ⚡ **Performance locale :** Inférence et décodage vocal sécurisé sans latence (Edge).
+* 🎯 **Conseil d'entraînement :** Pratiquez la répétition syllabique et utilisez le lecteur saccadique pour ce thème.`
+        : `🧠 **[Gemma 4 Edge - Autonomous Cognitive Assistant (Offline)]**
+        
+*Topic analyzed sequentially:* "${titleStr}"
+
+Key edge knowledge loaded:
+
+* 📖 **Insight:** ${summaryText}
+* ⚡ **Device Performance:** Processed secure weights in full local mode (Edge).
+* 🎯 **Tutor Tip:** Run the phoneme simulator and practice speaking the keywords aloud.`;
+    }
+
     if (isFr) {
       return `🧠 **[Gemma 4 Edge - Assistant Cognitif Autonome (Offline)]**
       
@@ -448,7 +978,7 @@ export function getLocalPedagogicalFallback(text: string, language: string): str
       },
       {
         "id": 2,
-        "question": `أي مما يلي يصف العلاقة بين "${mainSubject}" والبيئة اللغوية المحيطة؟`,
+        "question": `أي مما يلي يصف العلاقة entre "${mainSubject}" والبيئة اللغوية المحيطة؟`,
         "options": [
           "مستقل تمامًا عن دورة فك الرموز الصوتية البصرية.",
           `مرتبط بشكل وثيق بـ "${subSubject}" لدعم وتخفيف عبء الذاكرة العاملة.`,
@@ -480,7 +1010,7 @@ export function getLocalPedagogicalFallback(text: string, language: string): str
           "استخدام لوحة تحكم مادية خارجية أو قنوات التواصل الاجتماعي."
         ],
         "correctAnswer": 2,
-        "explanation": `إن التحقق من دقة الارتباط بين الحرف المكتوب والصوت المقابل يضمن علاج الثغرات الفونولوجية لدى الطالب بشكل فعال.`
+        "explanation": `إن التحقق من دقة الارتباط entre الحرف المكتوب والصوت المقابل يضمن علاج الثغرات الفونولوجية لدى الطالب بشكل فعال.`
       }
     ]);
   } else if (language.toLowerCase() === 'spanish') {
@@ -499,7 +1029,7 @@ export function getLocalPedagogicalFallback(text: string, language: string): str
       },
       {
         "id": 2,
-        "question": `¿Cuál de las siguientes opciones describe mejor la conexión entre "${mainSubject}" y el contexto lingüístico?`,
+        "question": `¿Cuál de las siguientes opciones decribe mejor la conexión entre "${mainSubject}" y el contexto lingüístico?`,
         "options": [
           "Es una relación nula e independiente del proceso fonológico de codificación.",
           `Se vincula de manera integral con "${subSubject}" para aliviar la memoria de trabajo.`,
@@ -639,4 +1169,3 @@ export function getLocalPedagogicalFallback(text: string, language: string): str
     ]);
   }
 }
-

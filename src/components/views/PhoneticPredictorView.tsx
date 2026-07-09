@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Sparkles, Check, Copy, RefreshCw, Volume2, HelpCircle, 
   ArrowLeft, Keyboard, Mail, MessageSquare, Clipboard, FileText, CheckCircle,
-  Send, FilePlus, ArrowDown, User, AlertTriangle, ShieldCheck, LogOut
+  Send, FilePlus, ArrowDown, User, AlertTriangle, ShieldCheck, LogOut,
+  Zap, Globe
 } from 'lucide-react';
 import { connectGmail, getCachedAccessToken, auth } from '../../services/firebase';
+import { findLocalPhoneticSuggestions, getActiveWordAtCursor } from '../../utils/phoneticEngine';
 
 interface PhoneticSuggestion {
   word: string;
@@ -22,10 +24,12 @@ interface PhoneticPredictorViewProps {
 
 export default function PhoneticPredictorView({ setMainView, selectedLang, speakText, injectedText }: PhoneticPredictorViewProps) {
   const [inputText, setInputText] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (injectedText) {
       setInputText(injectedText);
+      setPredictionSource('standalone');
     }
   }, [injectedText]);
   const [suggestions, setSuggestions] = useState<PhoneticSuggestion[]>([]);
@@ -33,6 +37,35 @@ export default function PhoneticPredictorView({ setMainView, selectedLang, speak
   const [draftText, setDraftText] = useState('');
   const [isCopied, setIsCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // States for real-time in-place phonetic writing prediction
+  const [activeWordInfo, setActiveWordInfo] = useState<{ word: string; start: number; end: number } | null>(null);
+  const [predictionSource, setPredictionSource] = useState<'standalone' | 'draft'>('standalone');
+
+  // Interactive offline PWA simulation and performance tracking
+  const [isForceOffline, setIsForceOffline] = useState(() => {
+    return localStorage.getItem('pwa_force_offline') === 'true';
+  });
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [inferenceTimeMs, setInferenceTimeMs] = useState<number>(0);
+  const [inferenceSourceUsed, setInferenceSourceUsed] = useState<'local' | 'cloud'>('local');
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  const toggleForceOffline = () => {
+    const newVal = !isForceOffline;
+    setIsForceOffline(newVal);
+    localStorage.setItem('pwa_force_offline', String(newVal));
+  };
 
   // --- GMAIL INTEGRATION STATES & HELPERS ---
   const [gmailToken, setGmailToken] = useState<string | null>(null);
@@ -264,58 +297,103 @@ export default function PhoneticPredictorView({ setMainView, selectedLang, speak
     { label: "Bilingue", raw: "bilinge" }
   ];
 
-  // Fetch suggestions from the newly added Express endpoint
-  const getPhoneticPredictions = async (word: string) => {
-    if (!word.trim()) {
+  // Real-time local-first multi-source prediction routine with background API correction
+  useEffect(() => {
+    let wordToQuery = '';
+    if (predictionSource === 'draft' && activeWordInfo) {
+      wordToQuery = activeWordInfo.word;
+    } else if (predictionSource === 'standalone' && inputText.trim()) {
+      wordToQuery = inputText;
+    }
+
+    if (!wordToQuery) {
       setSuggestions([]);
+      setInferenceTimeMs(0);
       return;
     }
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await fetch('/api/phonetic-predict', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inputWord: word, language: selectedLang })
-      });
-      if (!response.ok) {
-        throw new Error(`Erreur serveur (${response.status})`);
-      }
-      const data = await response.json();
-      if (data.suggestions) {
-        setSuggestions(data.suggestions);
-      } else {
-        setSuggestions([]);
-      }
-    } catch (err: any) {
-      console.error("Error fetching predictions:", err);
-      setError("Le service de prédiction n'a pas pu être joint. Mode local activé.");
-      // Fallback local simulation
-      setSuggestions([
-        {
-          word: word,
-          probability: "80%",
-          meaning: "Rendu local hors-ligne. Écriture phonétique détectée.",
-          example: `Exemple hors-ligne pour "${word}".`
-        }
-      ]);
-    } finally {
+
+    const tStart = performance.now();
+
+    // Phase 1: Zero-latency (0ms) client-side spelling suggestion resolver
+    const localSugs = findLocalPhoneticSuggestions(wordToQuery);
+    if (localSugs.length > 0) {
+      setSuggestions(localSugs as PhoneticSuggestion[]);
+      setInferenceSourceUsed('local');
+      const tEnd = performance.now();
+      setInferenceTimeMs(parseFloat((tEnd - tStart).toFixed(2)));
+    }
+
+    const effectivelyOffline = !isOnline || isForceOffline;
+
+    // Phase 2: Background smart prediction using Gemini via Express server API (skipped if offline)
+    if (effectivelyOffline) {
       setIsLoading(false);
+      return;
+    }
+
+    const delayDebounceFn = setTimeout(async () => {
+      setIsLoading(true);
+      const apiStart = performance.now();
+      try {
+        const response = await fetch('/api/phonetic-predict', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ inputWord: wordToQuery, language: selectedLang })
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.suggestions && data.suggestions.length > 0) {
+            setSuggestions(data.suggestions);
+            setInferenceSourceUsed('cloud');
+            const apiEnd = performance.now();
+            setInferenceTimeMs(parseFloat((apiEnd - apiStart).toFixed(2)));
+          }
+        }
+      } catch (err) {
+        console.warn("Background API prediction failed, relying entirely on local engine:", err);
+        setInferenceSourceUsed('local');
+      } finally {
+        setIsLoading(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [inputText, activeWordInfo?.word, predictionSource, isOnline, isForceOffline]);
+
+  // Handler for text area changes & cursor repositioning
+  const handleTextareaSelection = (text: string, cursor: number) => {
+    const wordInfo = getActiveWordAtCursor(text, cursor);
+    setActiveWordInfo(wordInfo);
+    if (wordInfo) {
+      setPredictionSource('draft');
+      const localSugs = findLocalPhoneticSuggestions(wordInfo.word);
+      setSuggestions(localSugs as PhoneticSuggestion[]);
     }
   };
 
-  // Debounce input to prevent over-fetching
-  useEffect(() => {
-    const delayDebounceFn = setTimeout(() => {
-      if (inputText.trim()) {
-        getPhoneticPredictions(inputText);
-      } else {
-        setSuggestions([]);
-      }
-    }, 450);
+  const handleDraftChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const text = e.target.value;
+    setDraftText(text);
+    handleTextareaSelection(text, e.target.selectionStart);
+  };
 
-    return () => clearTimeout(delayDebounceFn);
-  }, [inputText]);
+  const handleDraftKeyUpClick = (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+    const target = e.currentTarget;
+    handleTextareaSelection(target.value, target.selectionStart);
+  };
+
+  const handleStandaloneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setInputText(val);
+    setPredictionSource('standalone');
+    setActiveWordInfo(null);
+    if (val.trim()) {
+      const localSugs = findLocalPhoneticSuggestions(val);
+      setSuggestions(localSugs as PhoneticSuggestion[]);
+    } else {
+      setSuggestions([]);
+    }
+  };
 
   const handleCopyText = () => {
     if (!draftText) return;
@@ -325,11 +403,33 @@ export default function PhoneticPredictorView({ setMainView, selectedLang, speak
   };
 
   const handleInsertSuggestion = (word: string) => {
-    setDraftText(prev => {
-      const trimmed = prev.trim();
-      if (!trimmed) return word;
-      return `${trimmed} ${word}`;
-    });
+    if (predictionSource === 'draft' && activeWordInfo) {
+      const before = draftText.slice(0, activeWordInfo.start);
+      const after = draftText.slice(activeWordInfo.end);
+      
+      const newText = before + word + after;
+      setDraftText(newText);
+      
+      // Clear active word info to close prediction
+      setActiveWordInfo(null);
+      setSuggestions([]);
+
+      // Focus back to textarea and move cursor right after the corrected word!
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+          const newCursorPos = activeWordInfo.start + word.length;
+          textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+        }
+      }, 50);
+    } else {
+      // Standalone insertion (append)
+      setDraftText(prev => {
+        const trimmed = prev.trim();
+        if (!trimmed) return word;
+        return `${trimmed} ${word}`;
+      });
+    }
     speakText(word);
   };
 
@@ -341,10 +441,11 @@ export default function PhoneticPredictorView({ setMainView, selectedLang, speak
   return (
     <div className="space-y-10 animate-in fade-in duration-700">
       
-      {/* HEADER SECTION */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b border-white/10 pb-8 relative">
-        <div className="absolute top-0 right-0 -translate-y-4 font-mono text-[9px] uppercase tracking-widest text-[#8b5cf6]/60">
-          Mount AI Scholar - Predictive Orthography Engine
+      {/* HEADER SECTION WITH PWA DIAGNOSTIC BAR */}
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 border-b border-white/10 pb-8 relative">
+        <div className="absolute top-0 right-0 -translate-y-4 font-mono text-[9px] uppercase tracking-widest text-emerald-400/80 flex items-center gap-2">
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+          PWA Autonome Active — Ready for Chromebooks
         </div>
         <div className="flex items-center gap-4">
           <button 
@@ -361,6 +462,54 @@ export default function PhoneticPredictorView({ setMainView, selectedLang, speak
             <p className="text-sm text-slate-400 max-w-xl font-medium mt-1.5 leading-relaxed">
               Outil ultra-rapide de correction d'orthographe pour dyslexiques. Saisissez votre mot tel qu'il se prononce, l'IA suggère les probabilités du mot visé avec explications et exemples.
             </p>
+          </div>
+        </div>
+
+        {/* PWA & OFFLINE COGNITIVE PANEL */}
+        <div className="w-full xl:w-auto flex flex-wrap items-center gap-3 bg-[#0b0e17] border border-white/5 p-4 rounded-3xl shadow-2xl">
+          {/* Real network status */}
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-900/80 rounded-2xl border border-white/5 text-xs font-bold font-mono">
+            <span className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'} inline-block`}></span>
+            <span className="text-white/80">{isOnline ? 'Internet : Connecté' : 'Internet : Déconnecté'}</span>
+          </div>
+
+          {/* Execution Mode Toggle */}
+          <button
+            onClick={toggleForceOffline}
+            className={`flex items-center gap-2 px-4 py-2 rounded-2xl font-bold font-mono text-xs transition-all ${
+              isForceOffline 
+                ? 'bg-amber-500/15 border border-amber-500/50 text-amber-400 shadow-lg shadow-amber-500/5'
+                : 'bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/20'
+            }`}
+          >
+            {isForceOffline ? (
+              <>
+                <Zap className="w-3.5 h-3.5 text-amber-400 animate-bounce" />
+                <span>Mode : Local Edge (Forcé)</span>
+              </>
+            ) : (
+              <>
+                <Globe className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Mode : Auto (Cloud + Edge)</span>
+              </>
+            )}
+          </button>
+
+          {/* Latency & Source Monitor */}
+          <div className="flex items-center gap-4 px-3.5 py-2 bg-slate-950/80 rounded-2xl border border-white/5">
+            <div className="flex flex-col">
+              <span className="text-[9px] text-slate-500 uppercase font-mono tracking-wider">Moteur d'Inférence</span>
+              <span className="text-xs font-black font-mono text-white">
+                {isForceOffline || !isOnline ? '⚡ In-Browser Edge' : (inferenceSourceUsed === 'cloud' ? '☁️ Gemini Cloud' : '⚡ Local Fallback')}
+              </span>
+            </div>
+            <div className="h-6 w-[1px] bg-white/10"></div>
+            <div className="flex flex-col">
+              <span className="text-[9px] text-slate-500 uppercase font-mono tracking-wider">Temps Réponse</span>
+              <span className={`text-xs font-black font-mono ${inferenceTimeMs < 10 ? 'text-emerald-400' : 'text-yellow-400'}`}>
+                {inferenceTimeMs > 0 ? `${inferenceTimeMs} ms` : '0.00 ms'}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -386,7 +535,7 @@ export default function PhoneticPredictorView({ setMainView, selectedLang, speak
                 <input
                   type="text"
                   value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
+                  onChange={handleStandaloneChange}
                   placeholder="Exemple: chapo, batos, pestacle..."
                   className="w-full bg-[#0b0e17] border border-white/5 rounded-2xl p-5 text-white text-base font-bold outline-none focus:border-yellow-500/50 transition-all shadow-inner placeholder:text-slate-700"
                 />
@@ -404,9 +553,15 @@ export default function PhoneticPredictorView({ setMainView, selectedLang, speak
                   {PRESET_ERRORS.map((preset) => (
                     <button
                       key={preset.raw}
-                      onClick={() => setInputText(preset.raw)}
+                      onClick={() => {
+                        setInputText(preset.raw);
+                        setPredictionSource('standalone');
+                        setActiveWordInfo(null);
+                        const localSugs = findLocalPhoneticSuggestions(preset.raw);
+                        setSuggestions(localSugs as PhoneticSuggestion[]);
+                      }}
                       className={`px-3 py-2 rounded-xl text-xs font-bold font-mono transition-all ${
-                        inputText.toLowerCase() === preset.raw 
+                        inputText.toLowerCase() === preset.raw && predictionSource === 'standalone'
                           ? 'bg-yellow-500/15 border border-yellow-500/40 text-yellow-400'
                           : 'bg-slate-900 hover:bg-white/5 border border-white/5 text-slate-300 hover:text-white'
                       }`}
@@ -442,7 +597,9 @@ export default function PhoneticPredictorView({ setMainView, selectedLang, speak
             <div className="flex items-center justify-between border-b border-white/5 pb-4">
               <h3 className="text-sm font-black text-white uppercase tracking-wider font-mono flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-emerald-400 animate-pulse" />
-                Suggestions de Correction
+                {predictionSource === 'draft' && activeWordInfo 
+                  ? `Suggestions pour "${activeWordInfo.word}"` 
+                  : 'Suggestions de Correction'}
               </h3>
               <span className="text-[10px] text-slate-500 font-mono">Latence: {isLoading ? 'Calcul...' : '0ms local'}</span>
             </div>
@@ -547,10 +704,24 @@ export default function PhoneticPredictorView({ setMainView, selectedLang, speak
             </div>
 
             <div className="space-y-4">
+              {predictionSource === 'draft' && activeWordInfo && (
+                <div className="px-4 py-2 bg-yellow-500/15 border border-yellow-500/30 rounded-xl flex items-center justify-between text-xs animate-in slide-in-from-top-1 duration-200">
+                  <span className="text-yellow-400 font-bold font-mono">
+                    ✍️ Mot en cours d'écriture : <span className="underline decoration-wavy decoration-red-500 font-black">{activeWordInfo.word}</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 italic">
+                    Cliquez sur une suggestion ci-dessus pour la remplacer à la volée !
+                  </span>
+                </div>
+              )}
               <textarea
+                ref={textareaRef}
                 value={draftText}
-                onChange={(e) => setDraftText(e.target.value)}
-                placeholder="Insérez des suggestions corrigées ci-dessus ou tapez ici pour rédiger votre texte..."
+                onChange={handleDraftChange}
+                onKeyUp={handleDraftKeyUpClick}
+                onMouseUp={handleDraftKeyUpClick}
+                onFocus={(e) => handleTextareaSelection(e.currentTarget.value, e.currentTarget.selectionStart)}
+                placeholder="Écrivez votre e-mail ici. Saisissez vos mots phonétiquement (ex: 'chapo', 'bato', 'pestacle'), les suggestions s'affichent instantanément à la volée ci-dessus pour que vous puissiez les remplacer en un seul clic."
                 className="w-full bg-[#0b0e17] border border-white/5 rounded-2xl p-5 text-white text-sm font-sans outline-none focus:border-yellow-500/50 transition-all font-medium min-h-[160px] resize-none leading-relaxed"
               />
 

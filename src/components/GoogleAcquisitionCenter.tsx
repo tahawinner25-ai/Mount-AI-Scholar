@@ -332,7 +332,7 @@ export async function syncGoogleClassroomCourseWork(oauth2Client: any) {
             </div>
 
             <p className="text-xs text-slate-400 leading-relaxed">
-              Prêt pour un déploiement natif sur les tablettes scolaires Android et Chromebooks de l'école. Grâce à l'architecture <strong>Offline-First & Zero-Cloud</strong>, l'application s'emballe instantanément en APK natif via le moteur Capacitor d'Ionic.
+              Prêt pour un déploiement natif sur les tablettes scolaires Android et Chromebooks de l'école. Grâce à l'architecture <strong>Offline-First & Zero-Cloud</strong>, l'application s'emballe instantanément en format natif AAB (Android App Bundle) ou APK de test via le moteur Capacitor d'Ionic.
             </p>
 
             <div className="space-y-4 pt-2">
@@ -406,25 +406,25 @@ export async function syncGoogleClassroomCourseWork(oauth2Client: any) {
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-2">
-                  <p className="text-[10px] font-mono font-extrabold uppercase text-slate-500">Android : Préparer l'application mobile (APK/AAB)</p>
+                  <p className="text-[10px] font-mono font-extrabold uppercase text-slate-500">Android : Préparer l'application mobile (AAB Officiel / APK)</p>
                   <div className="bg-slate-950 px-3 py-2.5 rounded-lg border border-slate-800 font-mono text-xs text-emerald-400 flex justify-between items-center">
                     <span>npm run build:android</span>
                     <button onClick={() => handleCopy('npm run build:android', 'build_android_cmd')} className="text-[10px] text-slate-500 hover:text-white">
                       {copiedText === 'build_android_cmd' ? 'Copié' : 'Copier'}
                     </button>
                   </div>
-                  <p className="text-[10px] text-slate-500">Compile le code React pour la production, synchronise Capacitor et prépare l'AAB natif pour le Google Play Store.</p>
+                  <p className="text-[10px] text-slate-500">Compile le code React pour la production, synchronise Capacitor et prépare l'App Bundle (AAB) natif requis pour le Google Play Store.</p>
                 </div>
-
+ 
                 <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-2">
-                  <p className="text-[10px] font-mono font-extrabold uppercase text-slate-500">Android : Générer l'App Bundle (AAB) natif</p>
+                  <p className="text-[10px] font-mono font-extrabold uppercase text-slate-500">Android : Générer l'App Bundle (.aab) de Production</p>
                   <div className="bg-slate-950 px-3 py-2.5 rounded-lg border border-slate-800 font-mono text-xs text-emerald-400 flex justify-between items-center">
                     <span>npx cap build android</span>
                     <button onClick={() => handleCopy('npx cap build android', 'build_aab_cmd')} className="text-[10px] text-slate-500 hover:text-white">
                       {copiedText === 'build_aab_cmd' ? 'Copié' : 'Copier'}
                     </button>
                   </div>
-                  <p className="text-[10px] text-slate-500">Génère directement le fichier bundle (.aab) ou l'APK signé depuis la ligne de commande (Gradle intégré).</p>
+                  <p className="text-[10px] text-slate-500">Génère directement le fichier d'extension bundle (.aab) officiel — exigé pour tout nouveau lancement sur Google Play — ou l'APK pour tests locaux.</p>
                 </div>
 
                 <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-2">

@@ -4,44 +4,43 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#0f172a">
-    <meta name="description" content="Mount AI Scholar - Moteur IA d'apprentissage et d'accessibilité">
+    <meta name="description" content="Mount AI Scholar - Moteur IA d'apprentissage et d'accessibilité cognitive pour la dyslexie et les troubles de l'apprentissage.">
     <link rel="apple-touch-icon" href="/pwa-192x192.svg">
-    <title>Cognitive Arena</title>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Mount AI Scholar — Cognitive Suite</title>
     <script>
-      // Progressive Silent SW Purge & Network-First Cache Bypass
+      // Progressive Silent SW Registration & Obsolete Purge
       (function() {
         var logs = [];
         window.addEventListener('error', function(e) {
           logs.push('[Error] ' + e.message + ' (' + e.filename + ':' + e.lineno + ')');
         }, true);
 
-        // Immediate unregistration of obsolete Service Workers to solve mobile blank screens
+        // Register standard PWA Service Worker
         if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.getRegistrations().then(function(regs) {
-            if (regs && regs.length > 0) {
-              var unregisteredAny = false;
-              var promises = regs.map(function(reg) {
-                return reg.unregister().then(function(success) {
-                  if (success) unregisteredAny = true;
-                });
+          window.addEventListener('load', function() {
+            navigator.serviceWorker.register('/sw.js')
+              .then(function(reg) {
+                console.log('⚡ [PWA] Service Worker registered successfully:', reg.scope);
+              })
+              .catch(function(err) {
+                console.error('[PWA] Service Worker registration failed:', err);
+                logs.push('[SW Register Error] ' + err);
               });
-              Promise.all(promises).then(function() {
-                if (unregisteredAny) {
-                  if (window.caches) {
-                    caches.keys().then(function(keys) {
-                      Promise.all(keys.map(function(k) { return caches.delete(k); })).then(function() {
-                        // Force clean reload from network on first SW detection
-                        window.location.reload(true);
-                      });
+
+            // Clean up obsolete service workers (anything not sw.js)
+            navigator.serviceWorker.getRegistrations().then(function(regs) {
+              if (regs && regs.length > 0) {
+                regs.forEach(function(reg) {
+                  var scriptURL = reg.active ? reg.active.scriptURL : (reg.installing ? reg.installing.scriptURL : '');
+                  if (scriptURL && !scriptURL.includes('sw.js')) {
+                    reg.unregister().then(function() {
+                      console.log('🧹 [PWA] Unregistered obsolete Service Worker:', scriptURL);
                     });
-                  } else {
-                    window.location.reload(true);
                   }
-                }
-              });
-            }
-          }).catch(function(err) {
-            logs.push('[SW Error] ' + err);
+                });
+              }
+            });
           });
         }
 
@@ -53,11 +52,15 @@
               sessionStorage.setItem('__auto_refreshed', 'true');
               if (window.caches) {
                 caches.keys().then(function(keys) {
-                  keys.forEach(function(k) { caches.delete(k); });
-                  window.location.reload(true);
+                  var p = keys.map(function(k) { return caches.delete(k); });
+                  Promise.all(p).then(function() {
+                    window.location.reload();
+                  }).catch(function() {
+                    window.location.reload();
+                  });
                 });
               } else {
-                window.location.reload(true);
+                window.location.reload();
               }
             } else {
               // If already refreshed once and still blank, show a micro clean button
@@ -87,19 +90,25 @@
                       if (window.caches) {
                         caches.keys().then(function(keys) {
                           Promise.all(keys.map(function(k) { return caches.delete(k); })).then(function() {
-                            window.location.reload(true);
+                            window.location.reload();
                           });
                         });
                       } else {
-                        window.location.reload(true);
+                        window.location.reload();
                       }
                     });
                   });
                 } else {
-                  window.location.reload(true);
+                  window.location.reload();
                 }
               });
-              document.body.appendChild(btn);
+              if (document.body) {
+                document.body.appendChild(btn);
+              } else {
+                window.addEventListener('DOMContentLoaded', function() {
+                  document.body.appendChild(btn);
+                });
+              }
             }
           }
         }, 3000);

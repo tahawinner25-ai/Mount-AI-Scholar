@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MainViewType } from './types';
+import { MainViewType, ArchSubTabType } from './types';
 import { BookOpen, BrainCircuit, Loader2, X, Languages, ChevronDown, FileText, Sparkles, Zap, Globe, Volume2, VolumeX, Trophy, Target, Activity, Mic, Network, Gamepad2, Presentation, Headphones, Layers, ArrowLeft, Send, LogIn, LogOut, Play, Settings, GraduationCap, Award, CheckCircle2, Clock, History, Database, SearchCode, Terminal, Code, Moon, Trash2, Paperclip } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { generateSummary, generateQuiz, generateMindMap, queryElasticRAG, getLocalGemmaFallback, generatePedagogicalControl, getLocalPedagogicalFallback } from './services/ai';
@@ -11,10 +11,16 @@ import CognitiveArena from './components/CognitiveArena';
 import VocabularyTracker from './components/VocabularyTracker';
 import CyberSecurityLab from './components/CyberSecurityLab';
 import OfflineSyncPipeline from './components/OfflineSyncPipeline';
+import GoogleAcquisitionCenter from './components/GoogleAcquisitionCenter';
+import PwaAudit from './components/PwaAudit';
 import HubView from './components/views/HubView';
 import DyslexiaView from './components/views/DyslexiaView';
 import HistoryView from './components/views/HistoryView';
 import GtmPlaybook from './components/GtmPlaybook';
+import PhonemeOrbit from './components/PhonemeOrbit';
+import VoiceConversationView from './components/views/VoiceConversationView';
+import PhoneticPredictorView from './components/views/PhoneticPredictorView';
+import GoogleClassroomHub from './components/GoogleClassroomHub';
 import scholarIcon from './assets/images/mount_ai_scholar_distinct_1779635328156.png';
 import { auth, loginWithGoogle, logout, db, handleFirestoreError, OperationType } from './services/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
@@ -63,6 +69,7 @@ export default function App() {
     const view = params.get('view');
     if (view === 'cognitive-gym' || window.location.hash === '#cognitive-gym' || view === 'kaggle-agent') return 'cognitive-gym';
     if (view === 'iq-test' || window.location.hash === '#iq-test') return 'cognitive-gym';
+    if (view === 'phoneme-gravity' || window.location.hash === '#phoneme-gravity') return 'phoneme-gravity';
     return 'hub';
   });
   const [learningMode, setLearningMode] = useState<'mindmap' | 'quiz' | 'exam' | 'presentation' | 'summary' | 'search' | 'gemma'>('summary');
@@ -103,7 +110,7 @@ export default function App() {
     return saved || window.location.origin;
   });
   const [showConfig, setShowConfig] = useState(false);
-  const [archSubTab, setArchSubTab] = useState<'visualizer' | 'cyber' | 'ledger'>('cyber');
+  const [archSubTab, setArchSubTab] = useState<ArchSubTabType>('cyber');
 
   const [isNetworkOffline, setIsNetworkOffline] = useState(!navigator.onLine);
 
@@ -213,8 +220,58 @@ export default function App() {
   }, [mainView, user]);
 
   useEffect(() => {
+    const handleLocationCheck = () => {
+      const params = new URLSearchParams(window.location.search);
+      const view = params.get('view');
+      const stealth = params.get('stealth');
+      const hash = window.location.hash;
+
+      const isPhonemeGravity = 
+        view === 'phoneme-gravity' || 
+        view === 'orbit' || 
+        stealth === 'gravity' || 
+        hash === '#phoneme-gravity' || 
+        hash === '#orbit' || 
+        hash === '#gravity';
+
+      if (isPhonemeGravity) {
+        setMainView('phoneme-gravity');
+      } else if (view === 'cognitive-gym' || hash === '#cognitive-gym') {
+        setMainView('cognitive-gym');
+      }
+    };
+    handleLocationCheck();
+    window.addEventListener('popstate', handleLocationCheck);
+    window.addEventListener('hashchange', handleLocationCheck);
+    return () => {
+      window.removeEventListener('popstate', handleLocationCheck);
+      window.removeEventListener('hashchange', handleLocationCheck);
+    };
+  }, []);
+
+  useEffect(() => {
+    let lastCtrlTime = 0;
     const handleKeyDown = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
+      
+      // Detection double-Ctrl pour ouvrir ou masquer Phoneme Gravity en Stealth Mode
+      if (e.key === 'Control') {
+        const now = Date.now();
+        if (now - lastCtrlTime < 350) {
+          e.preventDefault();
+          setMainView(prev => {
+            if (prev === 'phoneme-gravity') {
+              window.history.replaceState({}, '', '/');
+              return 'hub';
+            } else {
+              window.history.replaceState({}, '', '/?view=phoneme-gravity');
+              return 'phoneme-gravity';
+            }
+          });
+        }
+        lastCtrlTime = now;
+      }
+
       if ((e.ctrlKey || e.metaKey) && (key === 'b' || e.code === 'KeyB')) {
         e.preventDefault();
         window.history.replaceState({}, '', '/');
@@ -237,130 +294,138 @@ export default function App() {
 
   // Initialisation de l'API de reconnaissance (Natif - Sans clé)
   useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = langMap[selectedLang] || 'fr-FR';
-
-      recognition.onresult = (event: any) => {
-        let finalTranscript = '';
-        let interimTranscript = '';
-        
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
-          } else {
-            interimTranscript += event.results[i][0].transcript;
-          }
+    try {
+      const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        try {
+          recognition.continuous = true;
+          recognition.interimResults = true;
+        } catch (propErr) {
+          console.warn("SpeechRecognition properties couldn't be fully configured on this browser:", propErr);
         }
-        
-        setTranscript(prev => {
-          const updated = prev + " " + finalTranscript;
-          return updated.trim();
-        });
+        recognition.lang = langMap[selectedLang] || 'fr-FR';
 
-        const processRecognitionWords = (text: string) => {
-          if (!text) return;
-          const rawWords = text.toLowerCase()
-            .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "")
-            .trim()
-            .split(/\s+/)
-            .filter(Boolean);
-            
-          setVoiceArenaSpoken(prev => {
-            const next = [...prev];
-            let changed = false;
-            for (const rw of rawWords) {
-              if (!next.includes(rw)) {
-                next.push(rw);
-                changed = true;
-              }
+        recognition.onresult = (event: any) => {
+          let finalTranscript = '';
+          let interimTranscript = '';
+          
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              finalTranscript += event.results[i][0].transcript;
+            } else {
+              interimTranscript += event.results[i][0].transcript;
             }
-            return changed ? next : prev;
-          });
-        };
-
-        // Instantly process interim speech results for real-time word matching (Zero Latency)
-        if (interimTranscript) {
-          processRecognitionWords(interimTranscript);
-        }
-
-        // Process final speech results
-        if (finalTranscript) {
-          processRecognitionWords(finalTranscript);
-
-          setArenaTranscript(prev => {
+          }
+          
+          setTranscript(prev => {
             const updated = prev + " " + finalTranscript;
             return updated.trim();
           });
 
-          const words = finalTranscript.trim().split(' ');
-          const lastWord = words[words.length - 1];
-          
-          if (lastWord.length > 2) {
-             // 1. Simulation visuelle rapide pour une sensation de Temps Réel (0 latence)
-             const quickSyllable = `/${lastWord.substring(0, 3)}/`;
-             setDetectedPhonemes(prev => [quickSyllable, ...prev].slice(0, 8));
-             
-             // 2. Requête vers le vrai Cerveau Python (Inférence)
-             fetch(`${mlEngineUrl}/api/analyse-phonemes`, {
-                 method: 'POST',
-                 headers: { 'Content-Type': 'application/json' },
-                 body: JSON.stringify({ transcript: lastWord, language: selectedLang })
-             })
-             .then(res => {
-                 if (!res.ok) throw new Error("HTTP Error " + res.status);
-                 return res.json();
-             })
-             .then(data => {
-                 if (data.phonemes_detectes && data.phonemes_detectes.length > 0) {
-                     setDetectedPhonemes(prev => [data.phonemes_detectes[0].toUpperCase(), ...prev.slice(1)].slice(0, 8));
-                 }
-             })
-             .catch(err => {
-                 console.log("[Architecture] Moteur ML local hors ligne, basculement vers l'API Express hybride", err);
-                 // Basculement vers l'API Express résiliente de notre serveur Node
-                 fetch('/api/analyse-phonemes', {
-                     method: 'POST',
-                     headers: { 'Content-Type': 'application/json' },
-                     body: JSON.stringify({ transcript: lastWord, language: selectedLang })
-                 })
-                 .then(res => {
-                     if (!res.ok) throw new Error("HTTP Error " + res.status);
-                     return res.json();
-                 })
-                 .then(data => {
-                     if (data.phonemes_detectes && data.phonemes_detectes.length > 0) {
-                         setDetectedPhonemes(prev => [data.phonemes_detectes[0].toUpperCase(), ...prev.slice(1)].slice(0, 8));
-                     }
-                 })
-                 .catch(fallbackErr => {
-                     console.warn("[Architecture] Tout est hors ligne, simulation active", fallbackErr);
-                 });
-             });
+          const processRecognitionWords = (text: string) => {
+            if (!text) return;
+            const rawWords = text.toLowerCase()
+              .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "")
+              .trim()
+              .split(/\s+/)
+              .filter(Boolean);
+              
+            setVoiceArenaSpoken(prev => {
+              const next = [...prev];
+              let changed = false;
+              for (const rw of rawWords) {
+                if (!next.includes(rw)) {
+                  next.push(rw);
+                  changed = true;
+                }
+              }
+              return changed ? next : prev;
+            });
+          };
+
+          // Instantly process interim speech results for real-time word matching (Zero Latency)
+          if (interimTranscript) {
+            processRecognitionWords(interimTranscript);
           }
-        }
-      };
 
-      recognition.onerror = (event: any) => {
-        console.error("Speech API Error:", event.error);
-        if (event.error === 'not-allowed') {
-          setSpeechError("🎤 Micro bloqué! Pour l'autoriser, clique sur l'icône de cadenas dans la barre d'adresse du navigateur. Si tu es dans un iframe, ouvre l'application dans un nouvel onglet.");
-        } else if (event.error === 'no-speech') {
-          setSpeechError("Aucun son détecté. Parle bien distinctement près du micro.");
-        } else {
-          setSpeechError(`Erreur Micro (Code: ${event.error})`);
-        }
-        setIsRecording(false);
-      };
-      
-      recognition.onend = () => {
-        setIsRecording(false);
-      };
+          // Process final speech results
+          if (finalTranscript) {
+            processRecognitionWords(finalTranscript);
 
-      recognitionRef.current = recognition;
+            setArenaTranscript(prev => {
+              const updated = prev + " " + finalTranscript;
+              return updated.trim();
+            });
+
+            const words = finalTranscript.trim().split(' ');
+            const lastWord = words[words.length - 1];
+            
+            if (lastWord.length > 2) {
+               // 1. Simulation visuelle rapide pour une sensation de Temps Réel (0 latence)
+               const quickSyllable = `/${lastWord.substring(0, 3)}/`;
+               setDetectedPhonemes(prev => [quickSyllable, ...prev].slice(0, 8));
+               
+               // 2. Requête vers le vrai Cerveau Python (Inférence)
+               fetch(`${mlEngineUrl}/api/analyse-phonemes`, {
+                   method: 'POST',
+                   headers: { 'Content-Type': 'application/json' },
+                   body: JSON.stringify({ transcript: lastWord, language: selectedLang })
+               })
+               .then(res => {
+                   if (!res.ok) throw new Error("HTTP Error " + res.status);
+                   return res.json();
+               })
+               .then(data => {
+                   if (data.phonemes_detectes && data.phonemes_detectes.length > 0) {
+                       setDetectedPhonemes(prev => [data.phonemes_detectes[0].toUpperCase(), ...prev.slice(1)].slice(0, 8));
+                   }
+               })
+               .catch(err => {
+                   console.log("[Architecture] Moteur ML local hors ligne, basculement vers l'API Express hybride", err);
+                   // Basculement vers l'API Express résiliente de notre serveur Node
+                   fetch('/api/analyse-phonemes', {
+                       method: 'POST',
+                       headers: { 'Content-Type': 'application/json' },
+                       body: JSON.stringify({ transcript: lastWord, language: selectedLang })
+                   })
+                   .then(res => {
+                       if (!res.ok) throw new Error("HTTP Error " + res.status);
+                       return res.json();
+                   })
+                   .then(data => {
+                       if (data.phonemes_detectes && data.phonemes_detectes.length > 0) {
+                           setDetectedPhonemes(prev => [data.phonemes_detectes[0].toUpperCase(), ...prev.slice(1)].slice(0, 8));
+                       }
+                   })
+                   .catch(fallbackErr => {
+                       console.warn("[Architecture] Tout est hors ligne, simulation active", fallbackErr);
+                   });
+               });
+            }
+          }
+        };
+
+        recognition.onerror = (event: any) => {
+          console.error("Speech API Error:", event.error);
+          if (event.error === 'not-allowed') {
+            setSpeechError("🎤 Micro bloqué! Pour l'autoriser, clique sur l'icône de cadenas dans la barre d'adresse du navigateur. Si tu es dans un iframe, ouvre l'application dans un nouvel onglet.");
+          } else if (event.error === 'no-speech') {
+            setSpeechError("Aucun son détecté. Parle bien distinctement près du micro.");
+          } else {
+            setSpeechError(`Erreur Micro (Code: ${event.error})`);
+          }
+          setIsRecording(false);
+        };
+        
+        recognition.onend = () => {
+          setIsRecording(false);
+        };
+
+        recognitionRef.current = recognition;
+      }
+    } catch (err) {
+      console.error("SpeechRecognition initialization failed safely:", err);
     }
   }, [selectedLang]);
 
@@ -771,13 +836,13 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white font-sans selection:bg-white/20 relative">
+    <div className="min-h-screen bg-slate-950 text-white font-sans selection:bg-white/20 relative flex flex-col">
       <div className="atmosphere" />
       
       {/* Navigation Globale */}
-      {mainView !== 'cognitive-gym' && (
-      <header className="fixed top-0 inset-x-0 z-50 glass-panel border-b-0 border-x-0 border-t-0 border-white/5 border-b">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
+      {mainView !== 'cognitive-gym' && mainView !== 'phoneme-gravity' && (
+      <header className="sticky top-0 z-50 glass-panel border-b border-white/5 w-full shrink-0">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 md:py-4 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
              {mainView !== 'hub' && (
               <a 
@@ -805,14 +870,14 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
             </div>
           </div>
           
-          <div className="flex flex-wrap items-center gap-4 text-xs font-mono justify-center">
+          <div className="flex flex-wrap items-center gap-3 md:gap-4 text-xs font-mono justify-center">
 
             {user ? (
-               <div className="flex items-center gap-4">
+               <div className="flex flex-wrap items-center gap-3 md:gap-4 justify-center">
                  <button onClick={() => setMainView('history')} className="flex items-center gap-2 px-4 py-2 rounded-full glass-panel glass-panel-hover transition-all text-white/80">
-                   <History className="w-4 h-4" /> <span className="hidden sm:inline">Historique</span>
+                   <History className="w-4 h-4" /> <span className="inline">Historique</span>
                  </button>
-                 <span className="text-white/60 font-medium">Connecté: {user.displayName || user.email?.split('@')[0]}</span>
+                 <span className="text-white/60 font-medium text-xs">Connecté: {user.displayName || user.email?.split('@')[0]}</span>
                  <button onClick={logout} className="p-2 glass-panel rounded-full glass-panel-hover text-white/70 transition-colors ml-2" title="Déconnexion">
                    <LogOut className="w-4 h-4" />
                  </button>
@@ -821,20 +886,21 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
                <button onClick={loginWithGoogle} className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-white/90 rounded-full font-bold text-black transition-all">
                  <LogIn className="w-4 h-4" /> CONNEXION
                </button>
-            )}
+             )}
             
-            <div className="relative border-l border-white/10 pl-4">
+            <div className="relative border-l border-white/10 pl-3 md:pl-4">
               <div 
                 className={`flex items-center gap-2 px-4 py-2 rounded-full cursor-pointer transition-colors glass-panel glass-panel-hover ${engineStatus === 'online' ? 'text-white border-[#00FF00]/30 bg-[#00FF00]/5' : 'text-white/50 border-white/10'}`}
                 onClick={() => setShowConfig(!showConfig)}
               >
                 <div className={`w-1.5 h-1.5 rounded-full ${engineStatus === 'online' ? 'bg-[#00FF00] shadow-[0_0_8px_#00FF00]' : 'bg-white/30'}`} />
-                <span className="">{engineStatus === 'online' ? 'Backend Connecté' : 'Backend Déconnecté'}</span>
+                <span className="hidden sm:inline">{engineStatus === 'online' ? 'Backend Connecté' : 'Backend Déconnecté'}</span>
+                <span className="inline sm:hidden">{engineStatus === 'online' ? 'Backend' : 'Inférence'}</span>
                 <Settings className="w-3 h-3 ml-1" />
               </div>
               
               {showConfig && (
-                <div className="absolute right-0 top-full mt-3 w-80 bg-slate-900/50 border-slate-800 rounded-2xl p-5 shadow-2xl z-50 animate-in fade-in zoom-in duration-200">
+                <div className="absolute right-0 top-full mt-3 w-80 bg-slate-900/50 border border-slate-800 rounded-2xl p-5 shadow-2xl z-50 animate-in fade-in zoom-in duration-200 backdrop-blur-xl">
                   <div className="flex justify-between items-center mb-5">
                     <h3 className="text-white font-bold text-sm">Edge Inference Config</h3>
                     <button onClick={() => setShowConfig(false)} className="text-slate-500 hover:text-white transition-colors">
@@ -873,7 +939,7 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
       </header>
       )}
 
-      <main className={`max-w-7xl mx-auto px-6 relative z-10 pb-12 ${mainView !== 'cognitive-gym' ? 'pt-32' : ''} ${mainView === 'hub' ? 'min-h-[80vh] flex flex-col justify-center' : ''}`}>
+      <main className={`max-w-7xl mx-auto px-4 md:px-6 relative z-10 pb-12 pt-6 md:pt-10 w-full ${mainView === 'hub' ? 'min-h-[65vh] flex flex-col justify-center' : ''}`}>
         
         {isNetworkOffline && (
           <div className="mb-8 max-w-3xl mx-auto w-full bg-slate-900/80 backdrop-blur-md border border-red-500/30 rounded-2xl p-4 flex items-start gap-4 shadow-[0_0_30px_rgba(249,115,22,0.1)] animate-in slide-in-from-top-4">
@@ -894,6 +960,15 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
 
         {mainView === 'hub' && <HubView setMainView={setMainView} />}
 
+        {mainView === 'phonetic-predictor' && (
+          <PhoneticPredictorView
+            setMainView={setMainView}
+            selectedLang={selectedLang}
+            speakText={speakText}
+            injectedText={injectedExercise}
+          />
+        )}
+
         {mainView === 'dyslexia' && (
           <DyslexiaView
             selectedLang={selectedLang}
@@ -912,6 +987,24 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
             handleUrlOrManualEdgeInput={handleUrlOrManualEdgeInput}
             isAnalyzingEdge={isAnalyzingEdge}
             edgePerformanceMs={edgePerformanceMs}
+            injectedExercise={injectedExercise}
+          />
+        )}
+
+        {mainView === 'classroom' && (
+          <GoogleClassroomHub
+            setMainView={setMainView}
+            onImportText={(text, destination) => {
+              setInjectedExercise(text);
+              if (destination === 'dyslexia') {
+                setMainView('dyslexia');
+              } else if (destination === 'learning') {
+                setInputText(text);
+                setMainView('learning');
+              } else if (destination === 'phonetic') {
+                setMainView('phonetic-predictor');
+              }
+            }}
           />
         )}
 
@@ -921,26 +1014,38 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
                 <div>
                    <h2 className="text-4xl font-extrabold text-white tracking-tight uppercase">System <span className="text-emerald-500">Arch & Security</span></h2>
                    <p className="text-slate-500 font-medium font-mono text-sm uppercase tracking-widest mt-2">
-                     {archSubTab === 'cyber' ? 'CYBER DEFENSE COCKPIT — BASICS & AUDIT LAB' : archSubTab === 'ledger' ? 'OFFLINE LEDGER & SYNC PIPELINE (L6 SPEC)' : 'ZERO DATA-LEAK PRIVACY INFRASTRUCTURE'}
+                     {archSubTab === 'cyber' ? 'CYBER DEFENSE COCKPIT — BASICS & AUDIT LAB' : archSubTab === 'ledger' ? 'OFFLINE LEDGER & SYNC PIPELINE (L6 SPEC)' : archSubTab === 'google-deploy' ? 'GOOGLE ACQUISITION SUITE & M&A ROADMAP' : archSubTab === 'pwa-audit' ? 'PWA AUDIT & METADATA COMPLIANCE LAB' : 'ZERO DATA-LEAK PRIVACY INFRASTRUCTURE'}
                    </p>
                 </div>
 
-                <div className="flex p-1 bg-slate-950 border border-slate-800 rounded-2xl shrink-0">
+                <div className="flex p-1 bg-slate-950 border border-slate-800 rounded-2xl shrink-0 overflow-x-auto max-w-full">
                   <button
                     onClick={() => setArchSubTab('cyber')}
-                    className={`px-5 py-2.5 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all ${archSubTab === 'cyber' ? 'bg-[#00FF00]/10 border border-[#00FF00]/30 text-[#00FF00] shadow-[0_0_15px_rgba(0,255,0,0.15)]' : 'text-slate-400 hover:text-white'}`}
+                    className={`px-5 py-2.5 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all whitespace-nowrap ${archSubTab === 'cyber' ? 'bg-[#00FF00]/10 border border-[#00FF00]/30 text-[#00FF00] shadow-[0_0_15px_rgba(0,255,0,0.15)]' : 'text-slate-400 hover:text-white'}`}
                   >
                     Cybersecurity Lab
                   </button>
                   <button
                     onClick={() => setArchSubTab('ledger')}
-                    className={`px-5 py-2.5 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all ${archSubTab === 'ledger' ? 'bg-[#00FF00]/10 border border-[#00FF00]/30 text-[#00FF00] shadow-[0_0_15px_rgba(0,255,0,0.15)]' : 'text-slate-400 hover:text-white'}`}
+                    className={`px-5 py-2.5 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all whitespace-nowrap ${archSubTab === 'ledger' ? 'bg-[#00FF00]/10 border border-[#00FF00]/30 text-[#00FF00] shadow-[0_0_15px_rgba(0,255,0,0.15)]' : 'text-slate-400 hover:text-white'}`}
                   >
                     Resilient Sync Ledger
                   </button>
                   <button
+                    onClick={() => setArchSubTab('pwa-audit')}
+                    className={`px-5 py-2.5 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all whitespace-nowrap ${archSubTab === 'pwa-audit' ? 'bg-[#00FF00]/10 border border-[#00FF00]/30 text-[#00FF00] shadow-[0_0_15px_rgba(0,255,0,0.15)]' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    PWA Audit
+                  </button>
+                  <button
+                    onClick={() => setArchSubTab('google-deploy')}
+                    className={`px-5 py-2.5 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all whitespace-nowrap ${archSubTab === 'google-deploy' ? 'bg-[#00FF00]/10 border border-[#00FF00]/30 text-[#00FF00] shadow-[0_0_15px_rgba(0,255,0,0.15)]' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    Google Acquisition Suite
+                  </button>
+                  <button
                     onClick={() => setArchSubTab('visualizer')}
-                    className={`px-5 py-2.5 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all ${archSubTab === 'visualizer' ? 'bg-[#00FF00]/10 border border-[#00FF00]/30 text-[#00FF00] shadow-[0_0_15px_rgba(0,255,0,0.15)]' : 'text-slate-400 hover:text-white'}`}
+                    className={`px-5 py-2.5 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all whitespace-nowrap ${archSubTab === 'visualizer' ? 'bg-[#00FF00]/10 border border-[#00FF00]/30 text-[#00FF00] shadow-[0_0_15px_rgba(0,255,0,0.15)]' : 'text-slate-400 hover:text-white'}`}
                   >
                     System Diagram
                   </button>
@@ -951,6 +1056,10 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
                 <CyberSecurityLab />
              ) : archSubTab === 'ledger' ? (
                 <OfflineSyncPipeline user={user} />
+             ) : archSubTab === 'google-deploy' ? (
+                <GoogleAcquisitionCenter user={user} />
+             ) : archSubTab === 'pwa-audit' ? (
+                <PwaAudit />
              ) : (
 
               <div className="space-y-8 animate-in fade-in duration-300">
@@ -1009,7 +1118,7 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
                           </li>
                           <li className="flex gap-4 items-start">
                              <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
-                             <p className="text-sm leading-relaxed"><strong className="text-white">Scalable:</strong> Architecture optimized to allow porting algorithms to mobile CoreML instances.</p>
+                             <p className="text-sm leading-relaxed"><strong className="text-white">Scalable:</strong> Architecture optimized to allow porting algorithms to Chromebooks, Android, and ChromeOS via WebGPU & WebAssembly.</p>
                           </li>
                        </ul>
                     </div>
@@ -1313,10 +1422,24 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
           />
         )}
 
+        {mainView === 'phoneme-gravity' && (
+          <PhonemeOrbit
+            user={user}
+            selectedLang={selectedLang}
+            onBack={() => setMainView('hub')}
+          />
+        )}
+
+        {mainView === 'voice-conversation' && (
+          <VoiceConversationView
+            onBack={() => setMainView('hub')}
+          />
+        )}
+
       </main>
 
       {/* Credits & Tech Talk */}
-      {mainView !== 'cognitive-gym' && (
+      {mainView !== 'cognitive-gym' && mainView !== 'phoneme-gravity' && mainView !== 'voice-conversation' && (
       <footer className="max-w-7xl mx-auto px-6 py-12 border-t border-slate-800 flex flex-col md:flex-row items-center gap-8 justify-between opacity-80">
     <div className="flex flex-col items-center gap-6 w-full md:w-auto">
       <div className="relative group w-full md:w-auto">

@@ -4,6 +4,7 @@ import path from "path";
 import "dotenv/config";
 import * as fs from "fs";
 import { GoogleGenAI, Modality } from "@google/genai";
+import { WebSocketServer } from "ws";
 
 async function startServer() {
   const app = express();
@@ -19,7 +20,7 @@ async function startServer() {
   // TTS Endpoint using Gemini Live / TTS preview
   app.post("/api/tts", async (req, res) => {
     try {
-      const { text, language } = req.body;
+      const { text, language, accent } = req.body;
       if (!text) return res.status(400).json({ error: "Text required" });
 
       const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
@@ -37,12 +38,32 @@ async function startServer() {
       // Voice selection based on language context
       let voiceName = "Zephyr"; 
       let promptText = text;
-      if (language === "English") {
-        voiceName = "Puck"; // puck has an elegant accent
-        promptText = `[British accent, natural cadence, friendly, expert enunciation] ${text}`;
-      } else if (language === "French") {
-        voiceName = "Zephyr";
-        promptText = `[chaleureux, voix douce, excellente diction française d'instituteur] ${text}`;
+
+      if (accent) {
+        if (accent === "marocain") {
+          voiceName = "Zephyr";
+          promptText = `[Prononcez le mot français "${text}" avec un accent marocain authentique : un léger roulement du 'r', une articulation claire et la cadence caractéristique de la Darija marocaine.]`;
+        } else if (accent === "senegalais") {
+          voiceName = "Zephyr";
+          promptText = `[Prononcez le mot français "${text}" avec un accent sénégalais / wolof-français chaleureux : des voyelles bien ouvertes, un rythme vocalique typique de Dakar et une douceur mélodique.]`;
+        } else if (accent === "congolais") {
+          voiceName = "Zephyr";
+          promptText = `[Prononcez le mot français "${text}" avec un accent congolais expressif et chantant, issu du métissage linguistique lingala-français : intonation rythmée, voyelles pleines.]`;
+        } else if (accent === "kenyan") {
+          voiceName = "Puck";
+          promptText = `[Pronounce the word "${text}" with a distinct, warm Kenyan English accent: clear syllable-timed pronunciation, slight hardening of consonants, and local East African resonance.]`;
+        } else if (accent === "sud_africain") {
+          voiceName = "Puck";
+          promptText = `[Pronounce the word "${text}" with a deep, crisp South African English accent: rich resonance, Zulu/Xhosa-influenced phonetics, and characteristic clean articulation.]`;
+        }
+      } else {
+        if (language === "English") {
+          voiceName = "Puck"; // puck has an elegant accent
+          promptText = `[British accent, natural cadence, friendly, expert enunciation] ${text}`;
+        } else if (language === "French") {
+          voiceName = "Zephyr";
+          promptText = `[chaleureux, voix douce, excellente diction française d'instituteur] ${text}`;
+        }
       }
       
       const response = await client.models.generateContent({
@@ -64,9 +85,16 @@ async function startServer() {
       } else {
         res.status(500).json({ error: "No audio generated" });
       }
-    } catch (e) {
-      console.error("TTS API Error:", e);
-      res.status(500).json({ error: String(e) });
+    } catch (e: any) {
+      const errMsg = String(e);
+      const isQuota = errMsg.includes("RESOURCE_EXHAUSTED") || errMsg.includes("quota") || errMsg.includes("429") || (e && e.status === 429);
+      if (isQuota) {
+        console.warn("Gemini TTS Free Tier Quota Exceeded. Safely falling back to client-side local SpeechSynthesis.");
+        res.status(429).json({ error: "quota_exceeded", message: "Gemini TTS Free Tier quota limit reached. Falling back to local browser Speech Synthesis." });
+      } else {
+        console.error("TTS API Error:", e);
+        res.status(500).json({ error: errMsg });
+      }
     }
   });
 
@@ -236,11 +264,13 @@ Please perform a deep phonetic comparison. Determine:
 1. IPA (International Phonetic Alphabet) representations for both words (adapted to ${targetLanguage}).
 2. Levenshtein Distance (or phonetic edit distance) between the two.
 3. Classify and analyze the errors. Focus on typical phonological simplifications or errors like:
-   - Inversion / Métathèse (e.g., sp -> ps, "spectacle" -> "pestacle")
+   - Inversion / Metathesis (e.g., sp -> ps, "spectacle" -> "pestacle")
    - Omission (e.g., "crocodille" -> "colodile")
    - Substitution (e.g., /r/ -> /l/, "rouge" -> "louge")
-   - Addition / Épenthèse
-4. A friendly, high-stakes positive cognitive advice or exercise (conseil cognitif) for the speech therapist and the child to practice or correct this specific mispronunciation, in ${targetLanguage}. Keep the tone extremely encouraging, respectful, and empowering.
+   - Addition / Epenthesis
+4. A friendly, high-stakes positive cognitive advice or exercise (conseil cognitif) for the speech therapist and the child to practice or correct this specific mispronunciation.
+
+CRITICAL: All descriptive text fields in the JSON response (typeErreur, description, details, and conseilCognitif) MUST be written in 100% ENGLISH, regardless of the target word's source language.
 
 Output strictly JSON with this schema (no markdown formatting, no code blocks):
 {
@@ -250,9 +280,9 @@ Output strictly JSON with this schema (no markdown formatting, no code blocks):
   "ipaPrononce": "IPA string of pronounced word, e.g., /pɛstakl/",
   "distanceLeven": number,
   "analyse": {
-    "typeErreur": "Short string classifying the error in ${targetLanguage}",
-    "description": "Clear explanation of what happened in ${targetLanguage}",
-    "details": "Technical breakdown of phonemes involved in ${targetLanguage}"
+    "typeErreur": "Short string classifying the error in English (e.g., Inversion, Omission, Substitution, Addition)",
+    "description": "Clear explanation in English of what happened phonologically",
+    "details": "Technical breakdown of phonemes involved in English"
   },
   "scoreSyllabique": number,
   "erreursDetectees": [
@@ -263,7 +293,7 @@ Output strictly JSON with this schema (no markdown formatting, no code blocks):
       "index": number
     }
   ],
-  "conseilCognitif": "Positive, actionable, and encouraging orthophonic advice in ${targetLanguage} for the student."
+  "conseilCognitif": "Positive, actionable, and encouraging orthophonic advice in English for the student."
 }`;
 
           const response = await client.models.generateContent({
@@ -291,21 +321,21 @@ Output strictly JSON with this schema (no markdown formatting, no code blocks):
         const a = actual.toLowerCase().trim();
         
         let typeErreur = "Simplification";
-        let description = "Divergence phonologique mineure détectée.";
-        let details = "Analyse simplifiée par moteur local.";
+        let description = "Minor phonological divergence detected.";
+        let details = "Simplified offline analysis computed by local engine.";
         
         if (t === "spectacle" && a === "pestacle") {
-          typeErreur = "Inversion / Métathèse";
-          description = "Inversion typique du bloc de consonnes 'sp' vers 'p...s'.";
-          details = "Fricative /s/ et occlusive /p/ permutées.";
+          typeErreur = "Inversion / Metathesis";
+          description = "Classic inversion of the consonant cluster 'sp' to 'p...s'.";
+          details = "Permutation of the voiceless alveolar fricative /s/ and voiceless bilabial plosive /p/.";
         } else if (t.includes("r") && a.includes("l") && !t.includes("l")) {
-          typeErreur = "Substitution (Rhotacisme)";
-          description = "Substitution de la consonne vibrante /r/ par la liquide /l/.";
-          details = "Changement de point d'articulation fréquent chez le jeune enfant.";
+          typeErreur = "Substitution (Rhotacism)";
+          description = "Substitution of the vibrant/rolled consonant /r/ by the lateral liquid /l/.";
+          details = "Common speech-sound substitution pattern found in developing childhood speech.";
         } else if (a.length < t.length) {
-          typeErreur = "Omission / Élision";
-          description = "Omission d'un segment consonantique ou d'une syllabe.";
-          details = "Syllabes ou phonemes absents dans la prononciation effective.";
+          typeErreur = "Omission / Elision";
+          description = "Omission of a consonant segment or cluster syllable.";
+          details = "Missing speech sounds compared to the target phonetic blueprint.";
         }
 
         return {
@@ -324,7 +354,7 @@ Output strictly JSON with this schema (no markdown formatting, no code blocks):
               index: 0
             }
           ],
-          conseilCognitif: `Bonne tentative de lecture pour "${target}". Travaillez doucement sur le découpage syllabique pour bien isoler chaque son de manière ludique !`
+          conseilCognitif: `Excellent reading attempt for "${target}". Practice slowly by breaking down the word syllables step-by-step to align each phonetic sound! Keep it up!`
         };
       };
 
@@ -333,6 +363,232 @@ Output strictly JSON with this schema (no markdown formatting, no code blocks):
       res.status(500).json({ error: String(e) });
     }
   });
+
+
+  // NEW ENDPOINT 1: PHONETIC PREDICTOR (SPELLING SUGGESTIONS)
+  app.post("/api/phonetic-predict", async (req, res) => {
+    try {
+      const { inputWord, language = "French" } = req.body;
+      if (!inputWord) {
+        return res.status(400).json({ error: "inputWord is required" });
+      }
+
+      const cleanInput = inputWord.trim();
+      const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+
+      if (geminiKey) {
+        try {
+          const client = new GoogleGenAI({
+            apiKey: geminiKey,
+            httpOptions: {
+              headers: {
+                'User-Agent': 'aistudio-build',
+              }
+            }
+          });
+
+          const prompt = `You are a specialized phonetic-based spellchecker and cognitive orthography predictor for dyslexic students.
+Analyze the misspelled or phonetically-written word: "${cleanInput}".
+Predict the correct words the student likely intended to type based on phonetic similarity and pronunciation similarities (especially common in French/English dyslexia).
+
+Provide up to 4 spelling candidate suggestions. For each candidate, provide:
+1. The corrected word ("word").
+2. The probability of match as a percentage string (e.g., "95%").
+3. A very short, friendly definition or meaning in French ("meaning").
+4. A simple example sentence using the word in French ("example").
+
+Output strictly a JSON object with a single "suggestions" key containing an array of objects.
+Do not wrap in Markdown or add extra text.
+Example JSON schema:
+{
+  "suggestions": [
+    {
+      "word": "chapeau",
+      "probability": "95%",
+      "meaning": "Vêtement que l'on met sur la tête.",
+      "example": "Il met un chapeau pour se protéger du soleil."
+    }
+  ]
+}`;
+
+          const response = await client.models.generateContent({
+            model: "gemini-3.5-flash",
+            contents: prompt,
+            config: {
+              responseMimeType: "application/json"
+            }
+          });
+
+          let responseText = response.text || response.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (responseText) {
+            const cleanJson = responseText.replace(/```json/gi, '').replace(/```/gi, '').trim();
+            const predictionResult = JSON.parse(cleanJson);
+            if (predictionResult.suggestions && Array.isArray(predictionResult.suggestions)) {
+              return res.json(predictionResult);
+            }
+          }
+        } catch (gemErr) {
+          console.warn("Gemini phonetic predictor failed, falling back to local rule-based predictor:", gemErr);
+        }
+      }
+
+      // Offline Local Rule-Based & Phonetic Matcher Fallback
+      // Simple dictionary of common phonetic errors in French
+      const localDictionary: Record<string, Array<{word: string, probability: string, meaning: string, example: string}>> = {
+        "chapo": [
+          { word: "chapeau", probability: "98%", meaning: "Coiffure qui couvre la tête.", example: "Le magicien sort un lapin blanc de son chapeau." },
+          { word: "chapon", probability: "45%", meaning: "Un jeune coq engraissé pour être mangé.", example: "On mange du chapon rôti au repas de Noël." }
+        ],
+        "bato": [
+          { word: "bateau", probability: "99%", meaning: "Un moyen de transport qui flotte sur l'eau.", example: "Le grand bateau blanc navigue sur la mer." },
+          { word: "bâton", probability: "50%", meaning: "Un morceau de bois long et droit.", example: "Il marche dans la forêt avec un bâton en bois." }
+        ],
+        "pestacle": [
+          { word: "spectacle", probability: "99%", meaning: "Une représentation théâtrale, un concert ou un cirque.", example: "Les enfants applaudissent à la fin du spectacle." }
+        ],
+        "spectak": [
+          { word: "spectacle", probability: "99%", meaning: "Une représentation théâtrale, un concert ou un cirque.", example: "Les enfants adorent ce magnifique spectacle de magie." }
+        ],
+        "magnyfyk": [
+          { word: "magnifique", probability: "99%", meaning: "Quelque chose de très beau, de merveilleux.", example: "Ce paysage de montagne est vraiment magnifique." }
+        ],
+        "lordinateur": [
+          { word: "ordinateur", probability: "99%", meaning: "Une machine électronique qui permet de travailler et de jouer.", example: "Le grand frère fait ses devoirs sur son ordinateur." }
+        ],
+        "bilinge": [
+          { word: "bilingue", probability: "95%", meaning: "Personne qui parle couramment deux langues différentes.", example: "Taha est bilingue, il parle arabe et français." }
+        ],
+        "ecole": [
+          { word: "école", probability: "99%", meaning: "Lieu où les élèves étudient et apprennent.", example: "Les enfants se retrouvent dans la cour de l'école." }
+        ]
+      };
+
+      // Find direct matches or calculate simple fallback similarity
+      const lowerInput = cleanInput.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      if (localDictionary[lowerInput]) {
+        return res.json({ suggestions: localDictionary[lowerInput] });
+      }
+
+      // Default generic suggestions if offline dictionary misses
+      const genericSuggestions = [
+        { 
+          word: cleanInput, 
+          probability: "80%", 
+          meaning: `[Mode local] Mot orthographié en écriture simplifiée phonétique.`, 
+          example: `Exemple généré automatiquement pour le terme: "${cleanInput}".` 
+        }
+      ];
+
+      return res.json({ suggestions: genericSuggestions });
+
+    } catch (e) {
+      res.status(500).json({ error: String(e) });
+    }
+  });
+
+
+  // NEW ENDPOINT 2: NOISE-ROBUST TEXT SIMPLIFICATION
+  app.post("/api/simplify-noisy-text", async (req, res) => {
+    try {
+      const { text, noiseLevel = "medium" } = req.body;
+      if (!text) {
+        return res.status(400).json({ error: "text is required" });
+      }
+
+      const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+
+      if (geminiKey) {
+        try {
+          const client = new GoogleGenAI({
+            apiKey: geminiKey,
+            httpOptions: {
+              headers: {
+                'User-Agent': 'aistudio-build',
+              }
+            }
+          });
+
+          const prompt = `You are a specialized NLP speech rehabilitation engineer and a cognitive expert in dyslexic and auditory processing accessibility.
+You are given a transcript of text captured from speech, possibly degraded by environmental noise ("noise level": "${noiseLevel}"). This noise causes typical mistakes: phonetic distortions, misheard consonant clusters (e.g. 'pestacle' instead of 'spectacle'), word boundary splits, and auditory slips.
+
+Your task is to:
+1. Reconstruct the clean, correct, denoised transcript representing what the user actually said.
+2. Produce a simplified, accessible, and high-readability version of this text suitable for children with dyslexia or cognitive reading challenges (shortening sentences, replacing rare, long, or complex vocabulary with simpler synonyms).
+3. Extract any complex or difficult words that were simplified, and list their mapped simpler terms.
+
+Output strictly a JSON object with the following schema, do not wrap in Markdown or add extra text:
+{
+  "originalText": "The input text",
+  "denoisedText": "The reconstructed clean text",
+  "simplifiedText": "The cognitively simplified and clear version for reading ease",
+  "simpleWordsMapping": [
+    {
+      "difficult": "complex word",
+      "simple": "simple synonym"
+    }
+  ]
+}`;
+
+          const response = await client.models.generateContent({
+            model: "gemini-3.5-flash",
+            contents: JSON.stringify({ text, noiseLevel }) + "\n\n" + prompt,
+            config: {
+              responseMimeType: "application/json"
+            }
+          });
+
+          let responseText = response.text || response.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (responseText) {
+            const cleanJson = responseText.replace(/```json/gi, '').replace(/```/gi, '').trim();
+            const simplificationResult = JSON.parse(cleanJson);
+            return res.json(simplificationResult);
+          }
+        } catch (gemErr) {
+          console.warn("Gemini noise-robust simplifier failed, falling back to offline logic:", gemErr);
+        }
+      }
+
+      // Offline Local Rule-Based Denoising & Simplification
+      let denoisedText = text;
+      // Simple offline cleanups
+      denoisedText = denoisedText
+        .replace(/\bpestacle\b/gi, "spectacle")
+        .replace(/\bchapo\b/gi, "chapeau")
+        .replace(/\bbato\b/gi, "bateau")
+        .replace(/\bmagnyfyk\b/gi, "magnifique")
+        .replace(/\blordinateur\b/gi, "l'ordinateur");
+
+      let simplifiedText = denoisedText;
+      const mapping: Array<{difficult: string, simple: string}> = [];
+
+      // Look for difficult words to simplify
+      const commonSimplifications = [
+        { regex: /simultanément/gi, replacement: "en même temps", difficult: "simultanément", simple: "en même temps" },
+        { regex: /magnifique/gi, replacement: "très beau", difficult: "magnifique", simple: "très beau" },
+        { regex: /incroyable/gi, replacement: "génial", difficult: "incroyable", simple: "génial" },
+        { regex: /apprentissage/gi, replacement: "étude", difficult: "apprentissage", simple: "étude" },
+        { regex: /ordinateur/gi, replacement: "machine", difficult: "ordinateur", simple: "machine" }
+      ];
+
+      for (const item of commonSimplifications) {
+        if (item.regex.test(simplifiedText)) {
+          simplifiedText = simplifiedText.replace(item.regex, item.replacement);
+          mapping.push({ difficult: item.difficult, simple: item.simple });
+        }
+      }
+
+      return res.json({
+        originalText: text,
+        denoisedText,
+        simplifiedText,
+        simpleWordsMapping: mapping
+      });
+
+    } catch (e) {
+      res.status(500).json({ error: String(e) });
+    }
+  });
+
 
     app.post("/api/generer-presentation", async (req, res) => {
     try {
@@ -1253,8 +1509,107 @@ ${extractiveSentences.length > 0 ? extractiveSentences.map((s, idx) => `* 💡 *
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
+  });
+
+  const wss = new WebSocketServer({ server });
+
+  wss.on("connection", async (clientWs, req) => {
+    const url = req.url || "";
+    if (!url.startsWith("/api/live")) {
+      clientWs.close(1008, "Invalid path");
+      return;
+    }
+
+    try {
+      const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+      if (!geminiKey) {
+        clientWs.send(JSON.stringify({ error: "No API Key configured on server" }));
+        clientWs.close(1011, "No API Key");
+        return;
+      }
+
+      const ai = new GoogleGenAI({
+        apiKey: geminiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          }
+        }
+      });
+
+      console.log("[WS] Connecting to Gemini Live API...");
+
+      const session = await ai.live.connect({
+        model: "gemini-3.1-flash-live-preview",
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: "Zephyr" } },
+          },
+          systemInstruction: "Tu es le tuteur d'accessibilité de Mount AI Scholar, un expert de l'accompagnement cognitif et de l'orthophonie conçu par le Capitaine Taha, un prodige de l'IA de 13 ans originaire du Maroc. Parle de manière extrêmement chaleureuse, encourageante, bienveillante et concise en français. Aide l'utilisateur à décoder les mots, s'exercer et s'exprimer. Pose des questions courtes pour guider l'élève.",
+        },
+        callbacks: {
+          onmessage: (message: any) => {
+            const parts = message.serverContent?.modelTurn?.parts;
+            const audio = parts?.[0]?.inlineData?.data || parts?.[1]?.inlineData?.data;
+            const text = parts?.[0]?.text || parts?.[1]?.text;
+            const textInput = message.serverContent?.userTurn?.parts?.[0]?.text;
+            
+            if (textInput) {
+              clientWs.send(JSON.stringify({ transcriptInput: textInput }));
+            }
+            if (text) {
+              clientWs.send(JSON.stringify({ transcriptOutput: text }));
+            }
+            if (audio) {
+              clientWs.send(JSON.stringify({ audio }));
+            }
+            if (message.serverContent?.interrupted) {
+              clientWs.send(JSON.stringify({ interrupted: true }));
+            }
+          },
+          onclose: () => {
+            console.log("[WS] Gemini Live API connection closed");
+            clientWs.close();
+          },
+          onerror: (err: any) => {
+            console.error("[WS] Gemini Live API Error:", err);
+            clientWs.send(JSON.stringify({ error: String(err) }));
+          }
+        },
+      });
+
+      console.log("[WS] Gemini Live API session successfully established!");
+
+      clientWs.on("message", async (data) => {
+        try {
+          const parsed = JSON.parse(data.toString());
+          if (parsed.audio) {
+            await session.sendRealtimeInput({
+              audio: { data: parsed.audio, mimeType: "audio/pcm;rate=16000" },
+            });
+          }
+        } catch (err) {
+          console.error("[WS] Error sending real-time input to Gemini:", err);
+        }
+      });
+
+      clientWs.on("close", () => {
+        console.log("[WS] Client WebSocket closed, closing Gemini session...");
+        try {
+          session.close();
+        } catch (e) {
+          // ignore
+        }
+      });
+
+    } catch (error: any) {
+      console.error("[WS] Failed to initialize Gemini Live session:", error);
+      clientWs.send(JSON.stringify({ error: "Failed to initialize Gemini Live API session: " + error.message }));
+      clientWs.close(1011, "Initialization failed");
+    }
   });
 }
 

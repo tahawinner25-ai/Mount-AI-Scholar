@@ -3,7 +3,7 @@ import {
   Mic, Globe, LogIn, LogOut, Brain, Sparkles, CheckCircle2, 
   AlertTriangle, ArrowRight, RotateCcw, Volume2, VolumeX, 
   Play, Pause, X, Target, FileText, Headphones, Zap, GraduationCap, 
-  Layers, Activity, BrainCircuit, Eye, Sliders, HelpCircle, ArrowLeftRight
+  Layers, Activity, BrainCircuit, Eye, Sliders, HelpCircle, ArrowLeftRight, RefreshCw
 } from 'lucide-react';
 import { User } from 'firebase/auth';
 
@@ -24,6 +24,7 @@ interface DyslexiaViewProps {
   handleUrlOrManualEdgeInput: (text: string) => Promise<void>;
   isAnalyzingEdge: boolean;
   edgePerformanceMs: number;
+  injectedExercise?: string;
 }
 
 // Preset texts for Saccadic Trainer
@@ -50,15 +51,51 @@ export default function DyslexiaView({
   isRecording, toggleRecording,
   transcript, detectedPhonemes, audioData, speechError,
   user, loginWithGoogle, logout, langMap,
-  speakText, handleUrlOrManualEdgeInput, isAnalyzingEdge, edgePerformanceMs
+  speakText, handleUrlOrManualEdgeInput, isAnalyzingEdge, edgePerformanceMs,
+  injectedExercise
 }: DyslexiaViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Active module switcher: 'saccadic' vs 'synesthesia' vs 'spatial-mirror'
   const [activeModule, setActiveModule] = useState<'saccadic' | 'synesthesia' | 'spatial-mirror'>('saccadic');
 
+  // --- NOISE-ROBUST SIMPLIFICATION STATES ---
+  const [noiseLevel, setNoiseLevel] = useState<'low' | 'medium' | 'high'>('medium');
+  const [isSimplifying, setIsSimplifying] = useState(false);
+  const [denoisedText, setDenoisedText] = useState('');
+  const [simplifiedText, setSimplifiedText] = useState('');
+  const [simpleWordsMapping, setSimpleWordsMapping] = useState<Array<{ difficult: string; simple: string }>>([]);
+
+  const handleSimplifyNoisyText = async (textToSimplify: string) => {
+    if (!textToSimplify.trim()) return;
+    setIsSimplifying(true);
+    try {
+      const res = await fetch('/api/simplify-noisy-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: textToSimplify, noiseLevel })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDenoisedText(data.denoisedText || textToSimplify);
+        setSimplifiedText(data.simplifiedText || textToSimplify);
+        setSimpleWordsMapping(data.simpleWordsMapping || []);
+      }
+    } catch (err) {
+      console.error("Error simplifying noisy text:", err);
+    } finally {
+      setIsSimplifying(false);
+    }
+  };
+
   // --- MODULE 1: SACCADIC TRAINER STATES ---
   const [readingText, setReadingText] = useState(PRESET_READING_TEXTS[0].text);
+
+  useEffect(() => {
+    if (injectedExercise) {
+      setReadingText(injectedExercise);
+    }
+  }, [injectedExercise]);
   const [wpm, setWpm] = useState(120);
   const [isPlayingSaccade, setIsPlayingSaccade] = useState(false);
   const [activeWordIndex, setActiveWordIndex] = useState(0);
@@ -984,11 +1021,12 @@ export default function DyslexiaView({
       )}
 
       {/* FOOTER COCKPIT WITH STANDARD VOICE ASSISTED SANDBOX (FOR STABILITY) */}
-      <div className="bg-[#121626]/80 backdrop-blur-xl rounded-[2rem] border border-white/5 p-8 shadow-2xl relative overflow-hidden">
+      <div className="bg-[#121626]/80 backdrop-blur-xl rounded-[2rem] border border-white/5 p-8 shadow-2xl relative overflow-hidden space-y-6">
         <div className="absolute top-0 right-0 p-8 opacity-[0.02] pointer-events-none">
           <Mic className="w-48 h-48 text-indigo-400" />
         </div>
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-white/5 pb-4 mb-6">
+        
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-white/5 pb-4 mb-2">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
               <Mic className="w-4 h-4 text-indigo-400" />
@@ -1035,7 +1073,7 @@ export default function DyslexiaView({
 
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-[9px] font-mono text-slate-500 uppercase tracking-wider">Mots rapides :</span>
-              {["ordinateur", "bilingue", "synesthésie", "saccade", "spectacle"].map((w) => (
+              {["ordinateur", "bilingue", "synesthésie", "saccade", "spectacle", "simultanément"].map((w) => (
                 <button
                   key={w}
                   onClick={() => {
@@ -1081,11 +1119,124 @@ export default function DyslexiaView({
         </div>
 
         {transcript && (
-          <div className="mt-6 p-4 bg-[#0b0e17] rounded-2xl border border-white/5 space-y-2 animate-in fade-in duration-300">
+          <div className="p-4 bg-[#0b0e17] rounded-2xl border border-white/5 space-y-2 animate-in fade-in duration-300">
             <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider block font-mono">Dernier Transcript Intercepté :</span>
             <p className="text-sm font-sans text-slate-200 font-medium italic">"{transcript}"</p>
           </div>
         )}
+
+        {/* INTEGRATED ACCESSIBILITY ADD-ON: NOISE-ROBUST SIMPLIFICATION */}
+        <div className="pt-6 border-t border-white/5 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h4 className="text-xs font-black text-white uppercase tracking-wider font-mono flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-indigo-400 animate-pulse" />
+                Filtrage Acoustique & Simplification Cognitive (Anti-Bruit)
+              </h4>
+              <p className="text-[10px] text-slate-500 font-sans mt-0.5">
+                Corrigez les erreurs phonétiques dues au bruit ambiant et simplifiez les phrases en temps réel.
+              </p>
+            </div>
+
+            {/* Noise level selector */}
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] font-mono text-slate-400 uppercase">Bruit Ambiant :</span>
+              {(['low', 'medium', 'high'] as const).map((lvl) => (
+                <button
+                  key={lvl}
+                  onClick={() => setNoiseLevel(lvl)}
+                  className={`px-2.5 py-1 rounded-lg text-[9px] font-mono font-bold uppercase border transition-all ${
+                    noiseLevel === lvl
+                      ? 'bg-indigo-500/15 border-indigo-500 text-indigo-300 shadow-[0_0_10px_rgba(99,102,241,0.2)]'
+                      : 'bg-slate-900 border-white/5 text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  {lvl === 'low' ? 'Faible (10dB)' : lvl === 'medium' ? 'Modéré (45dB)' : 'Élevé (80dB)'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => handleSimplifyNoisyText(transcript || manualInput || "Le grand frere fait son pestacle incroyable sur lordinateur simultanément.")}
+              disabled={isSimplifying || (!transcript && !manualInput)}
+              className="px-5 py-3 rounded-xl font-bold uppercase tracking-wider text-xs bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white shadow-lg active:scale-95 transition-all flex items-center gap-2"
+            >
+              {isSimplifying ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Filtrage & Simplification...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 text-yellow-300 animate-bounce" />
+                  Simplifier la Phrase Interceptée
+                </>
+              )}
+            </button>
+            {!transcript && !manualInput && (
+              <span className="text-[10px] text-yellow-500/80 font-mono italic">
+                * Saisissez ou prononcez un mot d'abord, ou cliquez pour tester un exemple pré-configuré.
+              </span>
+            )}
+          </div>
+
+          {/* Denoised & Simplified Output Section */}
+          {(denoisedText || simplifiedText) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 animate-in fade-in slide-in-from-bottom-3 duration-500">
+              {/* Denoised Card */}
+              <div className="p-5 bg-[#0b0e17] border border-white/5 rounded-2xl space-y-2 relative">
+                <span className="text-[9px] font-mono font-black text-emerald-400 uppercase tracking-widest bg-emerald-500/10 px-2.5 py-0.5 rounded-full">
+                  Signal Épuré & Débruité
+                </span>
+                <p className="text-xs text-slate-300 leading-relaxed font-sans mt-2">
+                  {denoisedText}
+                </p>
+                <button
+                  onClick={() => speakText(denoisedText)}
+                  className="absolute right-3 bottom-3 p-2 bg-slate-900 border border-white/5 rounded-lg text-slate-400 hover:text-white hover:scale-105 transition-all"
+                  title="Écouter le texte épuré"
+                >
+                  <Volume2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Simplified Card */}
+              <div className="p-5 bg-[#0b0e17] border border-yellow-500/20 rounded-2xl space-y-2 relative shadow-[0_0_20px_rgba(234,179,8,0.03)]">
+                <span className="text-[9px] font-mono font-black text-yellow-400 uppercase tracking-widest bg-yellow-500/10 px-2.5 py-0.5 rounded-full">
+                  Version Simplifiée (Cognitive)
+                </span>
+                <p className="text-sm text-white leading-relaxed font-sans font-bold mt-2">
+                  {simplifiedText}
+                </p>
+                <button
+                  onClick={() => speakText(simplifiedText)}
+                  className="absolute right-3 bottom-3 p-2 bg-slate-900 border border-white/5 rounded-lg text-slate-400 hover:text-white hover:scale-105 transition-all"
+                  title="Écouter le texte simplifié"
+                >
+                  <Volume2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Mapping Badges */}
+              {simpleWordsMapping.length > 0 && (
+                <div className="md:col-span-2 p-4 bg-[#0a0c14] border border-white/5 rounded-2xl space-y-2">
+                  <span className="text-[9px] text-slate-500 uppercase tracking-widest font-mono block">Glossaire des simplifications appliquées :</span>
+                  <div className="flex flex-wrap gap-2">
+                    {simpleWordsMapping.map((mapItem, mIdx) => (
+                      <div key={mIdx} className="px-3 py-1.5 bg-slate-900 border border-white/5 rounded-xl text-xs font-mono flex items-center gap-2">
+                        <span className="text-red-400 font-bold line-through">{mapItem.difficult}</span>
+                        <span className="text-slate-500">➔</span>
+                        <span className="text-emerald-400 font-black">{mapItem.simple}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
     </div>

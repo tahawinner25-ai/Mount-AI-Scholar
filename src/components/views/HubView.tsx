@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrainCircuit, BookOpen, Network, Mic, Layers, Activity, Apple, Sparkles, Shield, Rocket, Brain, Eye } from 'lucide-react';
+import { BrainCircuit, BookOpen, Network, Mic, Layers, Activity, Apple, Sparkles, Shield, Rocket, Brain, Eye, Orbit } from 'lucide-react';
 import { MainViewType } from '../../types';
 import scholarIcon from '../../assets/images/mount_ai_scholar_distinct_1779635328156.png';
 
@@ -93,6 +93,45 @@ export default function HubView({ setMainView }: HubViewProps) {
             Simulateur de distribution de pointe. Élaborez des stratégies de lancement virales réelles pour propulser votre produit (Hacker News, Product Hunt, Devpost, GitHub Open-Source).
           </p>
         </button>
+
+        <button 
+          onClick={() => setMainView('phonetic-predictor')}
+          className="group glass-panel rounded-[2.5rem] p-8 hover:bg-white/5 border border-yellow-500/30 hover:border-yellow-500/50 shadow-[0_0_30px_rgba(234,179,8,0.06)] transition-all duration-300 text-left flex flex-col h-72 relative overflow-hidden"
+        >
+          <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.08] group-hover:scale-110 transition-transform duration-500">
+            <Sparkles className="w-32 h-32 text-yellow-500" />
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-yellow-500/10 border border-yellow-500/30 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform shadow-[0_0_15px_rgba(234,179,8,0.2)]">
+            <Sparkles className="w-6 h-6 text-yellow-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-3 flex items-center gap-2">
+            Prédicteur Phonétique 
+            <span className="px-2 py-0.5 bg-yellow-500/20 border border-yellow-500/40 rounded text-[9px] font-mono text-yellow-300 font-bold tracking-widest uppercase">Elite AI Helper</span>
+          </h2>
+          <p className="text-white/50 text-sm leading-relaxed flex-1">
+            Moteur prédictif d'orthographe à haute vélocité. Saisissez des mots phonétiques simplifiés et accédez aux probabilités lexicales et outils d'e-mails.
+          </p>
+        </button>
+
+        <button 
+          onClick={() => setMainView('classroom')}
+          className="group glass-panel rounded-[2.5rem] p-8 hover:bg-white/5 border border-blue-500/30 hover:border-blue-500/50 shadow-[0_0_30px_rgba(59,130,246,0.06)] transition-all duration-300 text-left flex flex-col h-72 relative overflow-hidden"
+        >
+          <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.08] group-hover:scale-110 transition-transform duration-500">
+            <BookOpen className="w-32 h-32 text-blue-500" />
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform shadow-[0_0_15px_rgba(59,130,246,0.2)]">
+            <BookOpen className="w-6 h-6 text-blue-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-3 flex items-center gap-2">
+            Google Classroom
+            <span className="px-2 py-0.5 bg-blue-500/20 border border-blue-500/40 rounded text-[9px] font-mono text-blue-300 font-bold tracking-widest uppercase">Classroom Sync</span>
+          </h2>
+          <p className="text-white/50 text-sm leading-relaxed flex-1">
+            Intégration directe avec vos espaces scolaires Google. Synchronisez vos cours, accédez aux travaux d'élèves, importez des leçons, et publiez des devoirs adaptés.
+          </p>
+        </button>
+
       </div>
     </div>
   );

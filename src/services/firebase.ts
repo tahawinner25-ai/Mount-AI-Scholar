@@ -4,7 +4,7 @@ import { getFirestore, enableMultiTabIndexedDbPersistence, writeBatch, doc } fro
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId);
 
 // Activation de la persistance hors ligne (Offline Mode pur)
 enableMultiTabIndexedDbPersistence(db).catch((err) => {
@@ -157,9 +157,79 @@ export const loginWithGoogle = async () => {
   }
 };
 
+let cachedAccessToken: string | null = null;
+
+export const connectGmail = async (): Promise<string | null> => {
+  try {
+    const provider = new GoogleAuthProvider();
+    // Add required Gmail scopes
+    provider.addScope('https://www.googleapis.com/auth/gmail.compose');
+    provider.addScope('https://www.googleapis.com/auth/gmail.send');
+    provider.addScope('https://www.googleapis.com/auth/gmail.readonly');
+    
+    const result = await signInWithPopup(auth, provider);
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    if (!credential?.accessToken) {
+      throw new Error('Failed to get access token from Google Auth Provider');
+    }
+    cachedAccessToken = credential.accessToken;
+    return cachedAccessToken;
+  } catch (error: any) {
+    if (error.code === 'auth/popup-closed-by-user') {
+      console.log('Connexion Gmail annulée.');
+      return null;
+    }
+    console.error("Erreur d'autorisation Gmail:", error);
+    throw error;
+  }
+};
+
+export const getCachedAccessToken = () => cachedAccessToken;
+
+// Clear cached token on state changes
+let cachedClassroomToken: string | null = null;
+
+export const connectClassroom = async (): Promise<string | null> => {
+  try {
+    const provider = new GoogleAuthProvider();
+    // Add requested Classroom scopes
+    provider.addScope('https://www.googleapis.com/auth/classroom.courses.readonly');
+    provider.addScope('https://www.googleapis.com/auth/classroom.coursework.students');
+    provider.addScope('https://www.googleapis.com/auth/classroom.courseworkmaterials');
+    provider.addScope('https://www.googleapis.com/auth/classroom.announcements');
+    provider.addScope('https://www.googleapis.com/auth/classroom.rosters.readonly');
+    
+    const result = await signInWithPopup(auth, provider);
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    if (!credential?.accessToken) {
+      throw new Error('Failed to get access token from Google Auth Provider');
+    }
+    cachedClassroomToken = credential.accessToken;
+    return cachedClassroomToken;
+  } catch (error: any) {
+    if (error.code === 'auth/popup-closed-by-user') {
+      console.log('Connexion Classroom annulée.');
+      return null;
+    }
+    console.error("Erreur d'autorisation Classroom:", error);
+    throw error;
+  }
+};
+
+export const getCachedClassroomToken = () => cachedClassroomToken;
+
+auth.onAuthStateChanged((user) => {
+  if (!user) {
+    cachedAccessToken = null;
+    cachedClassroomToken = null;
+  }
+});
+
 export const logout = async () => {
   try {
     await signOut(auth);
+    cachedAccessToken = null;
+    cachedClassroomToken = null;
   } catch (error) {
     console.error("Erreur de déconnexion:", error);
     throw error;

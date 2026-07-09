@@ -1,0 +1,37 @@
+{
+  "team_id": "mount-ai-scholar-taha",
+  "domain": "education",
+  "language_scope": ["en", "fr", "ar"],
+  "african_alpha_claim": true,
+  "budget_laptop_claim": true,
+  "submitter": {
+    "name": "Capitaine Taha",
+    "email": "tahawinner25@gmail.com",
+    "github_handle": "tahawinner"
+  },
+  "cross_disciplinary_pairing": {
+    "discipline": "cognitive_accessibility",
+    "load_bearing": true,
+    "description": "Mount AI Scholar adapts Google's Gemma-2B architecture to run 100% locally on entry-level student laptops and Chromebooks, delivering high-speed phonics analysis, vocabulary tracking, and reading remediation for dyslexic and learning-disabled students with complete offline data privacy (Privacy by Design)."
+  },
+  "test_prompts": [
+    {
+      "prompt_id": "tp_001",
+      "prompt": "Explain the phonetic syllable breakdown of the word 'Spectacle' in French and suggest a mnemonic technique to help a dyslexic child remember its sound structure without letters swapping."
+    },
+    {
+      "prompt_id": "tp_002",
+      "prompt": "Create a short, engaging phonics-based tongue twister targeting the [ʃ] and [s] sounds in French, structured logically to retrain speech coordination."
+    }
+  ],
+  "model": {
+    "name": "gemma-2-2b-it-Q4_K_M",
+    "runtime": "llama.cpp",
+    "quantization": "GGUF Q4_K_M",
+    "parameters_estimate": "2.6B",
+    "packaging": "binary_bundle"
+  },
+  "_runtime": {
+    "model_path": "model/gemma-2-2b-it-Q4_K_M.gguf"
+  }
+}

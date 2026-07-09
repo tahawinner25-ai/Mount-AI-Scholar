@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Mount AI Scholar - Cognitive Accessibility Suite",
+  "version": "1.0.0",
+  "description": "Local-first cognitive and phonological accessibility assistant powered by Gemma-2B and WebAssembly for schools.",
+  "author": "Capitaine, Lead Engineer",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting",
+    "tts"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "index.html",
+    "default_icon": {
+      "192": "pwa-192x192.svg",
+      "512": "pwa-512x512.svg"
+    }
+  },
+  "icons": {
+    "192": "pwa-192x192.svg",
+    "512": "pwa-512x512.svg"
+  }
+}

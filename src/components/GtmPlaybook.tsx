@@ -31,12 +31,12 @@ export default function GtmPlaybook({ user, mlEngineUrl }: GtmPlaybookProps) {
   const [activeTab, setActiveTab] = useState<'strategies' | 'hn-tester' | 'generator' | 'monetization'>('strategies');
   
   // HN Title Tester states
-  const [hnTitleInput, setHnTitleInput] = useState('Show HN: Mount AI Scholar – A local-first, zero-latency speech model for dyslexia');
+  const [hnTitleInput, setHnTitleInput] = useState('Show HN: Mentora AI – A local-first, zero-latency speech model for dyslexia');
   const [testerResult, setTesterResult] = useState<any>(null);
 
   // Post Generator states
-  const [prodName, setProdName] = useState('Mount AI Scholar');
-  const [prodUsp, setProdUsp] = useState('Inférence locale Gemma 4 (<25ms) pour l\'aide à la dyslexie, garantissant une protection PII absolue sans cloud.');
+  const [prodName, setProdName] = useState('Mentora AI');
+  const [prodUsp, setProdUsp] = useState('Inférence locale OpenAI Codex (<25ms) pour l\'aide à la dyslexie, garantissant une protection PII absolue sans cloud.');
   const [launchTarget, setLaunchTarget] = useState<'hn' | 'ph' | 'devpost' | 'twitter'>('hn');
   const [launchTone, setLaunchTone] = useState<'humble' | 'deeptech' | 'bold'>('humble');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -84,14 +84,14 @@ export default function GtmPlaybook({ user, mlEngineUrl }: GtmPlaybookProps) {
 
     // Tech density / specificity
     const techWords = [
-      'local', 'edge', 'open-source', 'gemma', 'latency', 'offline', 'privacy', 'speech', 'engine', 'model', 'dataset'
+      'local', 'edge', 'open-source', 'Codex', 'latency', 'offline', 'privacy', 'speech', 'engine', 'model', 'dataset'
     ];
     const foundTech = techWords.filter(w => title.toLowerCase().includes(w));
     if (foundTech.length > 0) {
       positives.push(`Mots-clés techniques forts détectés : "${foundTech.join(', ')}". Cela attire immédiatement l'œil des ingénieurs.`);
     } else {
       score -= 15;
-      warnings.push("Manque de spécificité technique. Expliquez *comment* cela fonctionne techniquement (ex: 'local-first', 'Gemma 4', 'WebRTC').");
+      warnings.push("Manque de spécificité technique. Expliquez *comment* cela fonctionne techniquement (ex: 'local-first', 'OpenAI Codex', 'WebRTC').");
     }
 
     // Real-world value / Target audience
@@ -124,7 +124,7 @@ export default function GtmPlaybook({ user, mlEngineUrl }: GtmPlaybookProps) {
     });
   };
 
-  // Generate Launch Post using Gemini backend (or fallback)
+  // Generate Launch Post using GPT 5.6 backend (or fallback)
   const handleGeneratePost = async () => {
     setIsGenerating(true);
     setGeneratedPost('');
@@ -165,7 +165,7 @@ export default function GtmPlaybook({ user, mlEngineUrl }: GtmPlaybookProps) {
       4. Offre une démo interactive en direct et invite à poser des questions.
       5. LA RÉPONSE DOIT ÊTRE EN ANGLAIS pour toucher l'écosystème international de Product Hunt.`;
     } else if (isDevpost) {
-      prompt = `Tu es un vainqueur de hackathons mondiaux d'élite de Google DeepMind et de la fondation Gemini.
+      prompt = `Tu es un vainqueur de hackathons mondiaux d'élite de Google DeepMind et de la fondation GPT 5.6.
       Rédige le texte de soumission pour Devpost d'un projet de hackathon de haut vol.
       Détails du produit :
       Nom : ${prodName}
@@ -173,9 +173,9 @@ export default function GtmPlaybook({ user, mlEngineUrl }: GtmPlaybookProps) {
       
       Règles de Storytelling Devpost :
       1. Structure avec des titres très clairs : 
-         - **Inspiration**: Quelle est l'origine du projet ? (Insiste sur la vision de Mount AI Scholar, l'aide à la dyslexie/accessibilité cognitive).
+         - **Inspiration**: Quelle est l'origine du projet ? (Insiste sur la vision de Mentora AI, l'aide à la dyslexie/accessibilité cognitive).
          - **What it does**: Description simple mais percutante.
-         - **How we built it**: Présente l'architecture technique (React/Vite, Gemma 4 Edge local inference, FastAPI, Google Gemini API pour la synthèse cognitive). Montre la prouesse de l'inférence locale "Privacy by Design".
+         - **How we built it**: Présente l'architecture technique (React/Vite, OpenAI Codex 5.6 local inference, Express / Codex API, Google GPT 5.6 API pour la synthèse cognitive). Montre la prouesse de l'inférence locale "Privacy by Design".
          - **Challenges we ran into**: Quels obstacles techniques complexes as-tu surmontés (ex: faire tourner l'inférence audio sous les 25ms de latence, sécuriser les données face aux prompt injections).
          - **Accomplishments that we're proud of**: De quoi es-tu le plus fier (ex: avoir une latence de niveau production, un design system d'accessibilité validé).
          - **What we learned**: Leçons techniques et humaines.
@@ -191,7 +191,7 @@ export default function GtmPlaybook({ user, mlEngineUrl }: GtmPlaybookProps) {
       
       Structure du thread :
       - Tweet 1: Le hook d'ingénierie brut. Pourquoi les modèles de 70B dans le cloud ne servent à rien si on a besoin de zéro latence locale en accessibilité cognitive.
-      - Tweet 2: L'architecture. Un aperçu rapide de comment tourne l'inférence locale Gemma 4 (<25ms) couplée à une interface React réactive. "Privacy by Design" par excellence.
+      - Tweet 2: L'architecture. Un aperçu rapide de comment tourne l'inférence locale OpenAI Codex (<25ms) couplée à une interface React réactive. "Privacy by Design" par excellence.
       - Tweet 3: L'appel à l'action. Une invitation ouverte aux ingénieurs systèmes et éducateurs à tester la sandbox et à donner leur avis.
       Pas de buzzwords marketing débiles, reste technique, vif, d'un niveau technique insolent.
       LA RÉPONSE DOIT ÊTRE EN ANGLAIS.`;
@@ -211,9 +211,9 @@ export default function GtmPlaybook({ user, mlEngineUrl }: GtmPlaybookProps) {
       // Fallback local hautement calibré
       let fallbackText = '';
       if (isHn) {
-        fallbackText = `Hi HN,\n\nI built **${prodName}** because I wanted to solve a major technical and social bottleneck: real-time, non-latency speech-to-phoneme mapping for cognitive accessibility (specifically dyslexia) without sending sensitive vocal data to cloud APIs.\n\n### The Problem\nMost dyslexic reading tools rely on cloud processing. For vocal feedback, a delay of >200ms breaks the cognitive loop for struggling readers. Additionally, sending private voice audio of minors to third-party servers is a massive privacy risk.\n\n### The Tech Stack & Architecture\n- **Edge Web Assembly / Gemma Inference**: I developed a fully local, offline-first pipeline running highly optimized model parameters on web clients (Wasm & WebGPU) and local PC nodes.\n- **Sub-25ms Latency**: We process mic micro-batches to track vocal phonemes in near-instant loops.\n- **Hybrid Cloud Synthesis**: For resource-intensive tasks like dynamic cognitive maps and personalized quizzes, we route the text safely via a PII (Personally Identifiable Information) Firewall to the Gemini Pro engine.\n\nI would love to get your honest engineering feedback on how to optimize WebRTC audio streams for lower jitter under high CPU loads.\n\nThanks!\n- Capitaine, Lead Engineer`;
+        fallbackText = `Hi HN,\n\nI built **${prodName}** because I wanted to solve a major technical and social bottleneck: real-time, non-latency speech-to-phoneme mapping for cognitive accessibility (specifically dyslexia) without sending sensitive vocal data to cloud APIs.\n\n### The Problem\nMost dyslexic reading tools rely on cloud processing. For vocal feedback, a delay of >200ms breaks the cognitive loop for struggling readers. Additionally, sending private voice audio of minors to third-party servers is a massive privacy risk.\n\n### The Tech Stack & Architecture\n- **Edge Web Assembly / Codex Inference**: I developed a fully local, offline-first pipeline running highly optimized model parameters on web clients (Wasm & WebGPU) and local PC nodes.\n- **Sub-25ms Latency**: We process mic micro-batches to track vocal phonemes in near-instant loops.\n- **Hybrid Cloud Synthesis**: For resource-intensive tasks like dynamic cognitive maps and personalized quizzes, we route the text safely via a PII (Personally Identifiable Information) Firewall to the GPT 5.6 Pro engine.\n\nI would love to get your honest engineering feedback on how to optimize WebRTC audio streams for lower jitter under high CPU loads.\n\nThanks!\n- Capitaine, Lead Engineer`;
       } else if (isDevpost) {
-        fallbackText = `## Inspiration\nWe wanted to build an educational tool that solves dyslexia reading friction with 100% data privacy. Most kids struggle with phonetic decoding; if the AI lags, they lose focus.\n\n## What it does\n**${prodName}** is a cognitive assistant that tracks vocal pronunciations locally, instantly highlights reading-phoneme issues with custom bionic fonts, and generates custom learning charts.\n\n## How we built it\nWe combined a high-performance React frontend with an edge FastAPI Python inference hub. Vocal analysis runs on local Edge models with zero latency, while complex cognitive synthesis leverages Gemini 3.5 via secure anonymized API proxies.\n\n## Challenges we ran into\nOptimizing audio frame buffers to prevent packet drops on Windows and Chromebook browsers while maintaining a responsive audio visualizer in D3.js. We resolved this through robust local ring-buffers.\n\n## What's next\nPorting our local weights directly to Chromebook-optimized WebGPU runtimes and integrating deeply with Google Classroom APIs for widespread deployment in schools.`;
+        fallbackText = `## Inspiration\nWe wanted to build an educational tool that solves dyslexia reading friction with 100% data privacy. Most kids struggle with phonetic decoding; if the AI lags, they lose focus.\n\n## What it does\n**${prodName}** is a cognitive assistant that tracks vocal pronunciations locally, instantly highlights reading-phoneme issues with custom bionic fonts, and generates custom learning charts.\n\n## How we built it\nWe combined a high-performance React frontend with an edge Express / Codex API Python inference hub. Vocal analysis runs on local Edge models with zero latency, while complex cognitive synthesis leverages GPT 5.6 via secure anonymized API proxies.\n\n## Challenges we ran into\nOptimizing audio frame buffers to prevent packet drops on Windows and Chromebook browsers while maintaining a responsive audio visualizer in D3.js. We resolved this through robust local ring-buffers.\n\n## What's next\nPorting our local weights directly to Chromebook-optimized WebGPU runtimes and integrating deeply with Google Classroom APIs for widespread deployment in schools.`;
       } else if (isPh) {
         fallbackText = `Hello Product Hunt community! 🚀\n\nWe are excited to share **${prodName}**, a stealth cognitive learning startup. We have built a local-first, privacy-by-design platform helper for dyslexia and linguistic study.\n\n**Key Highlights:**\n- 🔒 **Zero-Cloud Audio Processing**: Complete privacy for children's voices.\n- ⚡ **Sub-25ms Phoneme Mapping**: Instant feedback loops.\n- 🗺️ **Cognitive Maps & Quizzes**: Direct synthesis of complex textbooks in seconds.\n\nWe are live and would love to hear your feedback on how we can improve accessibility. Let us know what you think!`;
       } else {
@@ -226,7 +226,7 @@ That is why we built **${prodName}** – running high-precision phoneme mapping 
 2/ The Architecture:
 - Local micro-batching audio streams
 - Sub-25ms inference latency
-- PII Firewall proxying to Gemini for advanced cognitive maps.
+- PII Firewall proxying to GPT 5.6 for advanced cognitive maps.
 
 No cloud, no trackers, absolute privacy.
 
@@ -326,7 +326,7 @@ No cloud, no trackers, absolute privacy.
               </div>
               <div className="space-y-4 border-l border-slate-800 pl-0 md:pl-6">
                 <p>
-                  La vraie richesse en IA s'acquiert par l'association d'une <strong className="text-white">prouesse technique difficile à répliquer</strong> (ex: l'inférence locale asynchrone Gemma 4 sous les 25ms, ce que tu codes !) et d'une <strong className="text-emerald-400 font-bold">distribution organique ciblée</strong>.
+                  La vraie richesse en IA s'acquiert par l'association d'une <strong className="text-white">prouesse technique difficile à répliquer</strong> (ex: l'inférence locale asynchrone OpenAI Codex sous les 25ms, ce que tu codes !) et d'une <strong className="text-emerald-400 font-bold">distribution organique ciblée</strong>.
                 </p>
                 <div className="bg-slate-950/80 rounded-xl p-4 border border-slate-800 font-mono text-xs text-slate-300 space-y-2">
                   <div className="text-emerald-400 font-bold uppercase tracking-wider">La Formule Élite :</div>
@@ -387,7 +387,7 @@ No cloud, no trackers, absolute privacy.
               
               <div className="p-3 bg-red-950/20 border border-red-900/30 rounded-xl text-[11px] text-red-300 leading-relaxed font-sans">
                 <strong className="text-red-400 uppercase tracking-wide block mb-1">Règle de Compliance & Stratégie :</strong>
-                Les CGU de Product Hunt imposent un âge minimum de <strong>16 ans</strong>. Tenter d'y lancer Mount AI Scholar à 13 ans est un risque d'exclusion inutile pour votre IP. 
+                Les CGU de Product Hunt imposent un âge minimum de <strong>16 ans</strong>. Tenter d'y lancer Mentora AI à 13 ans est un risque d'exclusion inutile pour votre IP. 
                 <span className="block mt-1 text-slate-400"><strong>La bonne nouvelle ?</strong> PH est saturé de marketing "slop". Votre profil d'ingénieur d'exception s'épanouira bien plus sur <strong>Hacker News</strong>.</span>
               </div>
 
@@ -424,7 +424,7 @@ No cloud, no trackers, absolute privacy.
                 </li>
                 <li className="flex gap-2.5">
                   <CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
-                  <span><strong>Défiez la complexité :</strong> Expliquez clairement vos optimisations (Gemma 4 quantisé localement, bridging FastAPI-Vite). Le jury doit voir l'effort d'ingénierie brute.</span>
+                  <span><strong>Défiez la complexité :</strong> Expliquez clairement vos optimisations (OpenAI Codex quantisé localement, bridging Express / Codex API-Vite). Le jury doit voir l'effort d'ingénierie brute.</span>
                 </li>
                 <li className="flex gap-2.5">
                   <CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
@@ -492,7 +492,7 @@ No cloud, no trackers, absolute privacy.
                   type="text"
                   value={hnTitleInput}
                   onChange={(e) => setHnTitleInput(e.target.value)}
-                  placeholder="Ex: Show HN: Mount AI Scholar – A local-first, zero-latency speech model for dyslexia"
+                  placeholder="Ex: Show HN: Mentora AI – A local-first, zero-latency speech model for dyslexia"
                   className="flex-1 bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-sm text-white focus:outline-none focus:border-violet-500 font-mono transition-colors"
                 />
                 <button
@@ -752,7 +752,7 @@ No cloud, no trackers, absolute privacy.
                   Le moyen le plus rapide d'acquérir du capital initial (<strong className="text-white">10 000 $ à 50 000 $</strong>) sans céder de parts de votre startup :
                 </p>
                 <ul className="text-xs text-slate-500 space-y-2 list-disc pl-4 font-sans">
-                  <li><strong>Gemini Developer Competition :</strong> Prix allant jusqu'à 1 million de dollars pour les applications utilisant intelligemment l'API Gemini.</li>
+                  <li><strong>GPT 5.6 Developer Competition :</strong> Prix allant jusqu'à 1 million de dollars pour les applications utilisant intelligemment l'API GPT 5.6.</li>
                   <li><strong>Hugging Face Grants :</strong> GPU gratuits et bourses pour les modèles d'inférence edge open-source.</li>
                   <li><strong>Imagine Cup Junior :</strong> Le concours mondial de Microsoft valorisant l'IA pour le bien social.</li>
                 </ul>
@@ -765,7 +765,7 @@ No cloud, no trackers, absolute privacy.
                 </div>
                 <h4 className="font-bold text-white text-base">2. Product-Led Growth</h4>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  Transformer Mount AI Scholar en un moteur commercial récurrent (SaaS modèle hybride) :
+                  Transformer Mentora AI en un moteur commercial récurrent (SaaS modèle hybride) :
                 </p>
                 <ul className="text-xs text-slate-500 space-y-2 list-disc pl-4 font-sans">
                   <li><strong>B2C Local Gratuit :</strong> Inférence vocale 100% gratuite et locale pour les familles pour asseoir la réputation de marque.</li>

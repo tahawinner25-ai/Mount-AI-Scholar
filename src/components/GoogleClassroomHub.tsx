@@ -76,7 +76,13 @@ export default function GoogleClassroomHub({ setMainView, onImportText }: Google
       if (!res.ok) {
         if (res.status === 401) {
           setToken(null);
+          localStorage.removeItem('google_classroom_token');
           throw new Error("Session Google Classroom expirée. Veuillez vous reconnecter.");
+        }
+        if (res.status === 403) {
+          setToken(null);
+          localStorage.removeItem('google_classroom_token');
+          throw new Error("Erreur 403: Accès à Google Classroom non autorisé. Cliquez sur 'Se connecter à Google Classroom' pour accorder les autorisations requises.");
         }
         throw new Error(`Impossible de récupérer vos cours (${res.status})`);
       }
@@ -622,7 +628,7 @@ export default function GoogleClassroomHub({ setMainView, onImportText }: Google
                             onChange={(e) => setPublishText(e.target.value)}
                             placeholder={publishType === 'announcement' 
                               ? "Publier une consigne, une correction phonétique ou un mot d'encouragement..."
-                              : "Décrire le matériel pédagogique, y copier les questions de révision générées par Gemini..."
+                              : "Décrire le matériel pédagogique, y copier les questions de révision générées par GPT 5.6..."
                             }
                             className="w-full bg-[#0b0e17] border border-white/5 rounded-2xl p-4 text-white text-xs outline-none focus:border-[#4285F4]/40 transition-all font-mono resize-none leading-relaxed"
                           />

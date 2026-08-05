@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { connectGmail, getCachedAccessToken, auth } from '../../services/firebase';
 import { findLocalPhoneticSuggestions, getActiveWordAtCursor } from '../../utils/phoneticEngine';
+import { extractTextFromFile } from '../../services/documentParser';
 
 interface PhoneticSuggestion {
   word: string;
@@ -20,10 +21,30 @@ interface PhoneticPredictorViewProps {
   selectedLang: string;
   speakText: (text: string) => Promise<void>;
   injectedText?: string;
+  onAddToWorkspace?: (title: string, text: string) => void;
 }
 
-export default function PhoneticPredictorView({ setMainView, selectedLang, speakText, injectedText }: PhoneticPredictorViewProps) {
+export default function PhoneticPredictorView({ setMainView, selectedLang, speakText, injectedText, onAddToWorkspace }: PhoneticPredictorViewProps) {
   const [inputText, setInputText] = useState('');
+  const [importedDocName, setImportedDocName] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState<boolean>(false);
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsImporting(true);
+    try {
+      const text = await extractTextFromFile(file);
+      setInputText(text);
+      setImportedDocName(file.name);
+    } catch (err: any) {
+      alert(err?.message || "Erreur lors de la lecture du fichier.");
+    } finally {
+      setIsImporting(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -148,7 +169,13 @@ export default function PhoneticPredictorView({ setMainView, selectedLang, speak
       if (!listRes.ok) {
         if (listRes.status === 401) {
           setGmailToken(null);
-          throw new Error("Session Gmail expirée. Veuillez vous reconnecter.");
+          localStorage.removeItem('google_access_token');
+          throw new Error("Session Gmail expirée (401). Veuillez vous reconnecter.");
+        }
+        if (listRes.status === 403) {
+          setGmailToken(null);
+          localStorage.removeItem('google_access_token');
+          throw new Error("Accès aux brouillons refusé (Erreur 403 - Autorisations insuffisantes). Veuillez cliquer sur 'Activer Gmail' pour autoriser l'accès complet aux brouillons Gmail.");
         }
         throw new Error(`Erreur lors de la récupération des brouillons (${listRes.status})`);
       }
@@ -233,6 +260,11 @@ export default function PhoneticPredictorView({ setMainView, selectedLang, speak
         })
       });
       if (!res.ok) {
+        if (res.status === 403) {
+          setGmailToken(null);
+          localStorage.removeItem('google_access_token');
+          throw new Error("Erreur 403: Droits d'écriture de brouillon refusés. Reconnectez-vous à Gmail.");
+        }
         throw new Error(`Erreur lors de la création du brouillon (${res.status})`);
       }
       setGmailStatus({ type: 'success', message: 'Brouillon créé avec succès dans votre Gmail !' });
@@ -267,6 +299,11 @@ export default function PhoneticPredictorView({ setMainView, selectedLang, speak
         body: JSON.stringify({ raw })
       });
       if (!res.ok) {
+        if (res.status === 403) {
+          setGmailToken(null);
+          localStorage.removeItem('google_access_token');
+          throw new Error("Erreur 403: Permission d'envoi refusée par Gmail. Veuillez vous reconnecter.");
+        }
         throw new Error(`Erreur lors de l'envoi (${res.status})`);
       }
       setGmailStatus({ type: 'success', message: 'E-mail envoyé avec succès !' });
@@ -325,7 +362,7 @@ export default function PhoneticPredictorView({ setMainView, selectedLang, speak
 
     const effectivelyOffline = !isOnline || isForceOffline;
 
-    // Phase 2: Background smart prediction using Gemini via Express server API (skipped if offline)
+    // Phase 2: Background smart prediction using GPT 5.6 via Express server API (skipped if offline)
     if (effectivelyOffline) {
       setIsLoading(false);
       return;
@@ -467,6 +504,39 @@ export default function PhoneticPredictorView({ setMainView, selectedLang, speak
 
         {/* PWA & OFFLINE COGNITIVE PANEL */}
         <div className="w-full xl:w-auto flex flex-wrap items-center gap-3 bg-[#0b0e17] border border-white/5 p-4 rounded-3xl shadow-2xl">
+          
+          {/* File Import Button (PDF, Word, PPTX, TXT) */}
+          <label className={`px-3.5 py-2 rounded-2xl border text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all ${
+            isImporting
+              ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 animate-pulse'
+              : importedDocName
+              ? 'bg-yellow-500/20 border-yellow-500/50 text-yellow-300'
+              : 'bg-slate-900 border-white/10 text-slate-300 hover:text-white'
+          }`}
+          title="Importer un fichier PDF, Word (.docx), PowerPoint (.pptx) ou Texte"
+          >
+            <input 
+              type="file" 
+              accept=".pdf,.docx,.doc,.pptx,.ppt,.txt,.md" 
+              onChange={handleImportFile} 
+              className="hidden" 
+            />
+            <FileText className="w-4 h-4 text-yellow-400" />
+            <span>{isImporting ? 'Chargement...' : importedDocName ? importedDocName.slice(0, 15) + '...' : 'Importer PDF/Word/PPTX'}</span>
+          </label>
+
+          {/* Workspace Export Button */}
+          {onAddToWorkspace && (
+            <button
+              onClick={() => onAddToWorkspace('Prédicteur Phonétique - Brouillon & Correction', draftText || inputText)}
+              className="px-3.5 py-2 rounded-2xl bg-gradient-to-r from-emerald-600/30 to-teal-600/30 hover:from-emerald-600/50 hover:to-teal-600/50 border border-emerald-500/40 text-emerald-300 text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-2 transition-all"
+              title="Exporter vers Google Workspace"
+            >
+              <Globe className="w-4 h-4 text-emerald-400" />
+              <span>Workspace</span>
+            </button>
+          )}
+
           {/* Real network status */}
           <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-900/80 rounded-2xl border border-white/5 text-xs font-bold font-mono">
             <span className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'} inline-block`}></span>
@@ -500,7 +570,7 @@ export default function PhoneticPredictorView({ setMainView, selectedLang, speak
             <div className="flex flex-col">
               <span className="text-[9px] text-slate-500 uppercase font-mono tracking-wider">Moteur d'Inférence</span>
               <span className="text-xs font-black font-mono text-white">
-                {isForceOffline || !isOnline ? '⚡ In-Browser Edge' : (inferenceSourceUsed === 'cloud' ? '☁️ Gemini Cloud' : '⚡ Local Fallback')}
+                {isForceOffline || !isOnline ? '⚡ In-Browser Edge' : (inferenceSourceUsed === 'cloud' ? '☁️ GPT 5.6 Cloud' : '⚡ Local Fallback')}
               </span>
             </div>
             <div className="h-6 w-[1px] bg-white/10"></div>

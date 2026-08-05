@@ -14,7 +14,7 @@ export default function CyberSecurityLab() {
   const [sha256Hash, setSha256Hash] = useState('');
   const [base64Encoded, setBase64Encoded] = useState('');
   const [aesEncrypted, setAesEncrypted] = useState('');
-  const [aesKey, setAesKey] = useState('Gemma4EdgeShield');
+  const [aesKey, setAesKey] = useState('Codex4EdgeShield');
   const [showCryptoInput, setShowCryptoInput] = useState(false);
   const [showAesKey, setShowAesKey] = useState(false);
   const [isComputing, setIsComputing] = useState(false);
@@ -178,7 +178,7 @@ export default function CyberSecurityLab() {
     setCorsTerminalLogs([
       "📡 [EXPLOIT_SIMULATOR] Un pirate ouvre une page malveillante : 'https://clone-academique-malicieux.evil' dans le même navigateur...",
       "🔗 [EXPLOIT_SIMULATOR] Une requête asynchrone est déclenchée vers votre hôte local (localhost) :",
-      "🔄 [EXPLOIT_SIMULATOR] fetch('http://localhost:8000/api/v1/gemma/transcribe') avec capture de jeton..."
+      "🔄 [EXPLOIT_SIMULATOR] fetch('http://localhost:8000/api/v1/Codex/transcribe') avec capture de jeton..."
     ]);
 
     setTimeout(() => {
@@ -186,13 +186,13 @@ export default function CyberSecurityLab() {
         setCorsTerminalLogs(prev => [
           ...prev,
           "🚫 [CORS_ENGINE] BLOQUÉ PAR LE NAVIGATEUR : 'Access-Control-Allow-Origin' absent de l'en-tête de réponse de localhost:8000.",
-          "🔒 [STATUT DÉFENDU] Sécurité 100% active. L'origine 'clone-academique-malicieux.evil' a été rejetée par le middleware FastAPI.",
+          "🔒 [STATUT DÉFENDU] Sécurité 100% active. L'origine 'clone-academique-malicieux.evil' a été rejetée par le middleware Express / Codex API.",
           "✓ [INTÉGRITÉ] Aucune donnée audio ou transcription d'exercice n'a été divulguée. Privacy-by-design validé !"
         ]);
       } else {
         setCorsTerminalLogs(prev => [
           ...prev,
-          "⚠️ [FAILLE_ACTIVÉE] ACCÈS AUTORISÉ : Le serveur FastAPI accepte les requêtes de TOUTES les origines (CORS wildcard '*' configuré).",
+          "⚠️ [FAILLE_ACTIVÉE] ACCÈS AUTORISÉ : Le serveur Express / Codex API accepte les requêtes de TOUTES les origines (CORS wildcard '*' configuré).",
           "💀 [VOL_DE_DONNÉES] Le script tiers a pu récupérer l'historique complet d'inférence vocale de l'élève !",
           "🚨 [EXPLOITATION COMPROMISE] L'attaquant exfiltre les phonèmes transcrits vers 'http://evil-tracker-dashboard.xyz/analytics'."
         ]);
@@ -213,14 +213,14 @@ export default function CyberSecurityLab() {
         setReverseTerminalLogs(prev => [
           ...prev,
           "✓ [REVERSE_SCANNER] Aucune clé API de niveau Cloud n'est stockée dans le bundle React.",
-          "🛡️ [SÉCURISÉ] Toutes les clés Gemini et templates de prompt critiques restent sur votre hôte local FastAPI.",
+          "🛡️ [SÉCURISÉ] Toutes les clés GPT 5.6 et templates de prompt critiques restent sur votre hôte local Express / Codex API.",
           "✓ [SÉCURISÉ] Les requêtes transitent proprement via un proxy local (fetch('/api/generate')). Zéro fuite de propriété intellectuelle."
         ]);
       } else {
         setReverseTerminalLogs(prev => [
           ...prev,
           "🚨 [CRITICAL_LEAK] CLÉ DE SÉCURITÉ IA TROUVÉE À LA LIGNE 241 !",
-          "💀 [EXPOSITION] const GEMINI_API_KEY = process.env.GEMINI_API_KEY // SECRETS EXPOSÉS !",
+          "💀 [EXPOSITION] const GPT 5.6_API_KEY = process.env.GPT 5.6_API_KEY // SECRETS EXPOSÉS !",
           "💀 [VOL_DE_PROMPT] Instructions d'Inférence extraites : 'Tu es Mount AI Scholar, révise les...' (Perte d'IP sensible)"
         ]);
       }
@@ -404,7 +404,7 @@ export default function CyberSecurityLab() {
                 <UserCheck className="w-4 h-4 text-sky-400" /> Pare-Feu de Données Personnelles (PII) : Privacy by Design
               </h3>
               <p className="text-slate-400 text-sm leading-relaxed max-w-4xl">
-                Un standard absolu en startup d'IA est d'appliquer un pare-feu ou un injecteur d'anonymisation sur les données de l'utilisateur. Nous empêchons l'envoi de données confidentielles (comme une adresse email, un téléphone ou une adresse IP) vers les serveurs cloud de nos partenaires (comme Google Gemini ou OpenAI) en les nettoyant à la volée.
+                Un standard absolu en startup d'IA est d'appliquer un pare-feu ou un injecteur d'anonymisation sur les données de l'utilisateur. Nous empêchons l'envoi de données confidentielles (comme une adresse email, un téléphone ou une adresse IP) vers les serveurs cloud de nos partenaires (comme Google GPT 5.6 ou OpenAI) en les nettoyant à la volée.
               </p>
             </div>
 
@@ -565,7 +565,7 @@ export default function CyberSecurityLab() {
                 <Server className="w-4 h-4 text-sky-400" /> Laboratoire de Sécurité Locale & Audit du Bundle de Production
               </h3>
               <p className="text-slate-400 text-sm leading-relaxed max-w-4xl">
-                En tant qu'architecte de systèmes locaux (FastAPI local et distribution React/Vite), vous devez contrer deux menaces majeures : le contournement Cross-Origin sur localhost et l'exfiltration des clés/prompts par décompilation du bundle JS public.
+                En tant qu'architecte de systèmes locaux (Express / Codex API local et distribution React/Vite), vous devez contrer deux menaces majeures : le contournement Cross-Origin sur localhost et l'exfiltration des clés/prompts par décompilation du bundle JS public.
               </p>
             </div>
 
@@ -592,13 +592,13 @@ export default function CyberSecurityLab() {
                     <div>
                       <h4 className="text-xs font-bold text-white uppercase tracking-tight mb-1">Détournement d'Hôte Local (CORS Wildcard)</h4>
                       <p className="text-slate-400 text-xs leading-normal">
-                        Si votre serveur Python FastAPI utilise une politique CORS laxiste (<code className="text-red-400 font-mono">*</code>), n'importe quel site malveillant ouvert dans un autre onglet du navigateur de l'élève peut lancer un script en arrière-plan et requêter votre Gemma 4 local sur le Port 8000 pour voler les travaux.
+                        Si votre serveur Python Express / Codex API utilise une politique CORS laxiste (<code className="text-red-400 font-mono">*</code>), n'importe quel site malveillant ouvert dans un autre onglet du navigateur de l'élève peut lancer un script en arrière-plan et requêter votre OpenAI Codex local sur le Port 8000 pour voler les travaux.
                       </p>
                     </div>
 
                     <div className="p-4 bg-slate-900/50 border border-slate-850 rounded-xl flex items-center justify-between">
                       <div className="space-y-0.5">
-                        <span className="text-[10px] text-slate-500 font-mono font-bold uppercase">Configuration CORS FastAPI</span>
+                        <span className="text-[10px] text-slate-500 font-mono font-bold uppercase">Configuration CORS Express / Codex API</span>
                         <p className="text-xs font-bold text-white">{corsSecured ? "Sécurisé (localhost:3000 uniquement)" : "Vulnérable (origins = ['*'])"}</p>
                       </div>
                       <button
@@ -622,14 +622,14 @@ export default function CyberSecurityLab() {
                     <div>
                       <h4 className="text-xs font-bold text-white uppercase tracking-tight mb-1">Analyse Statique des Actifs de Production</h4>
                       <p className="text-slate-400 text-xs leading-normal">
-                        Les applications web compilées (Vite / React) sont entièrement publiques. Si vous intégrez des credentials Cloud (comme la clé API Gemini de production) ou des invites de prompt secrètes dans le code React, un pirate n'a besoin que d'un décompileur JS pour tout extraire en 3 secondes.
+                        Les applications web compilées (Vite / React) sont entièrement publiques. Si vous intégrez des credentials Cloud (comme la clé API GPT 5.6 de production) ou des invites de prompt secrètes dans le code React, un pirate n'a besoin que d'un décompileur JS pour tout extraire en 3 secondes.
                       </p>
                     </div>
 
                     <div className="p-4 bg-slate-900/50 border border-slate-850 rounded-xl flex items-center justify-between">
                       <div className="space-y-0.5">
                         <span className="text-[10px] text-slate-500 font-mono font-bold uppercase">Architecture de l'Inférence</span>
-                        <p className="text-xs font-bold text-white">{obfuscationSecured ? "Masquée (Inférence déléguée à FastAPI)" : "Exposée (Clé compilée dans React)"}</p>
+                        <p className="text-xs font-bold text-white">{obfuscationSecured ? "Masquée (Inférence déléguée à Express / Codex API)" : "Exposée (Clé compilée dans React)"}</p>
                       </div>
                       <button
                         onClick={() => setObfuscationSecured(!obfuscationSecured)}
@@ -689,11 +689,11 @@ export default function CyberSecurityLab() {
                 </h4>
                 {activeEdgeLab === 'cors' ? (
                   <pre className="bg-slate-950 border border-emerald-500/10 rounded-2xl p-5 text-emerald-300/90 text-xs font-mono overflow-x-auto whitespace-pre select-all leading-relaxed">
-                    <code>{`# Correction CORS sur FastAPI (Python) - Restriction Stricte
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+                    <code>{`# Correction CORS sur Express / Codex API (Python) - Restriction Stricte
+from Express / Codex API import Express / Codex API
+from Express / Codex API.middleware.cors import CORSMiddleware
 
-app = FastAPI()
+app = Express / Codex API()
 
 # Interdiction absolue du wildcard '*'
 origins = [
@@ -712,25 +712,25 @@ app.add_middleware(
                 ) : (
                   <pre className="bg-slate-950 border border-emerald-500/10 rounded-2xl p-5 text-emerald-300/90 text-xs font-mono overflow-x-auto whitespace-pre select-all leading-relaxed">
                     <code>{`# Proxy de Sécurisation de l'API Cloud (Garder secrets côté hôte)
-from fastapi import FastAPI, HTTPException, Depends
+from Express / Codex API import Express / Codex API, HTTPException, Depends
 from google import genai
 import os
 
-app = FastAPI()
+app = Express / Codex API()
 
 # La clé de l'API n'apparaît JAMAIS dans le code compilé React.
-# Elle est résolue de manière sécurisée sur le serveur d'Inférence FastAPI.
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# Elle est résolue de manière sécurisée sur le serveur d'Inférence Express / Codex API.
+GPT 5.6_API_KEY = os.getenv("GPT 5.6_API_KEY")
 
 @app.post("/api/v1/generate")
 async def generate_response(prompt: str):
-    if not GEMINI_API_KEY:
+    if not GPT 5.6_API_KEY:
         raise HTTPException(status_code=500, detail="Key missing on host")
     
     # Inférence sécurisée privée de bout en bout
-    client = genai.Client(api_key=GEMINI_API_KEY)
+    client = genai.Client(api_key=GPT 5.6_API_KEY)
     response = client.models.generate_content(
-        model="gemini-3.5-flash",
+        model="GPT 5.6-3.5-flash",
         contents=prompt
     )
     return {"response": response.text}`}</code>

@@ -58,7 +58,7 @@ export default function GoogleAcquisitionCenter({ user }: GoogleAcquisitionCente
   "manifest_version": 3,
   "name": "Mount AI Scholar - Cognitive Accessibility Suite",
   "version": "1.0.0",
-  "description": "Local-first cognitive and phonological accessibility assistant powered by Gemma-2B and WebAssembly for schools.",
+  "description": "Local-first cognitive and phonological accessibility assistant powered by OpenAI Codex 5.6 and WebAssembly for schools.",
   "author": "Capitaine, Lead Engineer",
   "permissions": [
     "activeTab",
@@ -706,7 +706,7 @@ export async function syncGoogleClassroomCourseWork(oauth2Client: any) {
                             remedial_word_html: "<strong>Pe</strong>stacle ➔ <strong>Sp</strong>ectacle"
                           }
                         },
-                        engine: "Gemma-2B-Instruct Local Inference"
+                        engine: "OpenAI Codex 5.6 Engine Local Inference"
                       };
                     } else if (selectedApiEndpoint === '/api/v1/cognitive/phonemes') {
                       mockResponse = {

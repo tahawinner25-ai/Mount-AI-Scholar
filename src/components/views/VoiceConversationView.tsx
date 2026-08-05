@@ -103,7 +103,7 @@ export default function VoiceConversationView({ onBack }: VoiceConversationViewP
         floatData[i] = sample / (sample < 0 ? 0x8000 : 0x7FFF);
       }
 
-      // 3. Create AudioBuffer (24kHz is Gemini Live's native output sample rate)
+      // 3. Create AudioBuffer (24kHz is GPT 5.6 Live's native output sample rate)
       const audioBuffer = outputAudioCtx.createBuffer(1, numSamples, 24000);
       audioBuffer.copyToChannel(floatData, 0);
 
@@ -205,7 +205,7 @@ export default function VoiceConversationView({ onBack }: VoiceConversationViewP
           }
 
           if (msg.interrupted) {
-            console.log("[WS] Gemini was interrupted by user speech.");
+            console.log("[WS] GPT 5.6 was interrupted by user speech.");
             stopAndClearAllSources();
             setStatus("listening");
             // Commit any current partial AI speech text as interrupted
@@ -329,7 +329,7 @@ export default function VoiceConversationView({ onBack }: VoiceConversationViewP
           </h2>
           <p className="text-slate-500 font-medium font-mono text-xs uppercase tracking-widest mt-2 flex items-center gap-2">
             <Sparkles className="w-3.5 h-3.5 text-orange-500 animate-pulse" />
-            Gemini Live API (3.1 Flash Live Preview) • Zero Latency Multimodal Conversational Engine
+            OpenAI GPT 5.6 Live API • Zero Latency Multimodal Conversational Engine
           </p>
         </div>
 
@@ -346,8 +346,8 @@ export default function VoiceConversationView({ onBack }: VoiceConversationViewP
               {status === "idle" && "Déconnecté"}
               {status === "connecting" && "Connexion en cours..."}
               {status === "connected" && "Connecté • Prêt"}
-              {status === "listening" && "Gemini vous écoute..."}
-              {status === "speaking" && "Gemini parle..."}
+              {status === "listening" && "GPT 5.6 vous écoute..."}
+              {status === "speaking" && "GPT 5.6 parle..."}
               {status === "error" && "Erreur"}
             </span>
           </div>
@@ -475,7 +475,7 @@ export default function VoiceConversationView({ onBack }: VoiceConversationViewP
                   } animate-in slide-in-from-bottom-2 duration-300`}
                 >
                   <span className="text-[8px] font-mono text-slate-500 uppercase tracking-widest mb-1 font-black">
-                    {m.sender === "user" ? "Vous" : "Gemini Live"}
+                    {m.sender === "user" ? "Vous" : "GPT 5.6 Live"}
                   </span>
                   <div className={`p-4 rounded-2xl text-xs font-medium leading-relaxed shadow-md ${
                     m.sender === "user"
@@ -499,7 +499,7 @@ export default function VoiceConversationView({ onBack }: VoiceConversationViewP
 
               {currentSpeechText && (
                 <div className="flex flex-col items-start max-w-[85%] mr-auto">
-                  <span className="text-[8px] font-mono text-orange-500 uppercase tracking-widest mb-1 font-black">Gemini Live (Synthèse...)</span>
+                  <span className="text-[8px] font-mono text-orange-500 uppercase tracking-widest mb-1 font-black">GPT 5.6 Live (Synthèse...)</span>
                   <div className="p-4 rounded-2xl text-xs bg-orange-500/5 border border-orange-500/10 text-orange-300 rounded-tl-none">
                     {currentSpeechText}
                   </div>

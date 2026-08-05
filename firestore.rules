@@ -62,16 +62,7 @@ service cloud.firestore {
 
     // users Collection
     match /users/{userId} {
-      allow get: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
-      allow list: if false;
-
-      allow create: if isVerified() && 
-                    isValidId(userId) && 
-                    userId == request.auth.uid && 
-                    isValidUser(incoming(), userId);
-
-      allow update: if false;
-      allow delete: if false;
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
     // sovereign_short_mem Collection

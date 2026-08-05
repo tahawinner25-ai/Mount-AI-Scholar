@@ -1,4 +1,4 @@
-// API calls relayed to backend avec un Cognitive Offline Fallback Engine robuste (Gemma 4 Edge Security)
+// API calls relayed to backend avec un Cognitive Offline Fallback Engine robuste (OpenAI Codex 5.6 Security)
 
 interface OfflineTopic {
   titleFr: string;
@@ -402,7 +402,7 @@ function getOfflineTopicData(text: string): OfflineTopic | null {
   return null;
 }
 
-export function getLocalGemmaFallback(prompt: string, text: string, language: string, type: 'summary' | 'vocab' | 'quiz' | 'mindmap' | 'rag'): string {
+export function getLocalCodexFallback(prompt: string, text: string, language: string, type: 'summary' | 'vocab' | 'quiz' | 'mindmap' | 'rag'): string {
   const isEnglish = language.toLowerCase() === 'english';
   const cleanedText = text.trim();
   const sentences = text.split(/[.!?\n]+/).map(s => s.trim()).filter(Boolean);
@@ -453,7 +453,7 @@ export function getLocalGemmaFallback(prompt: string, text: string, language: st
     }
 
     if (isEnglish) {
-      return `🧠 **[Gemma 4 Edge - Offline Active Summary (Local Fallback)]**
+      return `🧠 **[OpenAI Codex 5.6 - Offline Active Summary (Local Fallback)]**
       
       📚 **Study Core Topic:** *"${titleStr}"*
       
@@ -471,7 +471,7 @@ export function getLocalGemmaFallback(prompt: string, text: string, language: st
       
       *(Generated locally via rule-based Edge NLP to guarantee maximal "Privacy by Design" even when disconnected from the Cloud)*`;
     } else {
-      return `🧠 **[Gemma 4 Edge - Résumé d'Inférence Active Locale (Succès Hors-ligne)]**
+      return `🧠 **[OpenAI Codex 5.6 - Résumé d'Inférence Active Locale (Succès Hors-ligne)]**
       
       📚 **Sujet Principal Détecté :** *"${titleStr}"*
       
@@ -521,7 +521,7 @@ export function getLocalGemmaFallback(prompt: string, text: string, language: st
   if (type === 'quiz') {
     if (topicData) {
       const qList = isEnglish ? topicData.quizEn : topicData.quizFr;
-      return `🧠 **[Gemma 4 Edge - ${isEnglish ? 'Topic-Aware' : 'Thématique'} MCQ Quiz]**
+      return `🧠 **[OpenAI Codex 5.6 - ${isEnglish ? 'Topic-Aware' : 'Thématique'} MCQ Quiz]**
 
 ${qList.map((q, idx) => `**Question ${idx + 1}:** ${q.question}
 ${q.options.map(opt => `- ${opt}`).join('\n')}
@@ -530,7 +530,7 @@ ${q.options.map(opt => `- ${opt}`).join('\n')}
     }
 
     if (isEnglish) {
-      return `🧠 **[Gemma 4 Edge - Interactive Local MCQ Quiz]**
+      return `🧠 **[OpenAI Codex 5.6 - Interactive Local MCQ Quiz]**
 
 **Question 1:** What is the primary focus of Mount AI Scholar?
 - A) Web Design only
@@ -541,7 +541,7 @@ ${q.options.map(opt => `- ${opt}`).join('\n')}
 
 **Question 2:** Where does the speech inference execute in privacy-by-design mode?
 - A) Cloud centers
-- B) Fully local device (FastAPI Edge Engine)
+- B) Fully local device (Express / Codex API Edge Engine)
 - C) Blockchain network
 *Correct Answer: B*
 *Explanation:* To preserve complete PII data privacy, sound waves are decoded locally.
@@ -553,7 +553,7 @@ ${q.options.map(opt => `- ${opt}`).join('\n')}
 *Correct Answer: B*
 *Explanation:* Cognitive studies confirm breaking down syllables improves phoneme correspondence.`;
     } else {
-      return `🧠 **[Gemma 4 Edge - Quiz Interactif Inférence Locale]**
+      return `🧠 **[OpenAI Codex 5.6 - Quiz Interactif Inférence Locale]**
 
 **Question 1 :** Quel est l'objectif premier de Mount AI Scholar ?
 - A) Le web design uniquement
@@ -564,7 +564,7 @@ ${q.options.map(opt => `- ${opt}`).join('\n')}
 
 **Question 2 :** Où s'exécute le décodage de parole en mode "Privacy by Design" ?
 - A) Sur des serveurs distants
-- B) Intégralement en local sur votre PC/iPad (FastAPI Edge)
+- B) Intégralement en local sur votre PC/iPad (Express / Codex API Edge)
 - C) Dans un cloud public non sécurisé
 *Bonne Réponse : B*
 *Explication :* Pour protéger la vie privée des élèves, le traitement de la voix s'effectue directement en local sans transiter par Internet.
@@ -638,7 +638,7 @@ ${q.options.map(opt => `- ${opt}`).join('\n')}
     const nodeRoot = isFr ? "Sujet d'Analyse" : "Topic Overview";
     const nodeA = isFr ? "Points Maîtres d'Étude" : "Key Pillars";
     const nodeB = isFr ? "Phonétique Active" : "Edge Phonics";
-    const nodeC = isFr ? "Gemma 4 Edge Security" : "Gemma 4 Privacy";
+    const nodeC = isFr ? "OpenAI Codex 5.6 Security" : "OpenAI Codex Privacy";
     
     return `graph TD
   Root["🧠 ${nodeRoot}"] --> A["📚 ${nodeA}: ${titleStr.replace(/["]/g, "'")}"]
@@ -655,7 +655,7 @@ ${q.options.map(opt => `- ${opt}`).join('\n')}
     if (topicData) {
       const summaryText = isFr ? topicData.summaryFr[0] : topicData.summaryEn[0];
       return isFr 
-        ? `🧠 **[Gemma 4 Edge - Assistant Cognitif Autonome (Offline)]**
+        ? `🧠 **[OpenAI Codex 5.6 - Assistant Cognitif Autonome (Offline)]**
         
 *Sujet analysé à chaud :* "${titleStr}"
 
@@ -664,7 +664,7 @@ Voici les connaissances locales d'accessibilité chargées :
 * 📖 **Information :** ${summaryText}
 * ⚡ **Performance locale :** Inférence et décodage vocal sécurisé sans latence (Edge).
 * 🎯 **Conseil d'entraînement :** Pratiquez la répétition syllabique et utilisez le lecteur saccadique pour ce thème.`
-        : `🧠 **[Gemma 4 Edge - Autonomous Cognitive Assistant (Offline)]**
+        : `🧠 **[OpenAI Codex 5.6 - Autonomous Cognitive Assistant (Offline)]**
         
 *Topic analyzed sequentially:* "${titleStr}"
 
@@ -676,7 +676,7 @@ Key edge knowledge loaded:
     }
 
     if (isFr) {
-      return `🧠 **[Gemma 4 Edge - Assistant Cognitif Autonome (Offline)]**
+      return `🧠 **[OpenAI Codex 5.6 - Assistant Cognitif Autonome (Offline)]**
       
 *Sujet analysé à chaud :* "${title}"
 
@@ -686,7 +686,7 @@ Nous avons traité votre requête avec notre moteur d'inférence directe. Voici 
 * ⚡ **Performance locale :** Traitement accompli à 100% en local pour une confidentialité accrue.
 * 🎯 **Conseil :** Répétez le découpage syllabique pour les termes complexes identifiés dans le texte.`;
     } else {
-      return `🧠 **[Gemma 4 Edge - Autonomous Cognitive Assistant (Offline)]**
+      return `🧠 **[OpenAI Codex 5.6 - Autonomous Cognitive Assistant (Offline)]**
       
 *Topic analyzed sequentially:* "${title}"
 
@@ -699,8 +699,8 @@ We resolved your request using direct local hardware inference. Here is the cogn
   }
 
   return isEnglish 
-    ? "🧠 **[Gemma 4 Edge - Offline Core Engine]**\n\nYour request has been processed locally under full Privacy-by-Design constraints. Our local engine is 100% active and secure." 
-    : "🧠 **[Gemma 4 Edge - Moteur Autonome (Offline)]**\n\nCapitaine, votre requête a été traitée en local avec succès grâce à notre moteur de secours ultra-léger. La confidentialité de vos données est préservée à 100% en isolation locale.";
+    ? "🧠 **[OpenAI Codex 5.6 - Offline Core Engine]**\n\nYour request has been processed locally under full Privacy-by-Design constraints. Our local engine is 100% active and secure." 
+    : "🧠 **[OpenAI Codex 5.6 - Moteur Autonome (Offline)]**\n\nCapitaine, votre requête a été traitée en local avec succès grâce à notre moteur de secours ultra-léger. La confidentialité de vos données est préservée à 100% en isolation locale.";
 }
 
 export async function generateSummary(text: string, language: string): Promise<string> {
@@ -724,8 +724,8 @@ export async function generateSummary(text: string, language: string): Promise<s
     if (!data.text) throw new Error('No text returned from API');
     return data.text;
   } catch (err) {
-    console.warn("Gemini API Error (Summary), falling back to Local Extractive Gemma Simulation:", err);
-    return getLocalGemmaFallback(prompt, text, language, 'summary');
+    console.warn("GPT 5.6 API Error (Summary), falling back to Local Extractive Codex Simulation:", err);
+    return getLocalCodexFallback(prompt, text, language, 'summary');
   }
 }
 
@@ -750,8 +750,8 @@ export async function extractVocabulary(text: string, language: string): Promise
     if (!data.text) throw new Error('No text returned from API');
     return data.text;
   } catch (err) {
-    console.warn("Gemini API Error (Vocabulary), falling back to Local Extractive Vocabulary:", err);
-    return getLocalGemmaFallback(prompt, text, language, 'vocab');
+    console.warn("GPT 5.6 API Error (Vocabulary), falling back to Local Extractive Vocabulary:", err);
+    return getLocalCodexFallback(prompt, text, language, 'vocab');
   }
 }
 
@@ -777,8 +777,8 @@ export async function queryElasticRAG(query: string, language: string): Promise<
     if (!data.text) throw new Error('No text returned from API');
     return data.text;
   } catch (err) {
-    console.warn("Gemini API Error (Knowledge Base), falling back to Local RAG:", err);
-    return getLocalGemmaFallback(prompt, query, language, 'rag');
+    console.warn("GPT 5.6 API Error (Knowledge Base), falling back to Local RAG:", err);
+    return getLocalCodexFallback(prompt, query, language, 'rag');
   }
 }
 
@@ -803,8 +803,8 @@ export async function generateQuiz(text: string, language: string): Promise<stri
     if (!data.text) throw new Error('No text returned from API');
     return data.text;
   } catch (err) {
-    console.warn("Gemini API Error (Quiz), falling back to Local Quiz:", err);
-    return getLocalGemmaFallback(prompt, text, language, 'quiz');
+    console.warn("GPT 5.6 API Error (Quiz), falling back to Local Quiz:", err);
+    return getLocalCodexFallback(prompt, text, language, 'quiz');
   }
 }
 
@@ -845,13 +845,13 @@ export async function generateMindMap(text: string, language: string): Promise<s
     
     return code || 'graph TD\n  A[Erreur de Génération]';
   } catch (err) {
-    console.warn("Gemini API Error (MindMap), falling back to Local Diagrams:", err);
-    return getLocalGemmaFallback(prompt, text, language, 'mindmap');
+    console.warn("GPT 5.6 API Error (MindMap), falling back to Local Diagrams:", err);
+    return getLocalCodexFallback(prompt, text, language, 'mindmap');
   }
 }
 
 /**
- * Generates dynamic academic questions for pedagogical controls using Gemini
+ * Generates dynamic academic questions for pedagogical controls using GPT 5.6
  */
 export async function generatePedagogicalControl(text: string, language: string): Promise<string> {
   if (!text) return "[]";
@@ -895,7 +895,7 @@ export async function generatePedagogicalControl(text: string, language: string)
     textResult = textResult.replace(/```json/gi, '').replace(/```/gi, '').trim();
     return textResult;
   } catch (err) {
-    console.warn("Gemini API Error (Pedagogical Control), generating high-fidelity local fallback:", err);
+    console.warn("GPT 5.6 API Error (Pedagogical Control), generating high-fidelity local fallback:", err);
     return getLocalPedagogicalFallback(text, language);
   }
 }

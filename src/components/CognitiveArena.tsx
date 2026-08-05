@@ -7,6 +7,7 @@ import { db, dbBatcher } from '../services/firebase';
 import { collection, addDoc, query, where, orderBy, getDocs, serverTimestamp, Timestamp } from 'firebase/firestore';
 import IQTestApp from './IQTestApp';
 import MemoryAgentView from './MemoryAgentView';
+import CognitiveChatbot from './CognitiveChatbot';
 
 export const gymCards = [
   {
@@ -364,7 +365,7 @@ export default function CognitiveGym({
             </div>
             
             <p className="text-slate-400 font-mono text-sm max-w-2xl mt-6 leading-relaxed border-l-2 border-[#ff4e00]/50 pl-4">
-               Active phonetics and semantic rehabilitation. Practice your pronunciation out loud, observe live comparative validation, and let Gemini AI design your adaptive learning plans.
+               Active phonetics and semantic rehabilitation. Practice your pronunciation out loud, observe live comparative validation, and let GPT 5.6 design your adaptive learning plans.
             </p>
           </div>
           
@@ -994,116 +995,11 @@ export default function CognitiveGym({
           </div>
         )}
 
-       {/* Elasticsearch RAG Dedicated Floating Window Modal */}
+       {/* Elasticsearch RAG & Google Grounded Chatbot Modal */}
        {isRAGOpen && (
-         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-300">
-           <div className="relative w-full max-w-4xl bg-[#0b0e17] border-2 border-emerald-500/40 rounded-[2.5rem] overflow-hidden shadow-[0_0_50px_rgba(16,185,129,0.3)] max-h-[85vh] flex flex-col font-sans">
-             
-             {/* Decorative indicator header border glowing */}
-             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-transparent" />
-             
-             {/* Header */}
-             <div className="p-8 border-b border-white/5 flex items-center justify-between bg-[#121626]/80 backdrop-blur-xl">
-               <div className="flex items-center gap-4">
-                 <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-                   <Database className="w-6 h-6 animate-pulse" />
-                 </div>
-                 <div className="text-left">
-                   <h3 className="text-xl font-black text-white uppercase tracking-wider flex items-center gap-2">
-                     Elasticsearch RAG Intelligence Desk
-                   </h3>
-                   <span className="text-[10px] font-mono text-emerald-500 uppercase tracking-widest block mt-0.5">
-                     Vectorial similarity search across clinical & pedagogical corpora
-                   </span>
-                 </div>
-               </div>
-               <button 
-                 onClick={() => setIsRAGOpen(false)}
-                 className="p-3 bg-white/5 border border-white/5 hover:border-white/20 text-slate-400 hover:text-white rounded-full transition-colors flex items-center justify-center"
-               >
-                 <X className="w-5 h-5" />
-               </button>
-             </div>
-
-             {/* Search Arena Content */}
-             <div className="p-8 space-y-6 overflow-y-auto flex-1 select-text">
-               <p className="text-sm text-slate-400 leading-relaxed max-w-2xl text-left">
-                 Ask a conceptual question or query the clinical corpus for dyslexia, speech therapy rules, or custom phonetic materials. The RAG will fetch relevant vector matches.
-               </p>
-
-               <div className="flex flex-col md:flex-row gap-4">
-                 <div className="relative flex-1">
-                   <SearchCode className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-500/50" />
-                   <input
-                     type="text"
-                     placeholder="Type what you want to query... (e.g. 'Grapheme confusion rules', 'Sibilant exercise recommendations')"
-                     value={elasticQuery}
-                     onChange={(e) => setElasticQuery(e.target.value)}
-                     className="w-full bg-black/60 border border-emerald-500/30 rounded-2xl py-4 pl-12 pr-4 text-emerald-100 text-sm focus:border-emerald-400 shadow-inner outline-none transition-all focus:bg-black/80 font-mono"
-                     onKeyDown={(e) => e.key === 'Enter' && handleElasticSearch()}
-                     autoFocus
-                   />
-                 </div>
-                 <button 
-                   onClick={handleElasticSearch}
-                   disabled={isSearching || !elasticQuery.trim()}
-                   className="px-8 py-4 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-bold rounded-2xl shadow-[0_0_20px_rgba(16,185,129,0.3)] disabled:opacity-50 transition-all flex items-center justify-center gap-2 font-black text-xs uppercase tracking-widest"
-                 >
-                   {isSearching ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Run Query <Send className="w-4 h-4 ml-1"/></>}
-                 </button>
-               </div>
-
-               {elasticResults && (
-                 <div className="mt-8 space-y-4 animate-in fade-in duration-500 text-left">
-                   <div className="flex items-center justify-between border-b border-[#10b981]/10 pb-2">
-                     <p className="text-xs text-emerald-400 uppercase tracking-[0.2em] font-mono font-bold">
-                       Retrieved Matches (Semantic Rank):
-                     </p>
-                     <span className="text-[10px] text-slate-500 font-mono">Found {elasticResults.length} vectors</span>
-                   </div>
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                     {elasticResults.map((res, i) => (
-                       <div 
-                         key={i} 
-                         onClick={() => {
-                           // Load corpus as active practice sentence
-                           setActiveTab('formulation');
-                           setCustomText(res.excerpt);
-                           setArenaTranscript("");
-                           setVoiceArenaSpoken([]);
-                           setRemediationContent("");
-                           setSimulationInput("");
-                           setIsRAGOpen(false); // Close RAG window
-                         }}
-                         className="p-5 bg-black/40 border border-emerald-500/20 rounded-2xl flex flex-col space-y-3 hover:border-emerald-400 hover:bg-[#10b981]/5 transition-all cursor-pointer group"
-                       >
-                         <div className="flex items-center justify-between pointer-events-none">
-                           <span className="text-emerald-300 font-bold text-sm tracking-wide group-hover:text-emerald-400 font-sans">{res.title}</span>
-                           <span className="text-[10px] font-mono bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded flex items-center gap-1">
-                             Score: {res.score.toFixed(2)}
-                           </span>
-                         </div>
-                         <p className="text-xs text-slate-300 italic leading-relaxed font-sans">"{res.excerpt}"</p>
-                         <span className="text-[9px] font-mono text-emerald-500/60 uppercase tracking-widest mt-2 block pointer-events-none group-hover:text-emerald-400 transition-colors">
-                           ⚡ Click to inject as practice sentence
-                         </span>
-                       </div>
-                     ))}
-                   </div>
-                 </div>
-               )}
-             </div>
-
-             {/* Footer */}
-             <div className="p-6 bg-black/40 border-t border-white/5 text-center flex justify-between items-center px-8">
-               <span className="text-[10px] font-mono text-slate-500 uppercase">Elasticsearch RAG Module V1.3.0 • Secured API</span>
-               <button 
-                 onClick={() => setIsRAGOpen(false)}
-                 className="px-5 py-2 hover:bg-white/5 border border-white/10 rounded-xl text-xs font-mono text-white transition-colors"
-               >
-                 Close Desk
-               </button>
-             </div>
+         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-300 overflow-y-auto">
+           <div className="relative w-full max-w-5xl my-auto">
+             <CognitiveChatbot selectedLang={selectedLang} onClose={() => setIsRAGOpen(false)} />
            </div>
          </div>
        )}

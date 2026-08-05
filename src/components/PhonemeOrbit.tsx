@@ -276,7 +276,7 @@ export default function PhonemeOrbit({ user, onBack, selectedLang }: PhonemeOrbi
     setActiveAccentId(null);
   }, [selectedPresetIdx]);
 
-  // Handle custom word generation via Gemini 3.5 Flash
+  // Handle custom word generation via GPT 5.6
   const handleCustomWordCompile = async () => {
     if (!customWordInput.trim()) return;
     setIsAnalyzing(true);
@@ -466,7 +466,7 @@ Return ONLY a valid JSON object matching this structure (do not wrap in markdown
     const activePreset = PRESET_WORDS[selectedPresetIdx];
     
     try {
-      setErrorLogs(prev => [...prev, `⚡ Sending signal to Gemini Phonetic Evaluator...`]);
+      setErrorLogs(prev => [...prev, `⚡ Sending signal to GPT 5.6 Phonetic Evaluator...`]);
       const response = await fetch('/api/superviseur-phonologique', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -482,7 +482,7 @@ Return ONLY a valid JSON object matching this structure (do not wrap in markdown
         setAnalysisResult(data);
         setErrorLogs(prev => [
           ...prev, 
-          `✅ Gemini Analysis: Levenshtein distance ${data.distanceLeven}, Syllable score ${data.scoreSyllabique}%`,
+          `✅ GPT 5.6 Analysis: Levenshtein distance ${data.distanceLeven}, Syllable score ${data.scoreSyllabique}%`,
           `🧬 Phonetic deviation flagged: ${data.analyse.typeErreur || "None"}`
         ]);
 
@@ -535,7 +535,7 @@ Return ONLY a valid JSON object matching this structure (do not wrap in markdown
     }
   };
 
-  // Text-To-Speech generation using our Gemini Live Preview TTS Endpoint
+  // Text-To-Speech generation using our GPT 5.6 Live Preview TTS Endpoint
   const handleSpeakWord = async (textToSpeak: string, useSelectedAccent = true) => {
     if (isSpeakingTts) return;
     setIsSpeakingTts(true);
@@ -568,7 +568,7 @@ Return ONLY a valid JSON object matching this structure (do not wrap in markdown
         const errData = await response.json().catch(() => ({ error: 'Unknown error' }));
         const isQuota = JSON.stringify(errData).includes("quota") || JSON.stringify(errData).includes("429");
         if (isQuota) {
-          setErrorLogs(prev => [...prev, `⏳ Quota Gemini TTS dépassé (3 req/min max). Activation automatique du moteur local Edge Speech.`]);
+          setErrorLogs(prev => [...prev, `⏳ Quota GPT 5.6 Voice dépassé (3 req/min max). Activation automatique du moteur local Edge Speech.`]);
         } else {
           setErrorLogs(prev => [...prev, `⚠️ TTS API Error: ${errData.error || response.statusText}. Passage au moteur local.`]);
         }
@@ -625,7 +625,7 @@ Return ONLY a valid JSON object matching this structure (do not wrap in markdown
         const errData = await response.json().catch(() => ({ error: 'Unknown error' }));
         const isQuota = JSON.stringify(errData).includes("quota") || JSON.stringify(errData).includes("429");
         if (isQuota) {
-          setErrorLogs(prev => [...prev, `⏳ Quota Gemini TTS dépassé (3 req/min max). Synthèse d'accent émulée localement.`]);
+          setErrorLogs(prev => [...prev, `⏳ Quota GPT 5.6 Voice dépassé (3 req/min max). Synthèse d'accent émulée localement.`]);
         } else {
           setErrorLogs(prev => [...prev, `⚠️ Accent API Error: ${errData.error || response.statusText}. Inférence locale.`]);
         }
@@ -684,7 +684,7 @@ Return ONLY a valid JSON object matching this structure (do not wrap in markdown
         const errData = await response.json().catch(() => ({ error: 'Unknown error' }));
         const isQuota = JSON.stringify(errData).includes("quota") || JSON.stringify(errData).includes("429");
         if (isQuota) {
-          setErrorLogs(prev => [...prev, `⏳ Quota Gemini TTS dépassé pour le phonème. Émulation locale du son [${ipa}].`]);
+          setErrorLogs(prev => [...prev, `⏳ Quota GPT 5.6 Voice dépassé pour le phonème. Émulation locale du son [${ipa}].`]);
         }
       }
     } catch (err) {
@@ -728,7 +728,7 @@ Return ONLY a valid JSON object matching this structure (do not wrap in markdown
               </h2>
               <p className="text-slate-500 font-mono text-xs uppercase tracking-widest mt-1.5 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping" />
-                Africa Deep Tech Challenge Integration — Gemini Gravity calibration
+                Africa Deep Tech Challenge Integration — GPT 5.6 Gravity calibration
               </p>
             </div>
           </div>
@@ -882,7 +882,7 @@ Return ONLY a valid JSON object matching this structure (do not wrap in markdown
               onClick={() => handleSpeakWord(activePreset.word)}
               disabled={isSpeakingTts}
               className="relative w-36 h-36 rounded-full flex items-center justify-center z-20 group cursor-pointer focus:outline-none disabled:cursor-not-allowed"
-              title={`Click to speak "${activePreset.word}" using Gemini Speech API`}
+              title={`Click to speak "${activePreset.word}" using OpenAI Speech API`}
             >
               {/* Spinning Atmosphere Layer */}
               <div className="absolute -inset-2 rounded-full border border-dashed border-indigo-500/40 animate-spin group-hover:border-indigo-400/60 transition-colors" style={{ animationDuration: '20s' }} />
@@ -975,7 +975,7 @@ Return ONLY a valid JSON object matching this structure (do not wrap in markdown
                       onClick={() => handleSpeakPhoneme(node.char, node.ipa)}
                       disabled={isSpeakingTts}
                       className={`w-11 h-11 rounded-full border flex flex-col items-center justify-center font-bold relative z-10 transition-all duration-300 group/node cursor-pointer disabled:opacity-50 ${borderClass} hover:scale-110 active:scale-95`}
-                      title={`Click to hear phoneme "${node.char}" [${node.ipa}] pronounced by Gemini`}
+                      title={`Click to hear phoneme "${node.char}" [${node.ipa}] pronounced by GPT 5.6`}
                     >
                       <span className="text-xs uppercase tracking-tight font-black leading-none group-hover/node:text-indigo-300 transition-colors">{node.char}</span>
                       <span className="text-[8px] font-mono mt-0.5 font-medium leading-none group-hover/node:text-indigo-400 transition-colors">{node.ipa}</span>
@@ -1049,7 +1049,7 @@ Return ONLY a valid JSON object matching this structure (do not wrap in markdown
           </div>
         </div>
 
-        {/* Right Column (4/12 width): Mission Control Speech Input & Gemini Insights */}
+        {/* Right Column (4/12 width): Mission Control Speech Input & GPT 5.6 Insights */}
         <div className="lg:col-span-5 flex flex-col gap-6">
           
           {/* Speech Control Panel */}
@@ -1096,7 +1096,7 @@ Return ONLY a valid JSON object matching this structure (do not wrap in markdown
               <div>
                 <label className="text-[10px] font-mono font-black text-slate-500 uppercase tracking-widest block mb-2">Speech Pathologist Simulator (Force Calibration)</label>
                 <p className="text-[9px] text-slate-600 font-sans leading-tight mb-3">
-                  Simulates a child's spoken attempt to test Gemini's gravity equations. Example: Enter "pestacle" for "spectacle" or "colodile" for "crocodile".
+                  Simulates a child's spoken attempt to test GPT 5.6's gravity equations. Example: Enter "pestacle" for "spectacle" or "colodile" for "crocodile".
                 </p>
                 <div className="flex gap-2">
                   <input
@@ -1118,13 +1118,13 @@ Return ONLY a valid JSON object matching this structure (do not wrap in markdown
             </div>
           </div>
 
-          {/* Gemini Orthophonic Insights (Adaptive Flight Plan) */}
+          {/* GPT 5.6 Orthophonic Insights (Adaptive Flight Plan) */}
           <div className="bg-[#0b0f19]/80 backdrop-blur-xl rounded-[2.5rem] border border-slate-800/80 p-8 flex flex-col gap-6 shadow-2xl flex-1 justify-between">
             <div>
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className="text-sm font-black text-white uppercase tracking-wider mb-1">🌌 Cognitive Flight Plan</h3>
-                  <p className="text-[10px] text-slate-500 font-mono uppercase">Gemini Orbital Analysis Logs</p>
+                  <p className="text-[10px] text-slate-500 font-mono uppercase">GPT 5.6 Orbital Analysis Logs</p>
                 </div>
                 
                 {analysisResult && (
@@ -1132,7 +1132,7 @@ Return ONLY a valid JSON object matching this structure (do not wrap in markdown
                     onClick={() => handleSpeakWord(analysisResult.conseilCognitif || "")}
                     disabled={isSpeakingTts}
                     className="p-2 bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20 rounded-xl transition-colors shrink-0"
-                    title="Speak Cognitive Advice with Gemini TTS"
+                    title="Speak Cognitive Advice with GPT 5.6 Voice"
                   >
                     {isSpeakingTts ? <Loader2 className="w-4 h-4 animate-spin" /> : <Volume2 className="w-4 h-4" />}
                   </button>
@@ -1235,7 +1235,7 @@ Return ONLY a valid JSON object matching this structure (do not wrap in markdown
 
               <div className="space-y-4">
                 <p className="text-xs text-slate-400 leading-relaxed font-sans">
-                  Enter a word with high linguistic or speech-pathology difficulty. Gemini 3.5 Flash will instantly decompose it into phonetic IPA satellites and configure its orbital gravity field.
+                  Enter a word with high linguistic or speech-pathology difficulty. GPT 5.6 will instantly decompose it into phonetic IPA satellites and configure its orbital gravity field.
                 </p>
                 
                 <div>

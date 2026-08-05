@@ -29,7 +29,7 @@ const translations: Record<string, Record<string, string>> = {
     studentLabel: "Nom de l'élève",
     classLabel: "Classe / Niveau",
     dateLabel: "Date de session",
-    institTitle: "ADMINISTRATION DE L'ENSEIGNEMENT — MOUNT AI SCHOLAR",
+    institTitle: "ADMINISTRATION DE L'ENSEIGNEMENT — Mount AI Scholar",
     scoreIndicator: "Score obtenu",
     validateBtn: "Valider les Réponses",
     restartBtn: "Recommencer l'Évaluation",
@@ -49,7 +49,7 @@ const translations: Record<string, Record<string, string>> = {
     studentLabel: "Student Name",
     classLabel: "Grade / level",
     dateLabel: "Exam Date",
-    institTitle: "MOUNT AI SCHOLAR EDUCATION BOARD — CORE EVALUATION",
+    institTitle: "Mount AI Scholar EDUCATION BOARD — CORE EVALUATION",
     scoreIndicator: "Achieved Score",
     validateBtn: "Submit All Answers",
     restartBtn: "Restart Evaluation",
@@ -69,7 +69,7 @@ const translations: Record<string, Record<string, string>> = {
     studentLabel: "اسم التلميذ الكامل",
     classLabel: "القسم / المستوى",
     dateLabel: "التاريخ",
-    institTitle: "إدارة التقييم المعرفي والبرمجة — MOUNT AI SCHOLAR",
+    institTitle: "إدارة التقييم المعرفي والبرمجة — Mount AI Scholar",
     scoreIndicator: "النتيجة المحصل عليها",
     validateBtn: "تأكيد الإجابات",
     restartBtn: "إعادة اجتياز الاختبار",
@@ -89,7 +89,7 @@ const translations: Record<string, Record<string, string>> = {
     studentLabel: "Nombre del estudiante",
     classLabel: "Curso / Nivel",
     dateLabel: "Fecha del examen",
-    institTitle: "CONSEJO EDUCATIVO DE MOUNT AI SCHOLAR — REGISTRO",
+    institTitle: "CONSEJO EDUCATIVO DE Mount AI Scholar — REGISTRO",
     scoreIndicator: "Puntaje Obtenido",
     validateBtn: "Entregar Examen",
     restartBtn: "Reiniciar Evaluación",
@@ -109,7 +109,7 @@ const translations: Record<string, Record<string, string>> = {
     studentLabel: "Name des Schülers",
     classLabel: "Klasse / Stufe",
     dateLabel: "Prüfungsdatum",
-    institTitle: "SCHULVERWALTUNG MOUNT AI SCHOLAR — PRÜFUNGSAUSRECHNUNG",
+    institTitle: "SCHULVERWALTUNG Mount AI Scholar — PRÜFUNGSAUSRECHNUNG",
     scoreIndicator: "Erreichte Punktzahl",
     validateBtn: "Prüfung beenden",
     restartBtn: "Prüfung zurücksetzen",
@@ -505,7 +505,7 @@ export default function ExamQuiz({ customQuestions, language = "French", onResta
                 <div className="space-y-1.5 text-xs text-slate-600 font-serif">
                   <p className="font-extrabold text-[10px] tracking-wider text-slate-800 uppercase">{tr.institTitle}</p>
                   <p>Académie de l'Innovation Éducative</p>
-                  <p>Moteur de traitement: Mount AI Scholar (Gemma Edge)</p>
+                  <p>Moteur de traitement: Mount AI Scholar (Codex Edge)</p>
                 </div>
                 <div className="text-right space-y-1.5 text-xs text-slate-600 font-serif">
                   <p className="font-extrabold text-[10px] tracking-wider text-slate-800">NOTE EXAMEN</p>

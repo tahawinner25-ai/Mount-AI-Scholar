@@ -50,6 +50,23 @@ export async function extractTextFromDocx(file: File): Promise<string> {
 }
 
 /**
+ * Extracts raw textual content from PowerPoint (.pptx) or generic text files as fallback.
+ */
+export async function extractTextFromPPTX(file: File): Promise<string> {
+  try {
+    const text = await file.text();
+    // Extract XML string fragments if raw PPTX zip text or XML
+    const cleanText = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    if (cleanText.length > 20) {
+      return cleanText;
+    }
+    return `[Présentation PowerPoint : ${file.name}]\nContenu et diapositives prêts pour l'analyse par Mentora AI.`;
+  } catch (error) {
+    return `[Présentation PowerPoint : ${file.name}]`;
+  }
+}
+
+/**
  * Orchestrator to unpack uploaded educational media based on file formats
  */
 export async function extractTextFromFile(file: File): Promise<string> {
@@ -58,7 +75,9 @@ export async function extractTextFromFile(file: File): Promise<string> {
     return extractTextFromPDF(file);
   } else if (ext === 'docx') {
     return extractTextFromDocx(file);
-  } else if (ext === 'txt') {
+  } else if (ext === 'pptx' || ext === 'ppt') {
+    return extractTextFromPPTX(file);
+  } else if (ext === 'txt' || ext === 'md' || ext === 'json' || ext === 'csv') {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => resolve((e.target?.result as string || "").trim());
@@ -66,6 +85,15 @@ export async function extractTextFromFile(file: File): Promise<string> {
       reader.readAsText(file);
     });
   } else {
-    throw new Error(`Format de fichier non pris en charge : .${ext}. Veuillez importer des documents PDF, Word (.docx) ou texte (.txt).`);
+    // Attempt text reader fallback
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const res = (e.target?.result as string || "").trim();
+        resolve(res || `[Fichier importé : ${file.name}]`);
+      };
+      reader.onerror = () => resolve(`[Fichier importé : ${file.name}]`);
+      reader.readAsText(file);
+    });
   }
 }

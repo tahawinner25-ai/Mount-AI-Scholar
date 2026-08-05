@@ -1,5 +1,5 @@
-export type MainViewType = 'hub' | 'dyslexia' | 'learning' | 'architecture' | 'history' | 'cognitive-gym' | 'gtm' | 'phoneme-gravity' | 'voice-conversation' | 'phonetic-predictor' | 'classroom';
-export type LearningModeType = 'mindmap' | 'quiz' | 'exam' | 'presentation' | 'summary' | 'search' | 'gemma';
+export type MainViewType = 'hub' | 'dyslexia' | 'learning' | 'architecture' | 'history' | 'cognitive-gym' | 'gtm' | 'phoneme-gravity' | 'voice-conversation' | 'phonetic-predictor' | 'classroom' | 'workspace' | 'mentora';
+export type LearningModeType = 'mindmap' | 'quiz' | 'exam' | 'presentation' | 'summary' | 'search' | 'Codex';
 export type ArchSubTabType = 'visualizer' | 'cyber' | 'ledger' | 'google-deploy' | 'pwa-audit';
 export type EngineStatusType = 'offline' | 'online';
 

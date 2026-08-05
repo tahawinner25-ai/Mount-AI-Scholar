@@ -17,7 +17,7 @@ Furthermore, it proves that accessibility technologies do not require massive GP
 ## Argumentaire (Deep Technical Value)
 The paradigm of relying on centralized API-based LLMs for interactive, real-time cognitive assistance is fundamentally broken. High latency, network unreliability, high inference cost, and zero data privacy are unacceptable constraints when designing assistive technologies for neurodivergent individuals, such as those with severe dyslexia.
 
-This session takes a deep dive into the engineering challenges of building an autonomous, offline-first phonological pipeline. We will dissect the technical execution of transferring model inference from cloud servers straight to local hardware (using mobile CPUs, localized engines, and lightweight models like Gemma 2B/4B).
+This session takes a deep dive into the engineering challenges of building an autonomous, offline-first phonological pipeline. We will dissect the technical execution of transferring model inference from cloud servers straight to local hardware (using mobile CPUs, localized engines, and lightweight models like OpenAI Codex 5.6).
 
 We will present:
 1. **Dynamic Local Routers:** How to implement zero-latency, local-first API fallbacks that dynamically prioritize Edge inference engines over network boundaries.
@@ -30,6 +30,6 @@ This talk is 100% technical, designed for systems architects, frontend leads, an
 
 ## Notes to the Program Committee
 - **Live Performance Profiling:** To maximize the impact of the 20-minute slot and demonstrate the resilience of offline-first systems, this presentation will feature a live, real-time local profiling session.
-- **Zero-Cloud Local Benchmarking:** I will run our local speech-to-phoneme pipeline (Gemma/FastAPI/Optimized Edge Inference) live on stage, displaying real-time terminal telemetry: exact latency logs (sub-100ms), memory footprints, CPU/GPU core usage, and token generation sequences.
+- **Zero-Cloud Local Benchmarking:** I will run our local speech-to-phoneme pipeline (Codex/Codex API/Optimized Edge Inference) live on stage, displaying real-time terminal telemetry: exact latency logs (sub-100ms), memory footprints, CPU/GPU core usage, and token generation sequences.
 - **Architectural Accountability:** By showcasing active system internals in real-time under stress-tests on stage, this live demonstration acts as absolute proof of our "Privacy by Design" paradigm, operating completely autonomously and independent of the venue's networking infrastructure.
-- **Open-Source Artifacts:** All FastAPI schemas, configuration templates, benchmarking logs, and slide decks will be made fully open-source and shared via GitHub, enabling the audience to inspect, replicate, and deploy this decentralized accessibility pipeline immediately.
+- **Open-Source Artifacts:** All Codex API schemas, configuration templates, benchmarking logs, and slide decks will be made fully open-source and shared via GitHub, enabling the audience to inspect, replicate, and deploy this decentralized accessibility pipeline immediately.

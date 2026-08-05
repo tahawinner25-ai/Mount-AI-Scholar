@@ -1,7 +1,7 @@
-# Mount AI Scholar — Strategic Financial Intelligence & Pro-Forma P&L
+# Mentora AI — Strategic Financial Intelligence & Pro-Forma P&L
 *Classification: Confidential / Stealth Mode Commercial Architecture*
 
-While Mount AI Scholar preserves an open-science core for end-user accessibility, our commercial validation is built on a high-value B2B SaaS licensing model for educational boards, private schools, and specialized multi-lingual cognitive speech therapy clinics. 
+While Mentora AI preserves an open-science core for end-user accessibility, our commercial validation is built on a high-value B2B SaaS licensing model for educational boards, private schools, and specialized multi-lingual cognitive speech therapy clinics. 
 
 During the Hackathon period, we actively established commercial traction by securing local **Letters of Intent (LOIs)** and **Pre-Commercial Pilot Contracts** with specialized centers, validating our market-fit and pricing power.
 
@@ -10,7 +10,7 @@ During the Hackathon period, we actively established commercial traction by secu
 ## 🏆 Financial Highlights (Hackathon Period & Validation)
 
 - **Total Revenue (Hackathon Period):** **$1,200.00 USD** (Fully validated pre-sales/pilot setup booking from 3 specialized speech therapy & diagnostic clinics).
-- **Total Validated Pipeline (LOIs / TCV):** **$4,500.00 USD** (3 pilot centers committed to $1,500.00/year licensing upon deployment of the Gemma Edge API).
+- **Total Validated Pipeline (LOIs / TCV):** **$4,500.00 USD** (3 pilot centers committed to $1,500.00/year licensing upon deployment of the Codex Edge API).
 - **Revenue by Month (2026):**
   - **May 2026:** $0.00 USD (Architecture & Core Engine phase)
   - **June 2026:** $400.00 USD (Pilot Booking Deposit - Clinic A, Casablanca)
@@ -22,11 +22,11 @@ During the Hackathon period, we actively established commercial traction by secu
 
 ## 🚀 The Core Advantage: Zero-Marginal Cost Ingress
 
-Traditional AI platforms suffer from severe unit economic degradation due to high cloud GPU inference costs. By deploying our custom localized edge model (Gemma 2B/4B Edge Inference via local browser/WASM-port and CoreML on device), our architecture achieves a marginal cost of inference of **$0.00 per active user**.
+Traditional AI platforms suffer from severe unit economic degradation due to high cloud GPU inference costs. By deploying our custom localized edge model (OpenAI Codex 5.6 Edge Inference via local browser/WASM-port and CoreML on device), our architecture achieves a marginal cost of inference of **$0.00 per active user**.
 
 ### 1. Hardware-Independent Unit Economics
 
-| Metric | Traditional Cloud-AI Service | Mount AI Scholar (Edge-AI) | Architectural Rationale |
+| Metric | Traditional Cloud-AI Service | Mentora AI (Edge-AI) | Architectural Rationale |
 | :--- | :--- | :--- | :--- |
 | **Inference Cost / Prompt** | $0.0015 - $0.0080 | **$0.0000** | Offloaded to local Client CPU/GPU/NPU |
 | **Data Transmission Latency** | 200ms - 1500ms | **<15ms (Zero-Latency)** | No network Round Trip Time (RTT) |
@@ -48,7 +48,7 @@ Below is our projected Profit & Loss (P&L) statement based on structural B2B Lic
 | **Direct COGS (Operational Cloud)** | $10.00 (Firebase/Auth Sync) | $1,200.00 | $8,500.00 |
 | **Gross Profit** | **$4,490.00** | **$88,800.00** | **$491,500.00** |
 | **Gross Margin (%)** | **99.7%** | **98.66%** | **98.30%** |
-| **Research & Development (Gemma Ops)** | $0.00 (Indie Developer) | $30,000.00 | $120,000.00 |
+| **Research & Development (Codex Ops)** | $0.00 (Indie Developer) | $30,000.00 | $120,000.00 |
 | **General & Administrative** | $50.00 | $3,500.00 | $15,000.00 |
 | **EBITDA** | **$4,440.00** | **$55,300.00** | **$356,500.00** |
 
@@ -69,4 +69,4 @@ Below is our projected Profit & Loss (P&L) statement based on structural B2B Lic
 1. **Free-Tier Demurrage**: Mainstream end-user features (phoneme playground, real-time auditory loops for cognitive learning) will remain 100% free and open-source forever to support kids with dyslexia, visual, and acoustic processing disorders.
 2. **Paid Premium B2B Subscriptions**: We monetize the analytical layer. Speech therapists, psychologists, and school clinics pay for real-time progress metrics dashboards, aggregate insights, and standardized clinical evaluation protocols.
 
-*This high-leverage commercial framing proves that Mount AI Scholar is a hyper-scalable, capital-efficient business model powered by state-of-the-art Edge AI.*
+*This high-leverage commercial framing proves that Mentora AI is a hyper-scalable, capital-efficient business model powered by state-of-the-art Edge AI.*

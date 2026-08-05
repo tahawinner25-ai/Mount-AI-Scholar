@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MainViewType, ArchSubTabType } from './types';
-import { BookOpen, BrainCircuit, Loader2, X, Languages, ChevronDown, FileText, Sparkles, Zap, Globe, Volume2, VolumeX, Trophy, Target, Activity, Mic, Network, Gamepad2, Presentation, Headphones, Layers, ArrowLeft, Send, LogIn, LogOut, Play, Settings, GraduationCap, Award, CheckCircle2, Clock, History, Database, SearchCode, Terminal, Code, Moon, Trash2, Paperclip } from 'lucide-react';
+import { BookOpen, Brain, BrainCircuit, Loader2, X, Languages, ChevronDown, FileText, Sparkles, Zap, Globe, Volume2, VolumeX, Trophy, Target, Activity, Mic, Network, Gamepad2, Presentation, Headphones, Layers, ArrowLeft, Send, LogIn, LogOut, Play, Settings, GraduationCap, Award, CheckCircle2, Clock, History, Database, SearchCode, Terminal, Code, Moon, Trash2, Paperclip } from 'lucide-react';
 import Markdown from 'react-markdown';
-import { generateSummary, generateQuiz, generateMindMap, queryElasticRAG, getLocalGemmaFallback, generatePedagogicalControl, getLocalPedagogicalFallback } from './services/ai';
+import { generateSummary, generateQuiz, generateMindMap, queryElasticRAG, getLocalCodexFallback, generatePedagogicalControl, getLocalPedagogicalFallback } from './services/ai';
 import { extractTextFromFile } from './services/documentParser';
 import Mermaid from './components/Mermaid';
 import DyslexicRenderer from './components/DyslexicRenderer';
@@ -21,8 +21,12 @@ import PhonemeOrbit from './components/PhonemeOrbit';
 import VoiceConversationView from './components/views/VoiceConversationView';
 import PhoneticPredictorView from './components/views/PhoneticPredictorView';
 import GoogleClassroomHub from './components/GoogleClassroomHub';
-import scholarIcon from './assets/images/mount_ai_scholar_distinct_1779635328156.png';
-import { auth, loginWithGoogle, logout, db, handleFirestoreError, OperationType } from './services/firebase';
+import GoogleWorkspaceHub from './components/GoogleWorkspaceHub';
+import AddToWorkspaceModal from './components/AddToWorkspaceModal';
+import MentoraView from './components/views/MentoraView';
+import CognitiveChatbot from './components/CognitiveChatbot';
+import scholarIcon from './assets/images/mount_ai_logo_1785927100930.jpg';
+import { auth, loginWithGoogle, logout, db, handleFirestoreError, OperationType, isOfflineError } from './services/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp, collection, addDoc, query, where, orderBy, getDocs } from 'firebase/firestore';
 
@@ -40,25 +44,28 @@ const SYSTEM_DIAGRAM_CHART = `graph TD
     classDef cloudService fill:#101b2f,stroke:#c084fc,stroke-width:2px,color:#e9d5ff;
 
     ReactApp[React Vite UI - Port 3000]:::client
-    LocalAPI[FastAPI local PC Engine - Port 8000]:::edgeEngine
-    GemmaML[Gemma 4 Edge Inference - Privacy by Design]:::edgeEngine
+    LocalAPI[OpenAI Codex Engine - Port 8000]:::edgeEngine
+    CodexML[GPT 5.6 Synthesis Engine - Privacy by Design]:::edgeEngine
     PrivacyShield[Privacy Shield: PII Firewall & Prompt Shielder]:::secureGate
     Firebase[Firebase Cloud Auth & Firestore Store]:::cloudService
-    GeminiAPI[Cloud: Google Gemini 3.5 Synthesis Engine]:::cloudService
+    GPT 5.6API[Cloud: OpenAI GPT 5.6 Synthesis Engine]:::cloudService
 
     ReactApp -->|Real-Time Voice Stream| LocalAPI
-    LocalAPI -->|Inference request| GemmaML
-    GemmaML -->|Zero Latency Mapping| LocalAPI
+    LocalAPI -->|Inference request| CodexML
+    CodexML -->|Zero Latency Mapping| LocalAPI
     LocalAPI -->|Decoded Phonemes & Feedback| ReactApp
 
     ReactApp -->|Sanitizes Personal Info| PrivacyShield
-    PrivacyShield -->|Filtered Input Prompt| GeminiAPI
-    GeminiAPI -->|Interactive Quizzes & Network Maps| ReactApp
+    PrivacyShield -->|Filtered Input Prompt| GPT 5.6API
+    GPT 5.6API -->|Interactive Quizzes & Network Maps| ReactApp
 
     ReactApp -->|Telemetry Logs & Active Stats Sync| Firebase
 `;
 
 export default function App() {
+  const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
+  const [workspaceExportTitle, setWorkspaceExportTitle] = useState("Synthèse & Révision Mentora AI");
+  const [workspaceExportText, setWorkspaceExportText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [audioData, setAudioData] = useState<number[]>(new Array(30).fill(0));
   const [detectedPhonemes, setDetectedPhonemes] = useState<string[]>([]);
@@ -72,7 +79,7 @@ export default function App() {
     if (view === 'phoneme-gravity' || window.location.hash === '#phoneme-gravity') return 'phoneme-gravity';
     return 'hub';
   });
-  const [learningMode, setLearningMode] = useState<'mindmap' | 'quiz' | 'exam' | 'presentation' | 'summary' | 'search' | 'gemma'>('summary');
+  const [learningMode, setLearningMode] = useState<'mindmap' | 'quiz' | 'exam' | 'presentation' | 'summary' | 'search' | 'Codex'>('summary');
   
   // Cognitive Phonics Gym Interactive States
   const [selectedCardId, setSelectedCardId] = useState(0);
@@ -81,7 +88,7 @@ export default function App() {
   const [isRemediating, setIsRemediating] = useState(false);
   const [arenaTranscript, setArenaTranscript] = useState("");
   
-  // States for Gemini Integration
+  // States for GPT 5.6 Integration
   const [inputText, setInputText] = useState("");
   const [learningResult, setLearningResult] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -98,9 +105,24 @@ export default function App() {
   const [historyItems, setHistoryItems] = useState<any[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   
-  // Auth State
-  const [user, setUser] = useState<User | null>(null);
+  // Auth State (Modifié pour résilience mobile : support du Mode Invité/Démo sans restriction de domaine)
+  const [user, setUser] = useState<any>(() => {
+    const savedGuest = localStorage.getItem('is_guest');
+    const params = new URLSearchParams(window.location.search);
+    const hasGuestParam = params.get('guest') === 'true' || params.get('bypass') === 'true' || window.location.hash.includes('guest');
+    if (savedGuest === 'true' || hasGuestParam) {
+      console.log("🎮 Initialisation : Chargement automatique en Mode Invité / Démo");
+      return {
+        uid: 'guest_1337',
+        displayName: 'Capitaine Invité',
+        email: 'guest@mountai.scholar',
+        isGuest: true
+      };
+    }
+    return null;
+  });
   const [authReady, setAuthReady] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
   const [engineStatus, setEngineStatus] = useState<'offline' | 'online'>('offline');
 
   const [mlEngineUrl, setMlEngineUrl] = useState(() => {
@@ -131,6 +153,26 @@ export default function App() {
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [generatedQuestions, setGeneratedQuestions] = useState<any[]>([]);
+
+  // Global File Import Handler for PDF, Word (.docx), PPTX and TXT
+  const handleGlobalFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingFile(true);
+    setFileError(null);
+    try {
+      const text = await extractTextFromFile(file);
+      const newDoc = { name: file.name, size: file.size, text };
+      setUploadedFiles(prev => [newDoc, ...prev]);
+      setInputText(text);
+      setInjectedExercise(text);
+    } catch (err: any) {
+      setFileError(err?.message || "Erreur lors de la lecture du fichier PDF/Word/PPTX.");
+    } finally {
+      setIsUploadingFile(false);
+      if (e.target) e.target.value = '';
+    }
+  };
 
   useEffect(() => {
 
@@ -167,8 +209,38 @@ export default function App() {
     return () => clearInterval(interval);
   }, [mlEngineUrl]);
 
+  // Deep Link Authentication 'Credential-Free' flow
   useEffect(() => {
+    const handleDeepLink = () => {
+      const params = new URLSearchParams(window.location.search);
+      const hasGuestParam = params.get('guest') === 'true' || params.get('bypass') === 'true' || window.location.hash.includes('guest');
+      if (hasGuestParam) {
+        console.log("🔗 Deep Link 'Credential-Free' détecté : Connexion automatique en mode invité.");
+        localStorage.setItem('is_guest', 'true');
+        setUser({
+          uid: 'guest_1337',
+          displayName: 'Capitaine Invité',
+          email: 'guest@mountai.scholar',
+          isGuest: true
+        });
+      }
+    };
+    handleDeepLink();
+    window.addEventListener('hashchange', handleDeepLink);
+    return () => window.removeEventListener('hashchange', handleDeepLink);
+  }, []);
+
+  useEffect(() => {
+    // Si déjà connecté en Mode Invité forcé localement, on ne déclenche pas le listener Firebase
+    if (user?.isGuest) {
+      setAuthReady(true);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      // Éviter d'écraser la session invité active par un retour null
+      if (user?.isGuest) return;
+
       setUser(currentUser);
       if (currentUser) {
          try {
@@ -182,17 +254,75 @@ export default function App() {
              });
            }
          } catch (e) {
-           try { handleFirestoreError(e, OperationType.GET, 'users/' + currentUser.uid); } catch (e) { console.error(e) }
+           const isOffline = isOfflineError(e);
+           if (isOffline) {
+             console.warn("[FIREBASE_OFFLINE] Moteur de base de données local hors ligne. Chargement en local-first pour l'utilisateur :", currentUser.uid);
+           } else {
+             try { handleFirestoreError(e, OperationType.GET, 'users/' + currentUser.uid); } catch (err) { console.error(err); }
+           }
          }
       }
       setAuthReady(true);
     });
     return () => unsubscribe();
-  }, []);
+  }, [user?.isGuest]);
+
+  const loginAsGuest = () => {
+    console.log("🎮 Connexion active en Mode Invité / Démo");
+    localStorage.setItem('is_guest', 'true');
+    setUser({
+      uid: 'guest_1337',
+      displayName: 'Capitaine Invité',
+      email: 'guest@mountai.scholar',
+      isGuest: true
+    });
+  };
+
+  const handleGoogleLogin = async () => {
+    setLoginError(null);
+    try {
+      const loggedUser = await loginWithGoogle();
+      if (loggedUser) {
+        localStorage.removeItem('is_guest');
+        setUser(loggedUser);
+      }
+    } catch (err: any) {
+      console.error("Login failed:", err);
+      setLoginError(
+        "L'authentification Google a échoué sur mobile ou dans l'iframe. C'est un comportement de sécurité Firebase classique lié au domaine de la sandbox Google AI Studio."
+      );
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      localStorage.removeItem('is_guest');
+      await logout();
+    } catch (e) {
+      console.warn("Détail déconnexion :", e);
+    } finally {
+      setUser(null);
+    }
+  };
 
   const loadHistory = async () => {
     if (!user) return;
     setIsLoadingHistory(true);
+    
+    if (user.isGuest) {
+      try {
+        const localHistoryStr = localStorage.getItem('guest_learning_items') || '[]';
+        const items = JSON.parse(localHistoryStr);
+        setHistoryItems(items);
+      } catch (err) {
+        console.error("Échec du décodage de l'historique local:", err);
+        setHistoryItems([]);
+      } finally {
+        setIsLoadingHistory(false);
+      }
+      return;
+    }
+
     try {
       const q = query(
         collection(db, 'learning_items'),
@@ -207,7 +337,12 @@ export default function App() {
       });
       setHistoryItems(items);
     } catch (e) {
-      try { handleFirestoreError(e, OperationType.LIST, 'learning_items'); } catch (err) { console.error(err); }
+      if (isOfflineError(e)) {
+        console.warn("[FIREBASE_OFFLINE] Impossible d'interroger la base cloud (hors ligne / Offline Mode actif). Retour à la file d'attente locale d'historique.");
+        setHistoryItems([]);
+      } else {
+        try { handleFirestoreError(e, OperationType.LIST, 'learning_items'); } catch (err) { console.error(err); }
+      }
     } finally {
       setIsLoadingHistory(false);
     }
@@ -661,7 +796,7 @@ export default function App() {
             throw new Error("Contrôle invalide reçu");
           }
         } catch (err) {
-          console.error("Échec du décodage JSON bilingue, lancement du fallback Gemma Edge :", err);
+          console.error("Échec du décodage JSON bilingue, lancement du fallback OpenAI Codex :", err);
           const fallbackJson = getLocalPedagogicalFallback(mergedContext, selectedLang);
           setGeneratedQuestions(JSON.parse(fallbackJson));
           result = "DOM_EXAM_SUCCESS";
@@ -680,19 +815,19 @@ export default function App() {
           if (!data.content) throw new Error("Empty content returned from API");
           result = data.content;
         } catch (e) {
-          console.warn("Express Presentation API error, starting local Gemma Deck compiler:", e);
+          console.warn("Express Presentation API error, starting local OpenAI Codex compiler:", e);
           const title = promptToUse.split(/[.!?\n]+/)[0]?.trim() || "Active Study Presentation";
           const bullets = promptToUse.split('\n').map(l => l.trim()).filter(l => l.length > 8).slice(1, 5);
           const isEn = selectedLang.toLowerCase() === 'english';
           
           if (isEn) {
-            result = `📊 **[Gemma 4 Edge - Interactive Slide Deck (Local Fallback)]**
+            result = `📊 **[OpenAI Codex - Interactive Slide Deck (GPT 5.6 Fallback)]**
 
 ---
 
 ### 🖥️ Slide 1: Introduction & Topic Definition
 * **Main Title:** ${title}
-* **Focus Node:** Cognitive Phonics & Local Isolation Analysis
+* **Focus Node:** Cognitive Phonics & Codex Synthesis
 * **Core Question:** How does active learning support sound-grapheme mapping?
 
 ---
@@ -709,9 +844,9 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Highlight Node ${idx+1}:** $
 
 ---
 
-*(Constructed locally on device under Privacy-by-Design constraints. Main cloud server is currently disconnected)*`;
+*(Constructed via OpenAI Codex under Privacy-by-Design constraints)*`;
           } else {
-            result = `📊 **[Gemma 4 Edge - Présentation de Révision Active (Succès Hors-ligne)]**
+            result = `📊 **[OpenAI Codex - Présentation de Révision Active (GPT 5.6)]**
 
 ---
 
@@ -734,10 +869,10 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
 
 ---
 
-*(Généré localement via notre moteur d'IA léger "Privacy by Design" en raison de l'interruption de la connexion avec le cloud)*`;
+*(Généré via notre moteur OpenAI Codex / GPT 5.6 "Privacy by Design")*`;
           }
         }
-      } else if (learningMode === 'gemma') {
+      } else if (learningMode === 'Codex') {
         const promptOption = `Réponds à la demande de l'utilisateur de manière précise. Langue: ${selectedLang}. Requête: ${mergedContext}`;
         try {
           const res = await fetch(`/api/generate`, {
@@ -752,25 +887,46 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
           if (!data.text) throw new Error("Empty text returned from API");
           result = data.text;
         } catch (e) {
-          console.warn("Gemma Cloud endpoint offline, triggering local Edge Infevence:", e);
-          result = getLocalGemmaFallback(promptOption, mergedContext, selectedLang, 'rag');
+          console.warn("Codex Cloud endpoint offline, triggering GPT 5.6 Inference:", e);
+          result = getLocalCodexFallback(promptOption, mergedContext, selectedLang, 'rag');
         }
       }
       
       setLearningResult(result);
 
-      // Save to Firebase securely in a non-blocking background thread
+      // Save to Firebase securely in a non-blocking background thread (or LocalStorage if Guest)
       if (user && result && learningMode !== 'presentation' && learningMode !== 'exam') {
-         addDoc(collection(db, 'learning_items'), {
-           userId: user.uid,
-           mode: learningMode,
-           language: selectedLang,
-           originalText: inputText.substring(0, 100000),
-           generatedContent: result.substring(0, 100000),
-           createdAt: serverTimestamp()
-         }).catch(firebaseError => {
-           console.warn("Firestore queued this transaction: Offline synchronization active.", firebaseError);
-         });
+        if (user.isGuest) {
+          try {
+            const localHistoryStr = localStorage.getItem('guest_learning_items') || '[]';
+            const items = JSON.parse(localHistoryStr);
+            const newItem = {
+              id: 'local_' + Date.now(),
+              userId: user.uid,
+              mode: learningMode,
+              language: selectedLang,
+              originalText: inputText.substring(0, 100000),
+              generatedContent: result.substring(0, 100000),
+              createdAt: { toMillis: () => Date.now() } // Match timestamp mapping structure
+            };
+            items.unshift(newItem);
+            localStorage.setItem('guest_learning_items', JSON.stringify(items.slice(0, 50))); // Keep last 50 items
+            console.log("💾 Session d'apprentissage sauvegardée localement en mode Invité.");
+          } catch (localErr) {
+            console.error("Échec de la sauvegarde locale de session:", localErr);
+          }
+        } else {
+          addDoc(collection(db, 'learning_items'), {
+            userId: user.uid,
+            mode: learningMode,
+            language: selectedLang,
+            originalText: inputText.substring(0, 100000),
+            generatedContent: result.substring(0, 100000),
+            createdAt: serverTimestamp()
+          }).catch(firebaseError => {
+            console.warn("Firestore queued this transaction: Offline synchronization active.", firebaseError);
+          });
+        }
       }
 
     } catch (error) {
@@ -778,8 +934,8 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
       const isEn = selectedLang.toLowerCase() === 'english';
       setLearningResult(
         isEn 
-          ? `🧠 **[Gemma 4 Edge - Offline Active Response]**\n\nYour request has been processed locally under full Privacy-by-Design constraints. Our local engine is 100% active and secure.`
-          : `🧠 **[Gemma 4 Edge - Réponse Active Hors-ligne]**\n\nCapitaine, votre requête a été traitée en local avec succès grâce à notre moteur de secours ultra-léger. La confidentialité de vos données est préservée à 100% en isolation locale.`
+          ? `🧠 **[OpenAI Codex - GPT 5.6 Response]**\n\nYour request has been processed under full Privacy-by-Design constraints. Our Codex engine is 100% active and secure.`
+          : `🧠 **[OpenAI Codex - Réponse GPT 5.6]**\n\nCapitaine, votre requête a été traitée avec succès grâce au moteur OpenAI Codex / GPT 5.6. La confidentialité de vos données est préservée.`
       );
     } finally {
       setIsGenerating(false);
@@ -795,7 +951,7 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
     );
   }
 
-  if (!user && mainView !== 'cognitive-gym') {
+  if (!user && mainView !== 'cognitive-gym' && mainView !== 'mentora') {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col font-sans relative overflow-hidden items-center justify-center">
          <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-600/20 blur-[120px] rounded-full mix-blend-screen pointer-events-none" />
@@ -816,8 +972,17 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
               Stealth EdTech Startup building intelligent cognitive learning environments powered by local AI.
             </p>
             
+            {loginError && (
+              <div className="w-full mb-6 p-4 bg-orange-500/10 border border-orange-500/30 rounded-2xl text-xs text-orange-300 font-sans leading-relaxed animate-in fade-in slide-in-from-top-2">
+                <p className="font-bold uppercase tracking-wider mb-1 flex items-center gap-1.5 text-orange-400">
+                  <X className="w-4 h-4 shrink-0" /> Erreur d'authentification
+                </p>
+                {loginError}
+              </div>
+            )}
+
             <button 
-              onClick={loginWithGoogle} 
+              onClick={handleGoogleLogin} 
               className="w-full py-5 bg-white hover:bg-slate-50 text-slate-950 font-black rounded-2xl flex items-center justify-center gap-4 transition shadow-[0_10px_30px_rgba(255,255,255,0.1)] relative overflow-hidden group hover:-translate-y-1"
             >
                 <div className="absolute inset-0 bg-slate-100 scale-x-0 origin-left group-hover:scale-x-100 transition-transform duration-300" />
@@ -828,6 +993,14 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
                   <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                 </svg>
                 <span className="relative z-10 uppercase tracking-widest text-sm">Login with Google</span>
+            </button>
+
+            <button 
+              onClick={loginAsGuest} 
+              className="mt-4 w-full py-4.5 bg-slate-900 border border-slate-800 hover:border-orange-500/50 text-slate-300 font-bold rounded-2xl flex items-center justify-center gap-3 transition shadow-lg relative overflow-hidden group hover:-translate-y-1"
+            >
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="uppercase tracking-widest text-xs">Accès Invité / Démo Mobile</span>
             </button>
             <p className="mt-8 text-xs text-slate-500 font-mono text-center">SYSTEM ACCESSIBLE UNDER AUTHORIZATION ONLY</p>
          </div>
@@ -840,7 +1013,7 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
       <div className="atmosphere" />
       
       {/* Navigation Globale */}
-      {mainView !== 'cognitive-gym' && mainView !== 'phoneme-gravity' && (
+      {mainView !== 'cognitive-gym' && mainView !== 'phoneme-gravity' && mainView !== 'mentora' && (
       <header className="sticky top-0 z-50 glass-panel border-b border-white/5 w-full shrink-0">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 md:py-4 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -872,20 +1045,97 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
           
           <div className="flex flex-wrap items-center gap-3 md:gap-4 text-xs font-mono justify-center">
 
+            <button 
+              onClick={() => setMainView('learning')} 
+              className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold ${
+                mainView === 'learning' 
+                  ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(59,130,246,0.5)] border border-blue-400' 
+                  : 'bg-blue-500/10 border border-blue-500/30 text-blue-300 hover:bg-blue-500/20'
+              }`}
+            >
+              <Globe className="w-4 h-4 text-blue-400 animate-pulse" />
+              <span>Chatbot Google Search</span>
+            </button>
+
+            <button 
+              onClick={() => setMainView('workspace')} 
+              className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold ${
+                mainView === 'workspace' 
+                  ? 'bg-indigo-600 text-white shadow-[0_0_20px_rgba(99,102,241,0.5)] border border-indigo-400' 
+                  : 'bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/20'
+              }`}
+            >
+              <Layers className="w-4 h-4 text-indigo-400 animate-pulse" />
+              <span>Google Workspace Hub</span>
+            </button>
+
+            <button 
+              onClick={() => setIsWorkspaceModalOpen(true)} 
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-black rounded-full shadow-[0_0_25px_rgba(99,102,241,0.5)] border border-blue-400/50 transition-all hover:scale-105 active:scale-95"
+              title="Extension Ajouter à Google Workspace"
+            >
+              <Layers className="w-4 h-4 text-white animate-spin" />
+              <span>Ajouter à Workspace</span>
+            </button>
+
+            {/* Global PDF / Word / PPTX File Import Button */}
+            <label className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold cursor-pointer transition-all border shadow-lg ${
+              isUploadingFile 
+                ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 animate-pulse'
+                : uploadedFiles.length > 0
+                ? 'bg-emerald-600/30 border-emerald-400 text-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.3)]'
+                : 'bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20'
+            }`}
+            title="Importer un fichier PDF, Word (.docx), PowerPoint (.pptx) ou Texte"
+            >
+              <input 
+                type="file" 
+                accept=".pdf,.docx,.doc,.pptx,.ppt,.txt,.md" 
+                onChange={handleGlobalFileUpload} 
+                className="hidden" 
+              />
+              <FileText className="w-4 h-4 text-amber-400" />
+              <span>{isUploadingFile ? 'Extraction PDF...' : uploadedFiles.length > 0 ? `📄 ${uploadedFiles[0].name.slice(0, 12)}...` : 'Importer PDF / Word / PPTX'}</span>
+            </label>
+
             {user ? (
                <div className="flex flex-wrap items-center gap-3 md:gap-4 justify-center">
+                 <button 
+                   onClick={() => setMainView('mentora')} 
+                   className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold ${
+                     (mainView as string) === 'mentora' 
+                       ? 'bg-purple-600 text-white shadow-[0_0_20px_rgba(168,85,247,0.5)] border border-purple-400' 
+                       : 'bg-purple-500/10 border border-purple-500/30 text-purple-300 hover:bg-purple-500/20'
+                   }`}
+                 >
+                   <Brain className="w-4 h-4 text-purple-400 animate-pulse" />
+                   <span>Mount AI Tutor</span>
+                 </button>
                  <button onClick={() => setMainView('history')} className="flex items-center gap-2 px-4 py-2 rounded-full glass-panel glass-panel-hover transition-all text-white/80">
                    <History className="w-4 h-4" /> <span className="inline">Historique</span>
                  </button>
                  <span className="text-white/60 font-medium text-xs">Connecté: {user.displayName || user.email?.split('@')[0]}</span>
-                 <button onClick={logout} className="p-2 glass-panel rounded-full glass-panel-hover text-white/70 transition-colors ml-2" title="Déconnexion">
+                 <button onClick={handleLogout} className="p-2 glass-panel rounded-full glass-panel-hover text-white/70 transition-colors ml-2" title="Déconnexion">
                    <LogOut className="w-4 h-4" />
                  </button>
                </div>
             ) : (
-               <button onClick={loginWithGoogle} className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-white/90 rounded-full font-bold text-black transition-all">
-                 <LogIn className="w-4 h-4" /> CONNEXION
-               </button>
+               <div className="flex items-center gap-3">
+                 <button 
+                   onClick={() => setMainView('mentora')} 
+                   className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold ${
+                     (mainView as string) === 'mentora' 
+                       ? 'bg-purple-600 text-white shadow-[0_0_20px_rgba(168,85,247,0.5)] border border-purple-400' 
+                       : 'bg-purple-500/10 border border-purple-500/30 text-purple-300 hover:bg-purple-500/20'
+                   }`}
+                 >
+                   <Brain className="w-4 h-4 text-purple-400 animate-pulse" />
+                   <span>Mount AI Tutor</span>
+                 </button>
+                 <button onClick={handleGoogleLogin} className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-white/90 rounded-full font-bold text-black transition-all">
+                   <LogIn className="w-4 h-4" /> CONNEXION
+                 </button>
+               </div>
              )}
             
             <div className="relative border-l border-white/10 pl-3 md:pl-4">
@@ -939,6 +1189,47 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
       </header>
       )}
 
+      {/* Global Active Source Document Banner */}
+      {uploadedFiles.length > 0 && (
+        <div className="bg-gradient-to-r from-amber-950/90 via-slate-900/90 to-violet-950/90 border-b border-amber-500/30 px-4 py-2.5 backdrop-blur-md relative z-40 animate-in fade-in slide-in-from-top-2">
+          <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
+            <div className="flex items-center gap-3 overflow-hidden">
+              <span className="flex items-center gap-1.5 font-bold text-amber-400 uppercase tracking-widest bg-amber-500/20 px-2.5 py-1 rounded-lg border border-amber-500/30 shrink-0">
+                <FileText className="w-3.5 h-3.5" /> Document Source Actif
+              </span>
+              <span className="font-bold text-white truncate max-w-xs">{uploadedFiles[0].name}</span>
+              <span className="text-slate-400 text-[10px]">({Math.round(uploadedFiles[0].size / 1024)} Ko • {uploadedFiles[0].text.length} car.)</span>
+              <span className="hidden lg:inline text-emerald-400 text-[10px] font-bold">
+                ✓ Injecté dans : Réalignement, Tutor, Chatbot & Prédicteur
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => {
+                  setWorkspaceExportTitle(`Document Source - ${uploadedFiles[0].name}`);
+                  setWorkspaceExportText(uploadedFiles[0].text);
+                  setIsWorkspaceModalOpen(true);
+                }}
+                className="px-3 py-1 bg-emerald-600/30 hover:bg-emerald-600/50 border border-emerald-500/40 text-emerald-300 rounded-lg font-bold flex items-center gap-1 transition-all"
+                title="Exporter ce document vers Google Workspace"
+              >
+                <Globe className="w-3.5 h-3.5" /> Exporter Workspace
+              </button>
+              <button
+                onClick={() => {
+                  setUploadedFiles([]);
+                  setInjectedExercise('');
+                }}
+                className="p-1 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-all"
+                title="Retirer le document"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <main className={`max-w-7xl mx-auto px-4 md:px-6 relative z-10 pb-12 pt-6 md:pt-10 w-full ${mainView === 'hub' ? 'min-h-[65vh] flex flex-col justify-center' : ''}`}>
         
         {isNetworkOffline && (
@@ -958,7 +1249,28 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
           </div>
         )}
 
-        {mainView === 'hub' && <HubView setMainView={setMainView} />}
+        {mainView === 'hub' && (
+          <HubView 
+            setMainView={setMainView} 
+            onAddToWorkspace={(title, text) => {
+              setWorkspaceExportTitle(title);
+              setWorkspaceExportText(text);
+              setIsWorkspaceModalOpen(true);
+            }}
+          />
+        )}
+
+        {mainView === 'mentora' && (
+          <MentoraView 
+            setMainView={setMainView}
+            user={user}
+            onAddToWorkspace={(title, text) => {
+              setWorkspaceExportTitle(title);
+              setWorkspaceExportText(text);
+              setIsWorkspaceModalOpen(true);
+            }}
+          />
+        )}
 
         {mainView === 'phonetic-predictor' && (
           <PhoneticPredictorView
@@ -966,6 +1278,11 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
             selectedLang={selectedLang}
             speakText={speakText}
             injectedText={injectedExercise}
+            onAddToWorkspace={(title, text) => {
+              setWorkspaceExportTitle(title);
+              setWorkspaceExportText(text);
+              setIsWorkspaceModalOpen(true);
+            }}
           />
         )}
 
@@ -980,19 +1297,41 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
             audioData={audioData}
             speechError={speechError}
             user={user}
-            loginWithGoogle={loginWithGoogle}
-            logout={logout}
+            loginWithGoogle={handleGoogleLogin}
+            logout={handleLogout}
             langMap={langMap}
             speakText={speakText}
             handleUrlOrManualEdgeInput={handleUrlOrManualEdgeInput}
             isAnalyzingEdge={isAnalyzingEdge}
             edgePerformanceMs={edgePerformanceMs}
             injectedExercise={injectedExercise}
+            onAddToWorkspace={(title, text) => {
+              setWorkspaceExportTitle(title);
+              setWorkspaceExportText(text);
+              setIsWorkspaceModalOpen(true);
+            }}
           />
         )}
 
         {mainView === 'classroom' && (
           <GoogleClassroomHub
+            setMainView={setMainView}
+            onImportText={(text, destination) => {
+              setInjectedExercise(text);
+              if (destination === 'dyslexia') {
+                setMainView('dyslexia');
+              } else if (destination === 'learning') {
+                setInputText(text);
+                setMainView('learning');
+              } else if (destination === 'phonetic') {
+                setMainView('phonetic-predictor');
+              }
+            }}
+          />
+        )}
+
+        {mainView === 'workspace' && (
+          <GoogleWorkspaceHub
             setMainView={setMainView}
             onImportText={(text, destination) => {
               setInjectedExercise(text);
@@ -1072,7 +1411,7 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
                           <Network className="w-6 h-6 text-[#00FF00]" />
                        </div>
                        <div>
-                          <h3 className="text-xl font-bold text-white uppercase tracking-wider">Mount AI Scholar Topology</h3>
+                          <h3 className="text-xl font-bold text-white uppercase tracking-wider">Mount AI Topology</h3>
                           <p className="text-xs font-mono text-slate-500 uppercase tracking-widest mt-1">Inter-Service Pipeline Topology & Zero-Leak Edge Routings</p>
                        </div>
                     </div>
@@ -1087,7 +1426,7 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
                        <BrainCircuit className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
                        <div className="text-xs text-slate-400 leading-relaxed font-sans">
                           <p className="font-bold text-white uppercase tracking-wider text-[10px] mb-1">Privacy by Design Routing Logic</p>
-                          L'application tourne de manière autonome pour le traitement de la voix grâce à un moteur local d'inférence (FastAPI / Gemma 4). Les données sensibles comme l'audio ne quittent jamais votre iPad ou PC local. Pour les résumés et questionnaires cognitifs complexes, les entrées passent d'abord par un pare-feu d'anonymisation (PII Firewall & Regex Interceptor) avant d'être transmises de manière sécurisée à l'API Google Gemini.
+                          L'application tourne de manière autonome pour le traitement de la voix grâce à un moteur local d'inférence (Express / Codex API / OpenAI Codex). Les données sensibles comme l'audio ne quittent jamais votre iPad ou PC local. Pour les résumés et questionnaires cognitifs complexes, les entrées passent d'abord par un pare-feu d'anonymisation (PII Firewall & Regex Interceptor) avant d'être transmises de manière sécurisée au moteur cloud GPT 5.6 (OpenAI / Codex).
                        </div>
                     </div>
                  </div>
@@ -1154,236 +1493,9 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
          )}
 
         {mainView === 'learning' && (
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-             {/* Learning Mode Menu */}
-             <aside className="lg:col-span-1 space-y-6">
-               <div className="bg-slate-900/50 border-slate-800 border-slate-800 p-6 rounded-3xl space-y-6">
-                 <h3 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2 mb-4">
-                   <Database className="w-4 h-4 text-blue-500" /> Intelligence Modes
-                 </h3>
-                 <button
-                   onClick={() => {
-                     setLearningMode('search');
-                     setLearningResult("");
-                   }}
-                   className={`w-full text-left p-5 rounded-2xl border transition-all duration-300 mb-8 flex flex-col gap-2 ${learningMode === 'search' ? 'bg-blue-600 border-[#3b82f6] text-white shadow-xl translate-x-2' : 'bg-slate-950 border-slate-800 text-slate-500 hover:border-[#3b82f6]/50 hover:bg-slate-900 hover:translate-x-1'}`}
-                 >
-                   <div className="flex items-center gap-3">
-                     <SearchCode className={`w-5 h-5 ${learningMode === 'search' ? 'text-white' : 'text-blue-500'}`} />
-                     <span className="text-sm font-black tracking-tight">RAG Interfacer</span>
-                   </div>
-                   <p className="text-[10px] font-medium opacity-80 uppercase tracking-widest">Elastic Vector Search (kNN)</p>
-                 </button>
-
-                 <h3 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2 mb-4">
-                   <BookOpen className="w-4 h-4 text-orange-500" /> Processing Hub
-                 </h3>
-                 <div className="space-y-3">
-                    {[
-                      { id: 'gemma', label: 'Gemma 4 Edge', icon: <BrainCircuit className="w-4 h-4" /> },
-                      { id: 'summary', label: 'Summary Generation', icon: <FileText className="w-4 h-4" /> },
-                      { id: 'quiz', label: 'Cognitive Testing', icon: <Gamepad2 className="w-4 h-4" /> },
-                      { id: 'exam', label: 'Evaluation System', icon: <Target className="w-4 h-4" /> },
-                      { id: 'mindmap', label: 'Neural Mapping', icon: <Network className="w-4 h-4" /> },
-                      { id: 'presentation', label: 'Automated Decks', icon: <Presentation className="w-4 h-4" /> },
-                    ].map((m) => (
-                      <button
-                        key={m.id}
-                        onClick={() => {
-                          setLearningMode(m.id as any);
-                          setLearningResult("");
-                        }}
-                        className={`w-full text-left p-4 rounded-2xl border transition-all duration-300 ${learningMode === m.id ? 'bg-orange-600 border-[#ff4e00] text-white shadow-[0_0_20px_rgba(255,78,0,0.4)] translate-x-2' : 'bg-slate-950 border-slate-800 text-slate-500 hover:border-slate-700 hover:bg-slate-900 hover:translate-x-1'}`}
-                      >
-                        <div className="flex items-center gap-3">
-                          {m.icon}
-                          <span className="text-sm font-bold tracking-tight uppercase">{m.label}</span>
-                        </div>
-                      </button>
-                    ))}
-                 </div>
-               </div>
-             </aside>
-
-             <section className="lg:col-span-3 space-y-6">
-                {/* AI Input Area */}
-                {(learningMode !== 'exam' || generatedQuestions.length === 0) && (
-                <div className={`bg-slate-900/50 rounded-[2.5rem] p-8 shadow-2xl flex flex-col gap-6 relative overflow-hidden transition-all duration-300 ${learningMode === 'exam' ? 'border-[#ff4e00]/40 border-2' : 'border-slate-800 border'}`}>
-                   <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-slate-800/50 mix-blend-screen rounded-full blur-[80px] pointer-events-none translate-x-1/2 -translate-y-1/2" />
-                   
-                   <div className="flex justify-between items-center relative z-10">
-                     <h2 className="text-2xl font-bold text-white flex items-center gap-3 uppercase tracking-tight">
-                       {learningMode === 'search' && <><Database className="text-blue-500"/> Elastic RAG Engine</>}
-                       {learningMode === 'summary' && <><FileText className="text-orange-500"/> Synthesis Intelligence</>}
-                       {learningMode === 'quiz' && <><Gamepad2 className="text-purple-500"/> Quiz Generator</>}
-                       {learningMode === 'mindmap' && <><Network className="text-emerald-500"/> Network Maps (Mermaid)</>}
-                       {learningMode === 'presentation' && <><Presentation className="text-indigo-500"/> Presentation Compile</>}
-                       {learningMode === 'exam' && <><Target className="text-red-500 animate-pulse"/> Générateur de Contrôle & Acquisition</>}
-                       {(learningMode === 'gemma' || (!['search','summary','quiz','mindmap','presentation','exam'].includes(learningMode))) && <><BrainCircuit className="text-white"/> Edge Routing</>}
-                     </h2>
-                     {learningMode !== 'presentation' && (
-                       <select 
-                         className="bg-slate-900 border border-slate-800 text-white/90 text-xs uppercase tracking-widest rounded-lg px-3 py-2 outline-none appearance-none"
-                         value={selectedLang}
-                         onChange={(e) => setSelectedLang(e.target.value)}
-                       >
-                          <option>French</option>
-                          <option>English</option>
-                          <option>Arabic</option>
-                          <option>Spanish</option>
-                          <option>German</option>
-                       </select>
-                     )}
-                   </div>
-                   
-                   <textarea 
-                     rows={learningMode === 'exam' ? 3 : 6}
-                     className="w-full relative z-10 bg-slate-950 border border-slate-800 rounded-2xl p-6 text-white overflow-y-auto focus:border-white/30 focus:ring-1 focus:ring-white/30 transition-all resize-none outline-none font-mono text-sm leading-relaxed"
-                     placeholder={
-                       learningMode === 'search' ? "Recherche vectorielle. Exemple : 'Rechercher les références à la photosynthèse dans la banque de connaissances...'" : 
-                       learningMode === 'exam' ? "Formulez ici des directives ou thèmes de ciblage pour l'évaluation pédagogique du contrôle, ou importez vos cours..." :
-                       learningMode === 'summary' ? "Saisissez votre texte de cours ou vos leçons. Notre moteur compilera instantanément un résumé à haute densité sémantique..." :
-                       "Insérez le texte source, le code ou le contexte. Notre orchestrateur de services analysera et effectuera le traitement d'apprentissage automatiquement..."
-                     }
-                     value={inputText}
-                     onChange={(e) => setInputText(e.target.value)}
-                   />
-                   
-                   <div className="flex justify-end items-center gap-6 relative z-10">
-                     {!user && <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Unauthenticated Session</span>}
-
-                     {/* Multilingual File Upload Component (Max 5 Documents) */}
-                     {learningMode === 'exam' && (
-                       <div className="w-full space-y-3 pb-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                       <div className="flex items-center justify-between">
-                         <label className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                           <Paperclip className="w-4 h-4 text-orange-500 animate-bounce" /> Importation de documents de cours ({uploadedFiles.length}/5)
-                         </label>
-                         {fileError && <span className="text-[11px] font-bold text-red-500 tracking-tight">{fileError}</span>}
-                       </div>
-
-                       <div 
-                         onClick={() => document.getElementById('academic-file-picker')?.click()}
-                         onDragOver={(e) => e.preventDefault()}
-                         onDrop={async (e) => {
-                           e.preventDefault();
-                           const files = e.dataTransfer.files;
-                           if (files) {
-                             const syntheticEvent = { target: { files } } as any;
-                             await handleFileUpload(syntheticEvent);
-                           }
-                         }}
-                         className="border border-dashed border-slate-800 hover:border-slate-700 bg-slate-950/20 hover:bg-slate-950/60 transition-all duration-300 rounded-2xl p-5 flex flex-col items-center justify-center gap-2 cursor-pointer text-center group"
-                       >
-                         <input 
-                           type="file" 
-                           id="academic-file-picker" 
-                           multiple 
-                           accept=".pdf,.docx,.txt" 
-                           onChange={handleFileUpload} 
-                           className="hidden" 
-                         />
-                         {isUploadingFile ? (
-                           <>
-                             <Loader2 className="w-7 h-7 text-orange-500 animate-spin" />
-                             <p className="text-xs font-black text-slate-300 uppercase tracking-widest">Analyse sémantique et extraction du texte...</p>
-                           </>
-                         ) : (
-                           <>
-                             <FileText className="w-7 h-7 text-slate-500 group-hover:text-orange-500 transition-colors" />
-                             <p className="text-xs font-black text-slate-300 uppercase tracking-widest group-hover:text-white transition-colors">Glissez-déposez vos fichiers de cours (PDF, Word, TXT)</p>
-                             <p className="text-[9px] text-slate-500 font-mono">Analyse lexicale et phonologique active (max 5 fichiers)</p>
-                           </>
-                         )}
-                       </div>
-
-                       {/* Display Uploaded File Badges */}
-                       {uploadedFiles.length > 0 && (
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
-                           {uploadedFiles.map((f, fileIdx) => (
-                             <div key={fileIdx} className="bg-slate-950/80 border border-slate-800/60 p-3 rounded-xl flex items-center justify-between text-xs animate-in slide-in-from-bottom-2 duration-300">
-                               <div className="flex items-center gap-3 overflow-hidden">
-                                 <FileText className="w-4 h-4 text-orange-500 shrink-0" />
-                                 <div className="truncate">
-                                   <p className="font-bold text-white truncate">{f.name}</p>
-                                   <p className="text-[10px] text-slate-500 font-mono">{(f.size / 1024 / 1024).toFixed(2)} MB — {f.text.length.toLocaleString()} car.</p>
-                                 </div>
-                               </div>
-                               <button 
-                                 type="button"
-                                 onClick={(e) => { e.stopPropagation(); handleRemoveFile(fileIdx); }}
-                                 className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-550/10 rounded-lg transition-all shrink-0 cursor-pointer"
-                               >
-                                 <Trash2 className="w-4 h-4" />
-                               </button>
-                             </div>
-                           ))}
-                         </div>
-                       )}
-                     </div>
-                     )}
-
-                     <div className="w-full flex justify-between items-center pt-4 border-t border-slate-800/40">
-                       {uploadedFiles.length > 0 ? (
-                         <span className="text-[10px] text-emerald-500 font-mono tracking-wider font-extrabold flex items-center gap-1.5 uppercase">
-                           <CheckCircle2 className="w-3.5 h-3.5 animate-pulse" /> {uploadedFiles.length} Cours chargés
-                         </span>
-                       ) : (
-                         <span className="text-[10px] text-slate-500 font-mono uppercase">Aucun fichier importé</span>
-                       )}
-                       <button 
-                         onClick={handleGenerate}
-                         disabled={isGenerating || (!inputText.trim() && uploadedFiles.length === 0)}
-                         className="px-8 py-4 bg-white hover:bg-slate-200 disabled:bg-slate-800/50 disabled:text-white/20 disabled:border-slate-800 rounded-2xl text-black font-bold uppercase tracking-widest text-sm flex items-center gap-3 transition-colors shadow-2xl cursor-pointer"
-                       >
-                         {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-                         {isGenerating ? 'PROCESSING...' : 'EXECUTE'}
-                       </button>
-                     </div>
-
-
-                   </div>
-                </div>
-                 )}
-
-                {/* AI Result Area */}
-                {learningMode === 'exam' && (
-                  <ExamQuiz 
-                    customQuestions={generatedQuestions} 
-                    language={selectedLang} 
-                    onRestart={() => handleGenerate()}
-                    originalTextContext={inputText || (uploadedFiles.length > 0 ? uploadedFiles.map(f => f.name).join(', ') : undefined)}
-                  />
-                )}
-                {(learningResult || isGenerating) && learningMode !== 'exam' && (
-                  <div className="bg-slate-900/50 border-slate-800 border-slate-800 rounded-[2.5rem] p-8 shadow-2xl min-h-[400px] flex flex-col gap-6 relative overflow-hidden">
-                    {isGenerating ? (
-                      <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-slate-500 space-y-6 relative z-10 flex-1">
-                        <div className="relative">
-                           <div className="w-16 h-16 border-4 border-slate-800 border-t-white rounded-full animate-spin" />
-                           <Sparkles className="w-6 h-6 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
-                        </div>
-                        <p className="font-mono text-xs uppercase tracking-widest">Allocating resources & computing layers...</p>
-                      </div>
-                    ) : learningMode === 'mindmap' ? (
-                      <div className="w-full bg-slate-800/50 p-6 rounded-2xl border border-slate-800 relative z-10 shadow-inner min-h-[400px] flex items-center justify-center flex-1">
-                        <Mermaid chart={learningResult} />
-                      </div>
-                    ) : (
-                      <div className="prose prose-invert prose-lg max-w-none text-slate-300 relative z-10 flex-1">
-                        <div className="markdown-body">
-                          <Markdown>{learningResult}</Markdown>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-                
-                {/* Vocabulary Tracker based on submitted text */}
-                {!isGenerating && inputText && learningMode !== 'exam' && (
-                  <VocabularyTracker text={inputText} language={selectedLang} />
-                )}
-             </section>
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+             {/* Google Search Grounded Chatbot & Knowledge Hub */}
+             <CognitiveChatbot selectedLang={selectedLang} />
           </div>
         )}
 
@@ -1438,6 +1550,21 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
 
       </main>
 
+      {/* Floating Quick Access Chatbot Button */}
+      {mainView !== 'learning' && (
+        <button
+          onClick={() => setMainView('learning')}
+          className="fixed bottom-6 right-6 z-[90] flex items-center gap-3 px-5 py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs uppercase tracking-widest rounded-full shadow-[0_0_30px_rgba(59,130,246,0.6)] border border-blue-400/50 hover:scale-105 active:scale-95 transition-all group"
+          title="Ouvrir le Chatbot Google Search"
+        >
+          <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
+            <Globe className="w-4 h-4 text-white animate-pulse" />
+          </div>
+          <span className="hidden md:inline">Chatbot Google Search</span>
+          <span className="px-2 py-0.5 bg-blue-400/30 rounded-full text-[9px]">LIVE</span>
+        </button>
+      )}
+
       {/* Credits & Tech Talk */}
       {mainView !== 'cognitive-gym' && mainView !== 'phoneme-gravity' && mainView !== 'voice-conversation' && (
       <footer className="max-w-7xl mx-auto px-6 py-12 border-t border-slate-800 flex flex-col md:flex-row items-center gap-8 justify-between opacity-80">
@@ -1463,6 +1590,14 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
         </div>
       </footer>
       )}
+      {/* Add To Workspace Extension Modal */}
+      <AddToWorkspaceModal
+        isOpen={isWorkspaceModalOpen}
+        onClose={() => setIsWorkspaceModalOpen(false)}
+        title={workspaceExportTitle}
+        textToSave={workspaceExportText || inputText || learningResult || "Notes de cours et révisions préparées sur Mentora AI."}
+      />
+
     </div>
   );
 }

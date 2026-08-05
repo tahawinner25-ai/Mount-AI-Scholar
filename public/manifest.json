@@ -1,6 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Mount AI Scholar - Cognitive Accessibility Suite",
+  "short_name": "AI Scholar",
   "version": "1.0.0",
   "description": "Local-first cognitive and phonological accessibility assistant powered by Gemma-2B and WebAssembly for schools.",
   "author": "Capitaine, Lead Engineer",

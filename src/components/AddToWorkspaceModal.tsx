@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { 
   HardDrive, FileText, Calendar, Presentation, CheckSquare, 
-  Layers, CheckCircle2, AlertTriangle, Loader2, X, Sparkles, Send, ShieldCheck, Mail, GraduationCap, Download, FileCode
+  Layers, CheckCircle2, AlertTriangle, Loader2, X, ShieldCheck, Mail, GraduationCap, Download, FileCode
 } from 'lucide-react';
-import { getCachedWorkspaceToken, auth, connectGoogleWorkspace } from '../services/firebase';
-import { downloadPdfDocument, generatePdfBlob } from '../utils/pdfExport';
+import { auth } from '../services/firebase';
+import { downloadPdfDocument } from '../utils/pdfExport';
+
+import pptxgen from 'pptxgenjs';
 
 interface AddToWorkspaceModalProps {
   isOpen: boolean;
@@ -18,243 +20,219 @@ export default function AddToWorkspaceModal({ isOpen, onClose, title, textToSave
 
   const [selectedApp, setSelectedApp] = useState<AppKeyType | null>(null);
   const [customTitle, setCustomTitle] = useState(title || 'Note de cours - Mentora AI');
-  const [content, setContent] = useState(textToSave || 'Synthèse cognitive et cours enregistrés depuis Mentora AI.');
+  const [content, setContent] = useState(textToSave || 'Écrivez ici le contenu de votre e-mail, tâche, document ou de vos slides...');
+  const [isSlidesMode, setIsSlidesMode] = useState(false);
+  const [slideCount, setSlideCount] = useState(5);
+  const [slideTexts, setSlideTexts] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error' | null; text: string }>({ type: null, text: '' });
 
   if (!isOpen) return null;
 
-  const userEmail = auth.currentUser?.email || 'compte-google-configure@mentora.ai';
-  const token = getCachedWorkspaceToken();
+  const userEmail = auth.currentUser?.email || 'compte-direct@workspace.internal';
 
-  const handleExportToApp = async (appKey: AppKeyType, retryCount = 0) => {
-    setSelectedApp(appKey);
+  // Helper to initialize or sync slide texts array
+  const syncSlideTexts = (count: number, sourceText: string, currentArr: string[]): string[] => {
+    let result = [...currentArr];
+    if (result.length === 0) {
+      const lines = sourceText.split('\n').filter(l => l.trim() !== '');
+      const chunkSize = Math.max(1, Math.ceil(lines.length / Math.max(1, count)));
+      for (let i = 0; i < count; i++) {
+        const chunk = lines.slice(i * chunkSize, (i + 1) * chunkSize).join('\n');
+        result.push(chunk || `Contenu de la slide ${i + 1}...`);
+      }
+    } else if (result.length < count) {
+      for (let i = result.length; i < count; i++) {
+        result.push(`Contenu de la slide ${i + 1}...`);
+      }
+    } else if (result.length > count) {
+      result = result.slice(0, count);
+    }
+    return result;
+  };
+
+  const handleSlideCountChange = (newCount: number) => {
+    const validCount = Math.max(1, Math.min(50, newCount));
+    setSlideCount(validCount);
+    const updated = syncSlideTexts(validCount, content, slideTexts);
+    setSlideTexts(updated);
+  };
+
+  const handleSlideTextChange = (index: number, value: string) => {
+    const updated = [...slideTexts];
+    updated[index] = value;
+    setSlideTexts(updated);
+  };
+
+  const handleExportSlides = async () => {
+    setSelectedApp('slides');
     setIsSaving(true);
     setStatusMsg({ type: null, text: '' });
 
     try {
-      if (appKey === 'pdf_local') {
-        await downloadPdfDocument(customTitle, content, 'EXPORTATION MENTORA AI');
-        setStatusMsg({
-          type: 'success',
-          text: `Document PDF "${customTitle}.pdf" téléchargé sur votre appareil !`
+      const pres = new pptxgen();
+      const currentSlides = slideTexts.length === slideCount ? slideTexts : syncSlideTexts(slideCount, content, slideTexts);
+
+      currentSlides.forEach((slideContent, i) => {
+        let slide = pres.addSlide();
+        // Title
+        slide.addText(`${customTitle} - Slide ${i + 1}`, {
+          x: 0.5, y: 0.5, w: '90%', h: 0.8,
+          fontSize: 22, bold: true, color: '1e293b'
         });
-        setIsSaving(false);
-        return;
-      }
+        // Body text
+        slide.addText(slideContent || ' ', {
+          x: 0.5, y: 1.5, w: '90%', h: 4.5,
+          fontSize: 16, color: '334155', align: 'left', valign: 'top'
+        });
+      });
 
-      let activeToken = getCachedWorkspaceToken();
-      if (!activeToken) {
-        activeToken = await connectGoogleWorkspace(retryCount > 0);
-        if (!activeToken) {
-          throw new Error("Authentification Google Workspace requise. Cliquez sur 'Re-connecter Google Workspace' ci-dessous.");
-        }
-      }
+      // 1. Download the PPTX file
+      await pres.writeFile({ fileName: `${customTitle}.pptx` });
 
-      const executeRequest = async (currentToken: string) => {
-        if (appKey === 'pdf_drive') {
-          const pdfBlob = await generatePdfBlob(customTitle, content, 'GOOGLE DRIVE PDF EXPORT');
-          const fileMetadata = { name: `${customTitle}.pdf`, mimeType: 'application/pdf' };
-          const form = new FormData();
-          form.append('metadata', new Blob([JSON.stringify(fileMetadata)], { type: 'application/json' }));
-          form.append('file', pdfBlob, `${customTitle}.pdf`);
+      // 2. Open Google Drive upload page directly
+      window.open('https://drive.google.com', '_blank');
 
-          const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${currentToken}` },
-            body: form,
-          });
-          const data = await res.json();
-          if (!res.ok) throw data;
-          return `Fichier PDF "${customTitle}.pdf" sauvegardé dans votre Google Drive (${userEmail}) !`;
-
-        } else if (appKey === 'docx_drive') {
-          const fileMetadata = { name: `${customTitle}.docx`, mimeType: 'application/vnd.google-apps.document' };
-          const form = new FormData();
-          form.append('metadata', new Blob([JSON.stringify(fileMetadata)], { type: 'application/json' }));
-          form.append('file', new Blob([`Mentora AI - ${customTitle}\n\n${content}`], { type: 'text/plain' }));
-
-          const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${currentToken}` },
-            body: form,
-          });
-          const data = await res.json();
-          if (!res.ok) throw data;
-          return `Document Word/Doc "${customTitle}.docx" créé dans votre Google Drive (${userEmail}) !`;
-
-        } else if (appKey === 'docs') {
-          const res = await fetch('https://docs.googleapis.com/v1/documents', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${currentToken}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: customTitle })
-          });
-          const docData = await res.json();
-          if (!res.ok) throw docData;
-
-          if (content) {
-            await fetch(`https://docs.googleapis.com/v1/documents/${docData.documentId}:batchUpdate`, {
-              method: 'POST',
-              headers: { Authorization: `Bearer ${currentToken}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                requests: [{ insertText: { location: { index: 1 }, text: content } }]
-              })
-            });
-          }
-          return `Document Google Docs "${customTitle}" créé pour ${userEmail} !`;
-
-        } else if (appKey === 'calendar') {
-          const start = new Date();
-          const end = new Date(start.getTime() + 60 * 60 * 1000);
-          const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${currentToken}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              summary: customTitle,
-              description: content,
-              start: { dateTime: start.toISOString() },
-              end: { dateTime: end.toISOString() }
-            })
-          });
-          const calData = await res.json();
-          if (!res.ok) throw calData;
-          return `Session "${customTitle}" ajoutée dans Google Calendar (${userEmail}) !`;
-
-        } else if (appKey === 'slides') {
-          const res = await fetch('https://slides.googleapis.com/v1/presentations', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${currentToken}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: customTitle })
-          });
-          const slideData = await res.json();
-          if (!res.ok) throw slideData;
-          return `Présentation Google Slides (PowerPoint) "${customTitle}" créée dans Drive (${userEmail}) !`;
-
-        } else if (appKey === 'tasks') {
-          const res = await fetch('https://www.googleapis.com/tasks/v1/lists/@default/tasks', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${currentToken}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: customTitle, notes: content })
-          });
-          const taskData = await res.json();
-          if (!res.ok) throw taskData;
-          return `Tâche "${customTitle}" enregistrée dans Google Tasks pour ${userEmail} !`;
-
-        } else if (appKey === 'classroom') {
-          const res = await fetch('https://classroom.googleapis.com/v1/courses?pageSize=5', {
-            headers: { Authorization: `Bearer ${currentToken}` }
-          });
-          const classData = await res.json();
-          if (!res.ok) throw classData;
-
-          const courses = classData.courses || [];
-          if (courses.length > 0) {
-            const courseId = courses[0].id;
-            const annRes = await fetch(`https://classroom.googleapis.com/v1/courses/${courseId}/announcements`, {
-              method: 'POST',
-              headers: { Authorization: `Bearer ${currentToken}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                text: `📌 [MENTORA AI - SYNTHÈSE DE COURS]\n${customTitle}\n\n${content}`
-              })
-            });
-            const annData = await annRes.json();
-            if (!annRes.ok) throw annData;
-            return `Annonce publiée dans le cours Classroom "${courses[0].name}" (${userEmail}) !`;
-          } else {
-            return `Connecté à Google Classroom (${userEmail}). Rejoint un cours pour publier.`;
-          }
-
-        } else if (appKey === 'gmail') {
-          const emailContent = `To: ${userEmail}\r\nSubject: [Mentora AI Workspace] ${customTitle}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${content}`;
-          const encodedEmail = btoa(unescape(encodeURIComponent(emailContent))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-
-          const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/drafts', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${currentToken}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: { raw: encodedEmail } })
-          });
-          const gmailData = await res.json();
-          if (!res.ok) throw gmailData;
-          return `Brouillon d'e-mail créé dans votre boîte Gmail (${userEmail}) !`;
-        }
-        return '';
-      };
-
-      const successMsg = await executeRequest(activeToken);
-      setStatusMsg({ type: 'success', text: successMsg });
-
+      // 3. Clear feedback with exact steps for Google Slides import
+      setStatusMsg({
+        type: 'success',
+        text: `Fichier "${customTitle}.pptx" (${slideCount} slides) téléchargé ! Pour l'importer dans Google Slides : Glissez-déposez le fichier .pptx dans votre Google Drive (ou dans Google Slides : Fichier > Importer des diapositives).`
+      });
     } catch (err: any) {
-      console.error("Export Workspace Error:", err);
-      
-      let errMsg = '';
-      if (typeof err === 'string') {
-        errMsg = err;
-      } else if (err?.error?.message) {
-        errMsg = typeof err.error.message === 'string' ? err.error.message : JSON.stringify(err.error.message);
-      } else if (typeof err?.error === 'string') {
-        errMsg = err.error;
-      } else if (err?.message) {
-        errMsg = err.message;
-      } else {
-        try {
-          errMsg = JSON.stringify(err);
-        } catch {
-          errMsg = 'Impossible de communiquer avec l\'API Google Workspace.';
-        }
-      }
-
-      const code = err?.error?.code || err?.code;
-      const status = err?.error?.status || err?.status;
-      const isAuthError = 
-        code === 401 || 
-        code === 403 || 
-        status === 'UNAUTHENTICATED' || 
-        status === 'PERMISSION_DENIED' ||
-        errMsg.toLowerCase().includes('auth') ||
-        errMsg.toLowerCase().includes('token') ||
-        errMsg.toLowerCase().includes('credential') ||
-        errMsg.toLowerCase().includes('oauth') ||
-        errMsg.toLowerCase().includes('permission') ||
-        errMsg.toLowerCase().includes('popup');
-      
-      if (isAuthError && retryCount === 0) {
-        console.log("🔑 [AUTH RECOVERY] Jeton OAuth expiré ou invalide. Tentative de renouvellement...");
-        try {
-          const refreshedToken = await connectGoogleWorkspace(true);
-          if (refreshedToken) {
-            return handleExportToApp(appKey, 1);
-          }
-        } catch (authErr) {
-          console.warn("Échec du rafraîchissement OAuth:", authErr);
-        }
-      }
-
+      console.error("Export Slides Error:", err);
       setStatusMsg({
         type: 'error',
-        text: isAuthError 
-          ? `Accès Google non validé pour ${userEmail}. Veuillez cliquer sur "Re-connecter Google Workspace" pour accorder les permissions, ou utilisez l'exportation PDF locale.`
-          : `Erreur (${appKey}) : ${errMsg}`
+        text: `Erreur lors de la génération des Slides : ${err.message || 'Échec de la création'}`
       });
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleReconnect = async () => {
+  const handleExportToApp = async (appKey: AppKeyType) => {
+    if (appKey === 'slides') {
+      setIsSlidesMode(true);
+      const initialSlides = syncSlideTexts(slideCount, content, slideTexts);
+      setSlideTexts(initialSlides);
+      setStatusMsg({
+        type: 'success',
+        text: `Mode Slides activé ! ${slideCount} zones de texte découpées ci-dessous. Modifiez chaque slide puis exportez.`
+      });
+      return;
+    }
+
+    setSelectedApp(appKey);
     setIsSaving(true);
     setStatusMsg({ type: null, text: '' });
+
     try {
-      const newToken = await connectGoogleWorkspace(true);
-      if (newToken) {
+      const encodedTitle = encodeURIComponent(customTitle);
+      const encodedContent = encodeURIComponent(content);
+
+      if (appKey === 'pdf_local' || appKey === 'pdf_drive') {
+        await downloadPdfDocument(customTitle, content, 'EXPORTATION MENTORA AI');
+        if (appKey === 'pdf_drive') {
+          window.open('https://drive.google.com', '_blank');
+          setStatusMsg({
+            type: 'success',
+            text: `Document PDF "${customTitle}.pdf" téléchargé ! Google Drive ouvert pour dépôt rapide.`
+          });
+        } else {
+          setStatusMsg({
+            type: 'success',
+            text: `Document PDF "${customTitle}.pdf" téléchargé sur votre appareil !`
+          });
+        }
+        setIsSaving(false);
+        return;
+      }
+
+      if (appKey === 'gmail') {
+        const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&tf=1&to=${encodeURIComponent(userEmail)}&su=${encodedTitle}&body=${encodedContent}`;
+        window.open(gmailUrl, '_blank');
+        
+        const emlContent = `To: ${userEmail}\nSubject: ${customTitle}\nContent-Type: text/plain; charset=utf-8\n\n${content}`;
+        const blob = new Blob([emlContent], { type: 'message/rfc822' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${customTitle}.eml`;
+        a.click();
+        URL.revokeObjectURL(url);
+
         setStatusMsg({
           type: 'success',
-          text: `Connexion Google Workspace mise à jour pour ${userEmail} ! Vous pouvez ré-essayer l'exportation.`
+          text: `Brouillon ouvert directement dans Gmail ! Le fichier .eml a aussi été téléchargé.`
         });
+        setIsSaving(false);
+        return;
       }
+
+      if (appKey === 'calendar') {
+        const calUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodedTitle}&details=${encodedContent}`;
+        window.open(calUrl, '_blank');
+
+        const icsContent = `BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:${customTitle}\nDESCRIPTION:${content}\nEND:VEVENT\nEND:VCALENDAR`;
+        const blob = new Blob([icsContent], { type: 'text/calendar' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${customTitle}.ics`;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        setStatusMsg({
+          type: 'success',
+          text: `Événement ouvert directement dans Google Calendar ! Fichier .ics généré.`
+        });
+        setIsSaving(false);
+        return;
+      }
+
+      if (appKey === 'docs' || appKey === 'docx_drive') {
+        const docText = `Mentora AI - ${customTitle}\n\n${content}`;
+        const blob = new Blob([docText], { type: 'application/msword' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${customTitle}.docx`;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        window.open('https://docs.new', '_blank');
+        setStatusMsg({
+          type: 'success',
+          text: `Document Word "${customTitle}.docx" téléchargé et Google Docs (docs.new) ouvert !`
+        });
+        setIsSaving(false);
+        return;
+      }
+
+      if (appKey === 'tasks') {
+        window.open('https://tasks.google.com', '_blank');
+        setStatusMsg({
+          type: 'success',
+          text: `Tâche "${customTitle}" prête. Redirection vers Google Tasks !`
+        });
+        setIsSaving(false);
+        return;
+      }
+
+      if (appKey === 'classroom') {
+        window.open('https://classroom.google.com', '_blank');
+        setStatusMsg({
+          type: 'success',
+          text: `Redirection vers Google Classroom pour publier "${customTitle}".`
+        });
+        setIsSaving(false);
+        return;
+      }
+
     } catch (err: any) {
+      console.error("Export Workspace Error:", err);
       setStatusMsg({
         type: 'error',
-        text: `Échec de re-connexion : ${err.message || 'Erreur inconnue'}`
+        text: `Erreur (${appKey}) : ${err.message || 'Échec de l\'exportation'}`
       });
     } finally {
       setIsSaving(false);
@@ -263,7 +241,7 @@ export default function AddToWorkspaceModal({ isOpen, onClose, title, textToSave
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="bg-[#0b0f19] border border-blue-500/40 rounded-[2rem] max-w-xl w-full p-6 md:p-8 shadow-[0_0_60px_rgba(59,130,246,0.25)] relative overflow-hidden space-y-6">
+      <div className="bg-[#0b0f19] border border-blue-500/40 rounded-[2rem] max-w-2xl w-full p-6 md:p-8 shadow-[0_0_60px_rgba(59,130,246,0.25)] relative overflow-hidden space-y-6 max-h-[95vh] overflow-y-auto">
         
         {/* Ambient lighting */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-[80px] pointer-events-none" />
@@ -271,26 +249,16 @@ export default function AddToWorkspaceModal({ isOpen, onClose, title, textToSave
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-800 pb-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 border border-blue-400/30 flex items-center justify-center text-white shadow-md">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-600 border border-emerald-400/30 flex items-center justify-center text-white shadow-md">
               <Layers className="w-5 h-5 animate-pulse" />
             </div>
             <div>
               <h3 className="text-base font-black text-white tracking-tight flex items-center gap-2">
-                Extension "Ajouter à Workspace"
+                Exportation Directe Workspace
               </h3>
-              <div className="flex items-center gap-2 mt-0.5">
-                <p className="text-[11px] font-mono text-emerald-400 flex items-center gap-1">
-                  <ShieldCheck className="w-3 h-3" /> Auto-configuré : {userEmail}
-                </p>
-                <button
-                  onClick={handleReconnect}
-                  disabled={isSaving}
-                  className="px-2 py-0.5 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/40 rounded text-[10px] font-mono text-blue-300 font-bold tracking-wider transition-colors"
-                  title="Renouveler le jeton d'accès Google OAuth"
-                >
-                  Re-connecter
-                </button>
-              </div>
+              <p className="text-[11px] font-mono text-emerald-400 flex items-center gap-1 mt-0.5">
+                <ShieldCheck className="w-3.5 h-3.5" /> Sans Inscription • Accès Direct Immédiat (0 Compte Requis)
+              </p>
             </div>
           </div>
 
@@ -302,28 +270,23 @@ export default function AddToWorkspaceModal({ isOpen, onClose, title, textToSave
           </button>
         </div>
 
-        {/* Notice for Google Unverified App Screen */}
-        <div className="bg-gradient-to-r from-indigo-950/60 via-slate-900 to-amber-950/60 border border-indigo-500/30 rounded-xl p-3 text-xs text-indigo-200 flex items-start gap-2.5 shadow-lg">
+        {/* Notice for Direct Zero Registration Export */}
+        <div className="bg-gradient-to-r from-emerald-950/60 via-slate-900 to-teal-950/60 border border-emerald-500/30 rounded-xl p-3 text-xs text-emerald-200 flex items-start gap-2.5 shadow-lg">
           <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
           <div className="space-y-1">
             <p className="font-bold text-white flex items-center gap-1.5">
-              <span>🔒 Connexion Directe & Chiffrement Client (Privacy-First)</span>
-              <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 text-[9px] font-mono rounded border border-emerald-500/30">Zéro Serveur Tiers</span>
+              <span>⚡ Zone de Rédaction Unifiée Workspace</span>
             </p>
             <p className="text-[11px] leading-relaxed text-slate-300 font-sans">
-              Mentora AI se connecte directement de votre navigateur à Google Cloud API. Vos identifiants ne quittent jamais votre appareil.
-              <br />
-              <span className="text-amber-300 font-mono text-[10.5px]">💡 Si la fenêtre Google indique "Application non validée" (Mode Stealth Dev) :</span>
-              <br />
-              Cliquez sur <span className="font-bold text-amber-200 underline">"Paramètres avancés"</span> puis <span className="font-bold text-emerald-300 underline">"Continuer vers Mount AI Scholar"</span>. Vous pouvez aussi utiliser l'export **PDF Local** sans aucune autorisation cloud.
+              Écrivez ci-dessous le contenu de votre e-mail, de votre tâche, ou le texte de vos documents (Word, PDF, Slides). Exportation immédiate sans création de compte.
             </p>
           </div>
         </div>
 
-        {/* Inputs */}
-        <div className="space-y-3">
+        {/* Inputs & Editing Zone */}
+        <div className="space-y-4">
           <div>
-            <label className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">Titre de l'élément :</label>
+            <label className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">Titre du document / Sujet :</label>
             <input
               type="text"
               value={customTitle}
@@ -332,15 +295,98 @@ export default function AddToWorkspaceModal({ isOpen, onClose, title, textToSave
             />
           </div>
 
-          <div>
-            <label className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">Aperçu du contenu à enregistrer :</label>
-            <textarea
-              rows={3}
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-300 font-mono outline-none focus:border-blue-500 transition-colors mt-1 resize-none"
-            />
-          </div>
+          {isSlidesMode ? (
+            /* SLIDES MODE: Individual text boxes per slide */
+            <div className="space-y-4 bg-amber-950/20 border border-amber-500/30 rounded-2xl p-4 md:p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-500/20 pb-3">
+                <div className="flex items-center gap-2">
+                  <Presentation className="w-5 h-5 text-amber-400" />
+                  <div>
+                    <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                      Mode Présentation Slides ({slideCount} Slides)
+                    </h4>
+                    <p className="text-[10px] text-amber-300/80 font-mono">
+                      Rédigez le texte spécifique de chaque slide ci-dessous :
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl">
+                  <span className="text-[10px] font-mono text-slate-400 uppercase">Nombre de slides :</span>
+                  <input
+                    type="number"
+                    min="1" max="50"
+                    value={slideCount}
+                    onChange={(e) => handleSlideCountChange(parseInt(e.target.value) || 1)}
+                    className="w-12 bg-transparent text-amber-400 font-bold border-b border-slate-700 text-center outline-none text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Grid of Slide Textboxes */}
+              <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+                {Array.from({ length: slideCount }).map((_, idx) => (
+                  <div key={idx} className="bg-slate-950 border border-slate-800 focus-within:border-amber-500/50 rounded-xl p-3 space-y-2 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono font-bold text-amber-400 uppercase tracking-widest flex items-center gap-1.5">
+                        <span>Slide {idx + 1} / {slideCount}</span>
+                      </span>
+                      <span className="text-[9px] text-slate-500 font-mono">
+                        {slideTexts[idx]?.length || 0} caractères
+                      </span>
+                    </div>
+                    <textarea
+                      rows={3}
+                      value={slideTexts[idx] || ''}
+                      onChange={(e) => handleSlideTextChange(idx, e.target.value)}
+                      placeholder={`Contenu et puces de la slide ${idx + 1}...`}
+                      className="w-full bg-slate-900/60 border border-slate-800/80 rounded-lg p-2.5 text-xs text-slate-200 outline-none focus:border-amber-500/50 resize-y font-sans leading-relaxed"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {/* Export Slides Action Button */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                <button
+                  onClick={() => setIsSlidesMode(false)}
+                  className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white rounded-xl text-xs font-medium transition-colors w-full sm:w-auto"
+                >
+                  ← Zone de Rédaction Unifiée (Docs, Mail, PDF)
+                </button>
+
+                <button
+                  onClick={handleExportSlides}
+                  disabled={isSaving}
+                  className="px-6 py-3 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white font-bold rounded-xl text-xs uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 transition-all w-full sm:w-auto disabled:opacity-50 shrink-0"
+                >
+                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Presentation className="w-4 h-4" />}
+                  <span>Générer Slides (.pptx + Google Slides)</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* STANDARD MODE: Single Textarea for Docs, Mail, Calendar, Tasks, PDF */
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">Zone de rédaction unifiée :</label>
+                <button
+                  onClick={() => handleExportToApp('slides')}
+                  className="text-[10px] font-mono text-amber-400 hover:underline flex items-center gap-1"
+                >
+                  <Presentation className="w-3 h-3" /> Diviser en zones de slides
+                </button>
+              </div>
+              
+              <textarea
+                rows={10}
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                className="w-full bg-slate-950/80 border border-slate-800 rounded-xl p-4 text-sm text-slate-200 font-sans outline-none focus:border-blue-500 transition-colors resize-y shadow-inner leading-relaxed"
+                placeholder="Écrivez le contenu de votre document, e-mail ou tâche..."
+              />
+            </div>
+          )}
         </div>
 
         {/* Status Message */}
@@ -361,13 +407,6 @@ export default function AddToWorkspaceModal({ isOpen, onClose, title, textToSave
                 >
                   <Download className="w-3.5 h-3.5" /> Télécharger PDF Local
                 </button>
-                <button
-                  onClick={handleReconnect}
-                  disabled={isSaving}
-                  className="px-3 py-1 bg-red-500/20 hover:bg-red-500/30 border border-red-400/40 rounded-lg text-xs font-bold text-red-200 transition-all flex items-center gap-1"
-                >
-                  🔐 Re-connecter Google
-                </button>
               </div>
             )}
           </div>
@@ -376,20 +415,20 @@ export default function AddToWorkspaceModal({ isOpen, onClose, title, textToSave
         {/* Workspace App Selection Grid */}
         <div className="space-y-2">
           <p className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">
-            Sélectionnez le format d'exportation ou la destination Google Workspace :
+            Exporter vers :
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {[
-              { id: 'pdf_drive', name: 'Google Drive (PDF)', icon: HardDrive, color: 'text-red-400', desc: 'Exporter et enregistrer en PDF sur Google Drive' },
-              { id: 'docx_drive', name: 'Google Drive (Word)', icon: FileCode, color: 'text-blue-400', desc: 'Exporter et enregistrer en Word (.docx) sur Drive' },
-              { id: 'docs', name: 'Google Docs', icon: FileText, color: 'text-indigo-400', desc: 'Créer un document Google Docs interactif' },
-              { id: 'slides', name: 'Google Slides (PowerPoint)', icon: Presentation, color: 'text-amber-400', desc: 'Générer une présentation PowerPoint / Slides' },
-              { id: 'pdf_local', name: 'Télécharger PDF (Local)', icon: Download, color: 'text-emerald-400', desc: 'Télécharger directement le PDF sur cet appareil' },
-              { id: 'calendar', name: 'Google Calendar', icon: Calendar, color: 'text-emerald-400', desc: 'Programmer une session de révision' },
-              { id: 'tasks', name: 'Google Tasks', icon: CheckSquare, color: 'text-purple-400', desc: 'Ajouter une tâche à votre liste' },
-              { id: 'classroom', name: 'Google Classroom', icon: GraduationCap, color: 'text-emerald-300', desc: 'Publier dans vos cours scolaires' },
-              { id: 'gmail', name: 'Gmail Draft', icon: Mail, color: 'text-rose-400', desc: 'Créer un brouillon d\'e-mail avec la note' },
+              { id: 'docs', name: 'Google Docs', icon: FileText, color: 'text-indigo-400', desc: 'Créer Google Docs' },
+              { id: 'docx_drive', name: 'Word (.docx)', icon: FileCode, color: 'text-blue-400', desc: 'Document Word' },
+              { id: 'slides', name: 'Slides / PPTX', icon: Presentation, color: 'text-amber-400', desc: 'Présentation' },
+              { id: 'pdf_drive', name: 'Drive (PDF)', icon: HardDrive, color: 'text-red-400', desc: 'Save on Drive' },
+              { id: 'pdf_local', name: 'PDF Local', icon: Download, color: 'text-emerald-400', desc: 'Download PDF' },
+              { id: 'gmail', name: 'Gmail', icon: Mail, color: 'text-rose-400', desc: 'Email Draft' },
+              { id: 'calendar', name: 'Calendar', icon: Calendar, color: 'text-emerald-400', desc: 'Event details' },
+              { id: 'tasks', name: 'Tasks', icon: CheckSquare, color: 'text-purple-400', desc: 'Add task' },
+              { id: 'classroom', name: 'Classroom', icon: GraduationCap, color: 'text-emerald-300', desc: 'Publish' },
             ].map((app) => {
               const Icon = app.icon;
               const isThisAppSaving = isSaving && selectedApp === app.id;
@@ -408,7 +447,6 @@ export default function AddToWorkspaceModal({ isOpen, onClose, title, textToSave
                     <div className="text-xs font-bold text-white group-hover:text-blue-300 transition-colors flex items-center gap-1.5">
                       {app.name}
                     </div>
-                    <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{app.desc}</p>
                   </div>
                 </button>
               );

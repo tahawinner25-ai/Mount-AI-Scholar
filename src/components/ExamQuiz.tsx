@@ -349,7 +349,7 @@ export default function ExamQuiz({ customQuestions, language = "French", onResta
                   {roundedGradeOnTwenty() >= 16 ? (
                     "Félicitations, Capitaine ! Le pipeline phonologique et sémantique montre une fluidité absolue. La mémorisation à long terme est structurée. Aucun encombrement de la mémoire de travail à signaler. Poursuivre sur cette lancée pour les défis IA."
                   ) : roundedGradeOnTwenty() >= 12 ? (
-                    "Excellent travail d'assimilation. Quelques légers décalages d'automatisation ont été isolés sur les questions de structure fine. Il est conseillé de revoir le support de synthèse rapide et de faire une session d'entraînement de 5 minutes dans l'Arène Cognitive."
+                    "Excellent travail d'assimilation. Quelques légers décalages d'automatisation ont été isolés sur les questions de structure fine. Il est conseillé de revoir le support de synthèse rapide et de faire une session de révision active dans Mentora AI."
                   ) : (
                     "Le score de contrôle indique que les liaisons phonème-graphème nécessitent un soutien d'encadrement pédagogique plus lourd. Privilégier les schémas de cartes neurales (Neural Maps) pour restructurer la hiérarchie logique avant de retenter l'évaluation."
                   )}

@@ -64,7 +64,7 @@ export default function CyberSecurityLab() {
 
 
   // --- PII & PRIVACY GATESTATES ---
-  const [piiInput, setPiiInput] = useState('Bonjour l\'équipe, je m\'appelle Taha et mon email est tahawinner25@gmail.com. Mon numéro de validation est le +212612345678. Mon adresse IP locale est 192.168.1.15.');
+  const [piiInput, setPiiInput] = useState('Bonjour l\'équipe, je m\'appelle Alex et mon email est alex.dupont@example.com. Mon numéro de validation est le +212612345678. Mon adresse IP locale est 192.168.1.15.');
   const [isScrubbing, setIsScrubbing] = useState(true);
   const [scrubbedText, setScrubbedText] = useState('');
   const [detectedPii, setDetectedPii] = useState<{ type: string; value: string }[]>([]);
@@ -689,11 +689,11 @@ export default function CyberSecurityLab() {
                 </h4>
                 {activeEdgeLab === 'cors' ? (
                   <pre className="bg-slate-950 border border-emerald-500/10 rounded-2xl p-5 text-emerald-300/90 text-xs font-mono overflow-x-auto whitespace-pre select-all leading-relaxed">
-                    <code>{`# Correction CORS sur Express / Codex API (Python) - Restriction Stricte
-from Express / Codex API import Express / Codex API
-from Express / Codex API.middleware.cors import CORSMiddleware
+                    <code>{`# Correction CORS sur FastAPI / Codex API (Python) - Restriction Stricte
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-app = Express / Codex API()
+app = FastAPI()
 
 # Interdiction absolue du wildcard '*'
 origins = [
@@ -712,25 +712,25 @@ app.add_middleware(
                 ) : (
                   <pre className="bg-slate-950 border border-emerald-500/10 rounded-2xl p-5 text-emerald-300/90 text-xs font-mono overflow-x-auto whitespace-pre select-all leading-relaxed">
                     <code>{`# Proxy de Sécurisation de l'API Cloud (Garder secrets côté hôte)
-from Express / Codex API import Express / Codex API, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends
 from google import genai
 import os
 
-app = Express / Codex API()
+app = FastAPI()
 
 # La clé de l'API n'apparaît JAMAIS dans le code compilé React.
-# Elle est résolue de manière sécurisée sur le serveur d'Inférence Express / Codex API.
-GPT 5.6_API_KEY = os.getenv("GPT 5.6_API_KEY")
+# Elle est résolue de manière sécurisée sur le serveur d'Inférence FastAPI / Codex API.
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 @app.post("/api/v1/generate")
 async def generate_response(prompt: str):
-    if not GPT 5.6_API_KEY:
+    if not GEMINI_API_KEY:
         raise HTTPException(status_code=500, detail="Key missing on host")
     
     # Inférence sécurisée privée de bout en bout
-    client = genai.Client(api_key=GPT 5.6_API_KEY)
+    client = genai.Client(api_key=GEMINI_API_KEY)
     response = client.models.generate_content(
-        model="GPT 5.6-3.5-flash",
+        model="gemini-2.5-flash",
         contents=prompt
     )
     return {"response": response.text}`}</code>

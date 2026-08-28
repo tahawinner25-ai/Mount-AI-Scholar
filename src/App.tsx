@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MainViewType, ArchSubTabType } from './types';
-import { BookOpen, Brain, BrainCircuit, Loader2, X, Languages, ChevronDown, FileText, Sparkles, Zap, Globe, Volume2, VolumeX, Trophy, Target, Activity, Mic, Network, Gamepad2, Presentation, Headphones, Layers, ArrowLeft, Send, LogIn, LogOut, Play, Settings, GraduationCap, Award, CheckCircle2, Clock, History, Database, SearchCode, Terminal, Code, Moon, Trash2, Paperclip } from 'lucide-react';
+import { BookOpen, Brain, BrainCircuit, Loader2, X, Languages, ChevronDown, FileText, Sparkles, Zap, Globe, Volume2, VolumeX, Trophy, Target, Activity, Mic, Network, Gamepad2, Presentation, Headphones, Layers, ArrowLeft, Send, LogIn, LogOut, Play, Settings, GraduationCap, Award, CheckCircle2, Clock, History, Database, SearchCode, Terminal, Code, Moon, Trash2, Paperclip, CreditCard, Download, FolderArchive, Hand } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { generateSummary, generateQuiz, generateMindMap, queryElasticRAG, getLocalCodexFallback, generatePedagogicalControl, getLocalPedagogicalFallback } from './services/ai';
 import { extractTextFromFile } from './services/documentParser';
 import Mermaid from './components/Mermaid';
 import DyslexicRenderer from './components/DyslexicRenderer';
 import ExamQuiz from './components/ExamQuiz';
-import CognitiveArena from './components/CognitiveArena';
 import VocabularyTracker from './components/VocabularyTracker';
 import CyberSecurityLab from './components/CyberSecurityLab';
 import OfflineSyncPipeline from './components/OfflineSyncPipeline';
@@ -23,12 +22,15 @@ import PhoneticPredictorView from './components/views/PhoneticPredictorView';
 import GoogleClassroomHub from './components/GoogleClassroomHub';
 import GoogleWorkspaceHub from './components/GoogleWorkspaceHub';
 import AddToWorkspaceModal from './components/AddToWorkspaceModal';
+import SubscriptionModal from './components/SubscriptionModal';
+import LoginModal from './components/LoginModal';
+import ProgressBadgesModal from './components/ProgressBadgesModal';
 import MentoraView from './components/views/MentoraView';
+import SL2TView from './components/views/SL2TView';
 import CognitiveChatbot from './components/CognitiveChatbot';
 import scholarIcon from './assets/images/mount_ai_logo_1785927100930.jpg';
-import { auth, loginWithGoogle, logout, db, handleFirestoreError, OperationType, isOfflineError } from './services/firebase';
+import { auth, loginWithGoogle, logout, handleFirestoreError, OperationType, isOfflineError } from './services/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp, collection, addDoc, query, where, orderBy, getDocs } from 'firebase/firestore';
 
 declare global {
   interface Window {
@@ -63,6 +65,44 @@ const SYSTEM_DIAGRAM_CHART = `graph TD
 `;
 
 export default function App() {
+  const [isBadgesModalOpen, setIsBadgesModalOpen] = useState(false);
+  const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [userTier, setUserTier] = useState<'free' | 'pro'>(() => {
+    return (localStorage.getItem('user_tier') as 'free' | 'pro') || 'free';
+  });
+
+  // Daily Usage Quota Engine (Free Tier: 5 AI generations/day, Paid Tier / CEO Email: Unlimited)
+  const getTodayKey = () => new Date().toISOString().slice(0, 10);
+
+  const getDailyUsageCount = () => {
+    const key = `mount_usage_${getTodayKey()}`;
+    return parseInt(localStorage.getItem(key) || '0', 10);
+  };
+
+  const incrementDailyUsage = () => {
+    const key = `mount_usage_${getTodayKey()}`;
+    const current = getDailyUsageCount();
+    const updated = current + 1;
+    localStorage.setItem(key, updated.toString());
+    return updated;
+  };
+
+  const isUnlimitedUser = () => {
+    const email = user?.email?.toLowerCase() || '';
+    return userTier === 'pro' || email === 'tahawinner25@gmail.com';
+  };
+
+  const checkQuotaAllowed = () => {
+    if (isUnlimitedUser()) return true;
+    const current = getDailyUsageCount();
+    if (current >= 5) {
+      alert("⚠️ Limite quotidienne de la Formule Gratuite atteinte (5/5 révisions aujourd'hui).\n\nPassez au Tier Pro Scholar (Illimité) ou connectez-vous avec votre compte abonné Stripe pour continuer !");
+      setIsSubscriptionModalOpen(true);
+      return false;
+    }
+    return true;
+  };
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
   const [workspaceExportTitle, setWorkspaceExportTitle] = useState("Synthèse & Révision Mentora AI");
   const [workspaceExportText, setWorkspaceExportText] = useState("");
@@ -74,19 +114,10 @@ export default function App() {
   const [mainView, setMainView] = useState<MainViewType>(() => {
     const params = new URLSearchParams(window.location.search);
     const view = params.get('view');
-    if (view === 'cognitive-gym' || window.location.hash === '#cognitive-gym' || view === 'kaggle-agent') return 'cognitive-gym';
-    if (view === 'iq-test' || window.location.hash === '#iq-test') return 'cognitive-gym';
     if (view === 'phoneme-gravity' || window.location.hash === '#phoneme-gravity') return 'phoneme-gravity';
     return 'hub';
   });
   const [learningMode, setLearningMode] = useState<'mindmap' | 'quiz' | 'exam' | 'presentation' | 'summary' | 'search' | 'Codex'>('summary');
-  
-  // Cognitive Phonics Gym Interactive States
-  const [selectedCardId, setSelectedCardId] = useState(0);
-  const [voiceArenaSpoken, setVoiceArenaSpoken] = useState<string[]>([]);
-  const [remediationContent, setRemediationContent] = useState("");
-  const [isRemediating, setIsRemediating] = useState(false);
-  const [arenaTranscript, setArenaTranscript] = useState("");
   
   // States for GPT 5.6 Integration
   const [inputText, setInputText] = useState("");
@@ -114,7 +145,7 @@ export default function App() {
       console.log("🎮 Initialisation : Chargement automatique en Mode Invité / Démo");
       return {
         uid: 'guest_1337',
-        displayName: 'Capitaine Invité',
+        displayName: 'Invité',
         email: 'guest@mountai.scholar',
         isGuest: true
       };
@@ -219,7 +250,7 @@ export default function App() {
         localStorage.setItem('is_guest', 'true');
         setUser({
           uid: 'guest_1337',
-          displayName: 'Capitaine Invité',
+          displayName: 'Invité',
           email: 'guest@mountai.scholar',
           isGuest: true
         });
@@ -244,22 +275,16 @@ export default function App() {
       setUser(currentUser);
       if (currentUser) {
          try {
-           const userRef = doc(db, 'users', currentUser.uid);
-           const userSnap = await getDoc(userRef);
-           if (!userSnap.exists()) {
-             await setDoc(userRef, {
+           const profileKey = 'user_profile_' + currentUser.uid;
+           if (!localStorage.getItem(profileKey)) {
+             localStorage.setItem(profileKey, JSON.stringify({
                userId: currentUser.uid,
                role: 'student',
-               createdAt: serverTimestamp()
-             });
+               createdAt: new Date().toISOString()
+             }));
            }
          } catch (e) {
-           const isOffline = isOfflineError(e);
-           if (isOffline) {
-             console.warn("[FIREBASE_OFFLINE] Moteur de base de données local hors ligne. Chargement en local-first pour l'utilisateur :", currentUser.uid);
-           } else {
-             try { handleFirestoreError(e, OperationType.GET, 'users/' + currentUser.uid); } catch (err) { console.error(err); }
-           }
+           console.warn("Profil sauvegardé localement.");
          }
       }
       setAuthReady(true);
@@ -267,12 +292,57 @@ export default function App() {
     return () => unsubscribe();
   }, [user?.isGuest]);
 
+  const verifySubscriptionServerSide = async (userObj: any) => {
+    if (!userObj) {
+      setUserTier('free');
+      localStorage.setItem('user_tier', 'free');
+      return;
+    }
+
+    const email = (userObj?.email || '').trim().toLowerCase();
+
+    // CEO / Developer Email -> ALWAYS Paid Tier (Pro Scholar Illimité) for free
+    if (email === 'tahawinner25@gmail.com') {
+      setUserTier('pro');
+      localStorage.setItem('user_tier', 'pro');
+      console.log("👑 Compte Développeur CEO (tahawinner25@gmail.com) -> Accès Pro Scholar Illimité Garanti !");
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/stripe/verify-subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userEmail: email, userId: userObj.uid || '' })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const verifiedTier = (data.tier === 'pro' || data.isCaptain) ? 'pro' : 'free';
+        setUserTier(verifiedTier);
+        localStorage.setItem('user_tier', verifiedTier);
+      } else {
+        setUserTier('free');
+        localStorage.setItem('user_tier', 'free');
+      }
+    } catch (err) {
+      console.warn("Échec de la vérification de l'abonnement par le serveur:", err);
+      const fallback = email === 'tahawinner25@gmail.com' ? 'pro' : 'free';
+      setUserTier(fallback);
+      localStorage.setItem('user_tier', fallback);
+    }
+  };
+
+  useEffect(() => {
+    verifySubscriptionServerSide(user);
+  }, [user]);
+
   const loginAsGuest = () => {
     console.log("🎮 Connexion active en Mode Invité / Démo");
     localStorage.setItem('is_guest', 'true');
     setUser({
       uid: 'guest_1337',
-      displayName: 'Capitaine Invité',
+      displayName: 'Invité',
       email: 'guest@mountai.scholar',
       isGuest: true
     });
@@ -289,7 +359,7 @@ export default function App() {
     } catch (err: any) {
       console.error("Login failed:", err);
       setLoginError(
-        "L'authentification Google a échoué sur mobile ou dans l'iframe. C'est un comportement de sécurité Firebase classique lié au domaine de la sandbox Google AI Studio."
+        "L'authentification Google a échoué sur mobile ou dans l'iframe."
       );
     }
   };
@@ -309,40 +379,14 @@ export default function App() {
     if (!user) return;
     setIsLoadingHistory(true);
     
-    if (user.isGuest) {
-      try {
-        const localHistoryStr = localStorage.getItem('guest_learning_items') || '[]';
-        const items = JSON.parse(localHistoryStr);
-        setHistoryItems(items);
-      } catch (err) {
-        console.error("Échec du décodage de l'historique local:", err);
-        setHistoryItems([]);
-      } finally {
-        setIsLoadingHistory(false);
-      }
-      return;
-    }
-
     try {
-      const q = query(
-        collection(db, 'learning_items'),
-        where('userId', '==', user.uid)
-      );
-      const querySnapshot = await getDocs(q);
-      const items = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      items.sort((a, b) => {
-         const tA = (a as any).createdAt?.toMillis ? (a as any).createdAt.toMillis() : 0;
-         const tB = (b as any).createdAt?.toMillis ? (b as any).createdAt.toMillis() : 0;
-         return tB - tA;
-      });
+      const storageKey = user.isGuest ? 'guest_learning_items' : `user_learning_items_${user.uid}`;
+      const localHistoryStr = localStorage.getItem(storageKey) || localStorage.getItem('guest_learning_items') || '[]';
+      const items = JSON.parse(localHistoryStr);
       setHistoryItems(items);
-    } catch (e) {
-      if (isOfflineError(e)) {
-        console.warn("[FIREBASE_OFFLINE] Impossible d'interroger la base cloud (hors ligne / Offline Mode actif). Retour à la file d'attente locale d'historique.");
-        setHistoryItems([]);
-      } else {
-        try { handleFirestoreError(e, OperationType.LIST, 'learning_items'); } catch (err) { console.error(err); }
-      }
+    } catch (err) {
+      console.error("Échec du décodage de l'historique local:", err);
+      setHistoryItems([]);
     } finally {
       setIsLoadingHistory(false);
     }
@@ -371,8 +415,6 @@ export default function App() {
 
       if (isPhonemeGravity) {
         setMainView('phoneme-gravity');
-      } else if (view === 'cognitive-gym' || hash === '#cognitive-gym') {
-        setMainView('cognitive-gym');
       }
     };
     handleLocationCheck();
@@ -411,10 +453,6 @@ export default function App() {
         e.preventDefault();
         window.history.replaceState({}, '', '/');
         setMainView('hub');
-      } else if ((e.ctrlKey || e.metaKey) && (key === 'q' || e.code === 'KeyQ')) {
-        e.preventDefault();
-        window.history.replaceState({}, '', '/?view=cognitive-gym');
-        setMainView('cognitive-gym');
       }
     };
     window.addEventListener('keydown', handleKeyDown, { capture: true });
@@ -458,41 +496,8 @@ export default function App() {
             return updated.trim();
           });
 
-          const processRecognitionWords = (text: string) => {
-            if (!text) return;
-            const rawWords = text.toLowerCase()
-              .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "")
-              .trim()
-              .split(/\s+/)
-              .filter(Boolean);
-              
-            setVoiceArenaSpoken(prev => {
-              const next = [...prev];
-              let changed = false;
-              for (const rw of rawWords) {
-                if (!next.includes(rw)) {
-                  next.push(rw);
-                  changed = true;
-                }
-              }
-              return changed ? next : prev;
-            });
-          };
-
-          // Instantly process interim speech results for real-time word matching (Zero Latency)
-          if (interimTranscript) {
-            processRecognitionWords(interimTranscript);
-          }
-
           // Process final speech results
           if (finalTranscript) {
-            processRecognitionWords(finalTranscript);
-
-            setArenaTranscript(prev => {
-              const updated = prev + " " + finalTranscript;
-              return updated.trim();
-            });
-
             const words = finalTranscript.trim().split(' ');
             const lastWord = words[words.length - 1];
             
@@ -609,7 +614,6 @@ export default function App() {
     
     // update state
     setTranscript(textToProcess);
-    setArenaTranscript(textToProcess);
 
     const startTime = performance.now();
 
@@ -619,20 +623,6 @@ export default function App() {
     
     const quickPhonemes = localWords.map(w => `/${w.substring(0, Math.min(3, w.length)) || '..'}/`);
     setDetectedPhonemes(quickPhonemes.slice(0, 8));
-
-    // Update active vocabulary track
-    setVoiceArenaSpoken(prev => {
-      const next = [...prev];
-      let changed = false;
-      for (const w of localWords) {
-        const cleanW = w.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
-        if (cleanW && !next.includes(cleanW)) {
-          next.push(cleanW);
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
 
     try {
       // 3. API request to phoneme prediction engine
@@ -765,6 +755,8 @@ export default function App() {
     const promptToUse = inputText.trim();
     if (!promptToUse && uploadedFiles.length === 0) return;
     
+    if (!checkQuotaAllowed()) return;
+
     setIsGenerating(true);
     setLearningResult("");
     setFileError(null);
@@ -894,38 +886,30 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
       
       setLearningResult(result);
 
+      if (!isUnlimitedUser()) {
+        incrementDailyUsage();
+      }
+
       // Save to Firebase securely in a non-blocking background thread (or LocalStorage if Guest)
       if (user && result && learningMode !== 'presentation' && learningMode !== 'exam') {
-        if (user.isGuest) {
-          try {
-            const localHistoryStr = localStorage.getItem('guest_learning_items') || '[]';
-            const items = JSON.parse(localHistoryStr);
-            const newItem = {
-              id: 'local_' + Date.now(),
-              userId: user.uid,
-              mode: learningMode,
-              language: selectedLang,
-              originalText: inputText.substring(0, 100000),
-              generatedContent: result.substring(0, 100000),
-              createdAt: { toMillis: () => Date.now() } // Match timestamp mapping structure
-            };
-            items.unshift(newItem);
-            localStorage.setItem('guest_learning_items', JSON.stringify(items.slice(0, 50))); // Keep last 50 items
-            console.log("💾 Session d'apprentissage sauvegardée localement en mode Invité.");
-          } catch (localErr) {
-            console.error("Échec de la sauvegarde locale de session:", localErr);
-          }
-        } else {
-          addDoc(collection(db, 'learning_items'), {
+        try {
+          const storageKey = user.isGuest ? 'guest_learning_items' : `user_learning_items_${user.uid}`;
+          const localHistoryStr = localStorage.getItem(storageKey) || localStorage.getItem('guest_learning_items') || '[]';
+          const items = JSON.parse(localHistoryStr);
+          const newItem = {
+            id: 'local_' + Date.now(),
             userId: user.uid,
             mode: learningMode,
             language: selectedLang,
             originalText: inputText.substring(0, 100000),
             generatedContent: result.substring(0, 100000),
-            createdAt: serverTimestamp()
-          }).catch(firebaseError => {
-            console.warn("Firestore queued this transaction: Offline synchronization active.", firebaseError);
-          });
+            createdAt: { toMillis: () => Date.now() }
+          };
+          items.unshift(newItem);
+          localStorage.setItem(storageKey, JSON.stringify(items.slice(0, 50)));
+          console.log("💾 Session d'apprentissage sauvegardée localement en LocalStorage.");
+        } catch (localErr) {
+          console.error("Échec de la sauvegarde locale de session:", localErr);
         }
       }
 
@@ -951,7 +935,7 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
     );
   }
 
-  if (!user && mainView !== 'cognitive-gym' && mainView !== 'mentora') {
+  if (!user && mainView !== 'mentora') {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col font-sans relative overflow-hidden items-center justify-center">
          <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-600/20 blur-[120px] rounded-full mix-blend-screen pointer-events-none" />
@@ -1013,8 +997,8 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
       <div className="atmosphere" />
       
       {/* Navigation Globale */}
-      {mainView !== 'cognitive-gym' && mainView !== 'phoneme-gravity' && mainView !== 'mentora' && (
-      <header className="sticky top-0 z-50 glass-panel border-b border-white/5 w-full shrink-0">
+      {mainView !== 'phoneme-gravity' && mainView !== 'mentora' && (
+      <header className="relative z-50 bg-slate-950 border-b border-slate-800 w-full shrink-0">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 md:py-4 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
              {mainView !== 'hub' && (
@@ -1058,6 +1042,19 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
             </button>
 
             <button 
+              onClick={() => setMainView('sl2t')} 
+              className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold ${
+                mainView === 'sl2t' 
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-[0_0_20px_rgba(16,185,129,0.5)] border border-emerald-400' 
+                  : 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.15)]'
+              }`}
+              title="Reconnaissance et traduction de la Langue des Signes (SL2T)"
+            >
+              <Hand className="w-4 h-4 text-emerald-400 animate-pulse" />
+              <span>SL2T Signes</span>
+            </button>
+
+            <button 
               onClick={() => setMainView('workspace')} 
               className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold ${
                 mainView === 'workspace' 
@@ -1069,14 +1066,48 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
               <span>Google Workspace Hub</span>
             </button>
 
+            {/* Badges & Progress Button */}
             <button 
-              onClick={() => setIsWorkspaceModalOpen(true)} 
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-black rounded-full shadow-[0_0_25px_rgba(99,102,241,0.5)] border border-blue-400/50 transition-all hover:scale-105 active:scale-95"
-              title="Extension Ajouter à Google Workspace"
+              onClick={() => setIsBadgesModalOpen(true)} 
+              className="flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.2)]"
+              title="Voir vos badges de progression & accomplissements"
             >
-              <Layers className="w-4 h-4 text-white animate-spin" />
-              <span>Ajouter à Workspace</span>
+              <Trophy className="w-4 h-4 text-amber-400" />
+              <span>Badges & XP</span>
+              <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-300 text-[9px] font-mono rounded-full font-bold">PROGRES</span>
             </button>
+
+            {/* Stripe Subscription & Billing Button */}
+            <button 
+              onClick={() => setIsSubscriptionModalOpen(true)} 
+              className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold ${
+                userTier === 'pro' 
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.5)] border border-emerald-400' 
+                  : 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20'
+              }`}
+              title="Gérer votre abonnement Stripe"
+            >
+              <CreditCard className="w-4 h-4 text-emerald-400" />
+              <span>{userTier === 'pro' ? 'PRO Scholar' : 'Abonnement Free'}</span>
+              <span className="px-1.5 py-0.5 bg-black/40 text-[9px] font-mono rounded text-emerald-300">Stripe</span>
+            </button>
+
+            {/* Faisabilité & Fiabilité - Uniquement accessible au Capitaine (tahawinner25@gmail.com) */}
+            {user?.email?.toLowerCase() === 'tahawinner25@gmail.com' && (
+              <button 
+                onClick={() => setMainView('architecture')} 
+                className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold ${
+                  mainView === 'architecture' 
+                    ? 'bg-emerald-600 text-white shadow-[0_0_20px_rgba(16,185,129,0.5)] border border-emerald-400' 
+                    : 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20'
+                }`}
+              >
+                <Activity className="w-4 h-4 text-emerald-400 animate-pulse" />
+                <span>Faisabilité & Fiabilité</span>
+              </button>
+            )}
+
+
 
             {/* Global PDF / Word / PPTX File Import Button */}
             <label className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold cursor-pointer transition-all border shadow-lg ${
@@ -1100,6 +1131,15 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
 
             {user ? (
                <div className="flex flex-wrap items-center gap-3 md:gap-4 justify-center">
+                 <a 
+                   href="/mount_ai_scholar_source.zip" 
+                   download="mount_ai_scholar_source.zip"
+                   className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full font-mono text-xs font-bold transition-all"
+                   title="Télécharger tout le code source de l'application au format ZIP"
+                 >
+                   <Download className="w-3.5 h-3.5" />
+                   <span>CODE.ZIP</span>
+                 </a>
                  <button 
                    onClick={() => setMainView('mentora')} 
                    className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold ${
@@ -1114,13 +1154,22 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
                  <button onClick={() => setMainView('history')} className="flex items-center gap-2 px-4 py-2 rounded-full glass-panel glass-panel-hover transition-all text-white/80">
                    <History className="w-4 h-4" /> <span className="inline">Historique</span>
                  </button>
-                 <span className="text-white/60 font-medium text-xs">Connecté: {user.displayName || user.email?.split('@')[0]}</span>
+                 <span className="text-white/60 font-medium text-xs">Connecté: {user.displayName || user.email?.split('@')[0]} ({user?.email?.toLowerCase() === 'tahawinner25@gmail.com' ? 'CEO Pro Illimité' : userTier === 'pro' ? 'Pro Illimité' : `Free ${getDailyUsageCount()}/5`})</span>
                  <button onClick={handleLogout} className="p-2 glass-panel rounded-full glass-panel-hover text-white/70 transition-colors ml-2" title="Déconnexion">
                    <LogOut className="w-4 h-4" />
                  </button>
                </div>
             ) : (
                <div className="flex items-center gap-3">
+                 <a 
+                   href="/mount_ai_scholar_source.zip" 
+                   download="mount_ai_scholar_source.zip"
+                   className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full font-mono text-xs font-bold transition-all"
+                   title="Télécharger tout le code source de l'application au format ZIP"
+                 >
+                   <Download className="w-3.5 h-3.5" />
+                   <span>CODE.ZIP</span>
+                 </a>
                  <button 
                    onClick={() => setMainView('mentora')} 
                    className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold ${
@@ -1132,8 +1181,8 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
                    <Brain className="w-4 h-4 text-purple-400 animate-pulse" />
                    <span>Mount AI Tutor</span>
                  </button>
-                 <button onClick={handleGoogleLogin} className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-white/90 rounded-full font-bold text-black transition-all">
-                   <LogIn className="w-4 h-4" /> CONNEXION
+                 <button onClick={() => setIsLoginModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-white/90 rounded-full font-bold text-black transition-all">
+                   <LogIn className="w-4 h-4" /> CONNEXION & FORMULES
                  </button>
                </div>
              )}
@@ -1252,6 +1301,19 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
         {mainView === 'hub' && (
           <HubView 
             setMainView={setMainView} 
+            user={user}
+            onAddToWorkspace={(title, text) => {
+              setWorkspaceExportTitle(title);
+              setWorkspaceExportText(text);
+              setIsWorkspaceModalOpen(true);
+            }}
+          />
+        )}
+
+        {mainView === 'sl2t' && (
+          <SL2TView
+            setMainView={setMainView}
+            user={user}
             onAddToWorkspace={(title, text) => {
               setWorkspaceExportTitle(title);
               setWorkspaceExportText(text);
@@ -1347,7 +1409,7 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
           />
         )}
 
-        {mainView === 'architecture' && (
+        {mainView === 'architecture' && user?.email?.toLowerCase() === 'tahawinner25@gmail.com' && (
           <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b border-slate-800 pb-8">
                 <div>
@@ -1503,30 +1565,6 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
           <HistoryView isLoadingHistory={isLoadingHistory} historyItems={historyItems} />
         )}
 
-        {mainView === 'cognitive-gym' && (
-          <CognitiveArena
-            user={user}
-            onLogin={async () => { await loginWithGoogle(); }}
-            selectedLang={selectedLang}
-            voiceArenaSpoken={voiceArenaSpoken}
-            setVoiceArenaSpoken={setVoiceArenaSpoken}
-            arenaTranscript={arenaTranscript}
-            setArenaTranscript={setArenaTranscript}
-            isRecording={isRecording}
-            toggleRecording={toggleRecording}
-            audioData={audioData}
-            selectedCardId={selectedCardId}
-            setSelectedCardId={setSelectedCardId}
-            remediationContent={remediationContent}
-            setRemediationContent={setRemediationContent}
-            isRemediating={isRemediating}
-            setIsRemediating={setIsRemediating}
-            speechError={speechError}
-            injectedExercise={injectedExercise}
-            onInjectedExerciseConsumed={() => setInjectedExercise(undefined)}
-          />
-        )}
-
         {mainView === 'gtm' && (
           <GtmPlaybook 
             user={user}
@@ -1566,7 +1604,7 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
       )}
 
       {/* Credits & Tech Talk */}
-      {mainView !== 'cognitive-gym' && mainView !== 'phoneme-gravity' && mainView !== 'voice-conversation' && (
+      {mainView !== 'phoneme-gravity' && mainView !== 'voice-conversation' && (
       <footer className="max-w-7xl mx-auto px-6 py-12 border-t border-slate-800 flex flex-col md:flex-row items-center gap-8 justify-between opacity-80">
     <div className="flex flex-col items-center gap-6 w-full md:w-auto">
       <div className="relative group w-full md:w-auto">
@@ -1596,6 +1634,32 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
         onClose={() => setIsWorkspaceModalOpen(false)}
         title={workspaceExportTitle}
         textToSave={workspaceExportText || inputText || learningResult || "Notes de cours et révisions préparées sur Mentora AI."}
+      />
+
+      {/* Stripe Subscription & Billing Modal */}
+      <SubscriptionModal
+        isOpen={isSubscriptionModalOpen}
+        onClose={() => setIsSubscriptionModalOpen(false)}
+        userEmail={user?.email || 'capitaine@mentora.ai'}
+        currentTier={userTier}
+        onTierChange={(newTier) => setUserTier(newTier)}
+      />
+
+      {/* Login & Tier Selection Modal */}
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        onGoogleLogin={handleGoogleLogin}
+        onGuestLogin={loginAsGuest}
+        onOpenStripeCheckout={() => setIsSubscriptionModalOpen(true)}
+        userTier={userTier}
+        userEmail={user?.email}
+      />
+
+      {/* Progress Badges & Gamification Modal */}
+      <ProgressBadgesModal
+        isOpen={isBadgesModalOpen}
+        onClose={() => setIsBadgesModalOpen(false)}
       />
 
     </div>

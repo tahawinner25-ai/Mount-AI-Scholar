@@ -8,7 +8,20 @@ import {
   BarChart3, PieChart, Globe
 } from 'lucide-react';
 import { MainViewType } from '../../types';
-import { extractTextFromFile } from '../../services/documentParser';
+import { 
+  parseStructuredDocument, 
+  extractTextFromFile, 
+  DocumentParseProgress, 
+  ParsedDocumentResult, 
+  formatBytes,
+  chunkDocumentText 
+} from '../../services/documentParser';
+import {
+  exportSummaryToPdf,
+  exportMindmapToPdf,
+  exportQuizToPdf,
+  downloadPdfDocument
+} from '../../utils/pdfExport';
 
 // ========================================================
 // SOUND ENGINE: Web Audio API Oscillator Orchestration
@@ -112,31 +125,51 @@ interface MentoraHistoryItem {
 }
 
 export default function MentoraView({ setMainView, user, onAddToWorkspace }: MentoraViewProps) {
-  // Document context state for Chatbot & Search
+  // Document context state for Chatbot, Large PDF Analysis & Search
   const [chatDocument, setChatDocument] = useState<{ fileName: string; text: string; size: number } | null>(null);
+  const [parsedDocResult, setParsedDocResult] = useState<ParsedDocumentResult | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<DocumentParseProgress | null>(null);
   const [isUploadingDoc, setIsUploadingDoc] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [selectedChapterIdx, setSelectedChapterIdx] = useState<number | null>(null);
 
   const handleUploadChatDoc = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setIsUploadingDoc(true);
+    setUploadProgress({
+      currentPage: 0,
+      totalPages: 0,
+      percent: 5,
+      stage: 'reading',
+      message: `Initialisation de la lecture de ${file.name}...`
+    });
+
     try {
-      const text = await extractTextFromFile(file);
+      const result = await parseStructuredDocument(file, (p) => {
+        setUploadProgress(p);
+      });
+
+      setParsedDocResult(result);
       setChatDocument({
-        fileName: file.name,
-        text: text,
-        size: file.size
+        fileName: result.fileName,
+        text: result.text,
+        size: result.fileSize
       });
       playSuccessSound();
+      if (result.isLargeDocument) {
+        setActiveTab('doc-studio');
+      }
     } catch (err: any) {
-      alert(err?.message || "Erreur lors du chargement du fichier.");
+      alert(err?.message || "Erreur lors du chargement et du parsing du document.");
     } finally {
       setIsUploadingDoc(false);
+      setUploadProgress(null);
       if (e.target) e.target.value = '';
     }
   };
   // State for tabs
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'diagnostic' | 'lesson' | 'chat' | 'mindmap' | 'quiz'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'diagnostic' | 'lesson' | 'chat' | 'mindmap' | 'quiz' | 'doc-studio'>('dashboard');
 
   // Login Modal & Student Profile State
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -274,6 +307,23 @@ export default function MentoraView({ setMainView, user, onAddToWorkspace }: Men
   const [isTypingChat, setIsTypingChat] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [micError, setMicError] = useState("");
+  const [voiceLang, setVoiceLang] = useState<'fr-FR' | 'en-US' | 'es-ES' | 'ar-SA'>('fr-FR');
+  const [audioData, setAudioData] = useState<number[]>(new Array(16).fill(0));
+  const [interimTranscript, setInterimTranscript] = useState("");
+  const recognitionRef = useRef<any>(null);
+
+  // Equalizer animation effect during voice recording
+  useEffect(() => {
+    let interval: any;
+    if (isRecording) {
+      interval = setInterval(() => {
+        setAudioData(prev => prev.map(() => Math.floor(15 + Math.random() * 85)));
+      }, 90);
+    } else {
+      setAudioData(new Array(16).fill(0));
+    }
+    return () => clearInterval(interval);
+  }, [isRecording]);
 
   // Quiz state
   const [quizTopic, setQuizTopic] = useState("Fractions");
@@ -376,44 +426,95 @@ export default function MentoraView({ setMainView, user, onAddToWorkspace }: Men
   };
 
   // ========================================================
-  // SPEECH TO TEXT (STT) SYSTEM
+  // SPEECH TO TEXT (STT) SYSTEM (Modeled on DyslexiaView logic)
   // ========================================================
   const handleVoiceInput = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      setMicError("Speech recognition is not supported in this browser.");
+      setMicError("La reconnaissance vocale native n'est pas supportée par votre navigateur (utiliser Google Chrome ou Edge).");
       return;
     }
 
     if (isRecording) {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch (e) { console.warn(e); }
+      }
       setIsRecording(false);
       return;
     }
 
     setMicError("");
+    setInterimTranscript("");
     setIsRecording(true);
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'en-US';
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
 
-    recognition.onresult = (event: any) => {
-      const speechToText = event.results[0][0].transcript;
-      setChatInput(prev => prev + (prev ? " " : "") + speechToText);
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = voiceLang;
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 1;
+
+      recognition.onresult = (event: any) => {
+        let finalStr = '';
+        let interimStr = '';
+        
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalStr += event.results[i][0].transcript;
+          } else {
+            interimStr += event.results[i][0].transcript;
+          }
+        }
+
+        if (interimStr) {
+          setInterimTranscript(interimStr);
+        }
+
+        if (finalStr) {
+          setChatInput(prev => {
+            const updated = (prev ? prev + " " : "") + finalStr.trim();
+            return updated.trim();
+          });
+          setInterimTranscript("");
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error("Speech recognition error:", event);
+        if (event.error === 'not-allowed') {
+          setMicError("🎤 Micro bloqué ! Autorisez l'accès au microphone dans les paramètres de votre navigateur.");
+        } else if (event.error === 'no-speech') {
+          setMicError("Aucun son détecté. Parlez bien distinctement près du micro.");
+        } else {
+          setMicError(`Erreur Microphone (Code: ${event.error})`);
+        }
+        setIsRecording(false);
+      };
+
+      recognition.onend = () => {
+        setIsRecording(false);
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err: any) {
+      console.error("Speech recognition initialization error:", err);
+      setMicError("Impossible d'initialiser le microphone.");
       setIsRecording(false);
-    };
+    }
+  };
 
-    recognition.onerror = (event: any) => {
-      console.error(event);
-      setMicError("Listening error: " + event.error);
-      setIsRecording(false);
-    };
-
-    recognition.onend = () => {
-      setIsRecording(false);
-    };
-
-    recognition.start();
+  const handleStopVoiceAndSend = (overrideExtraText?: string) => {
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch (e) { console.warn(e); }
+    }
+    setIsRecording(false);
+    
+    const textToSend = ((chatInput ? chatInput + " " : "") + (overrideExtraText || interimTranscript || "")).trim();
+    setInterimTranscript("");
+    if (textToSend) {
+      handleSendChat(textToSend);
+    }
   };
 
   // ========================================================
@@ -1017,6 +1118,111 @@ Ensure progressive difficulty (Easy, Intermediate, Advanced).`;
     return { cleanText: text, qcm: null };
   };
 
+  // ========================================================
+  // PDF EXPORT HANDLERS (Summary, Mindmap, Quiz, Archives)
+  // ========================================================
+  const handleExportLessonPdf = async () => {
+    if (!lessonContent) return;
+    setIsExportingPdf(true);
+    try {
+      await exportSummaryToPdf({
+        title: `Leçon : ${lessonTopic}`,
+        topic: lessonTopic,
+        summary: lessonContent,
+        badge: `LEÇON NIVEAU ${lessonLevel.toUpperCase()}`,
+        sourceDoc: chatDocument?.fileName
+      });
+      playSuccessSound();
+    } catch (e) {
+      console.error(e);
+      alert("Erreur lors de l'exportation PDF de la leçon.");
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
+  const handleExportMindmapPdf = async () => {
+    if (mindmapNodes.length === 0) return;
+    setIsExportingPdf(true);
+    try {
+      await exportMindmapToPdf({
+        title: `Carte Mentale : ${mindmapQuery}`,
+        root: mindmapQuery,
+        nodes: mindmapNodes,
+        edges: mindmapEdges,
+        badge: 'RÉSEAU CONCEPTUEL VECTORIEL'
+      });
+      playSuccessSound();
+    } catch (e) {
+      console.error(e);
+      alert("Erreur lors de l'exportation PDF de la carte mentale.");
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
+  const handleExportQuizPdf = async () => {
+    if (quizQuestions.length === 0) return;
+    setIsExportingPdf(true);
+    try {
+      await exportQuizToPdf({
+        title: `Quiz & Corrigé : ${quizTopic}`,
+        topic: quizTopic,
+        questions: quizQuestions,
+        score: quizAnswered ? quizScore : undefined,
+        total: quizQuestions.length,
+        badge: 'ÉVALUATION & CORRIGÉ DÉTAILLÉ'
+      });
+      playSuccessSound();
+    } catch (e) {
+      console.error(e);
+      alert("Erreur lors de l'exportation PDF du quiz.");
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
+  const handleExportHistoryItemPdf = async (item: MentoraHistoryItem) => {
+    setIsExportingPdf(true);
+    try {
+      if (item.type === 'lesson') {
+        await exportSummaryToPdf({
+          title: `Leçon : ${item.topic}`,
+          summary: item.fullContent,
+          badge: 'ARCHIVE DE LEÇON'
+        });
+      } else if (item.type === 'mindmap') {
+        await downloadPdfDocument(`Carte Mentale - ${item.topic}`, item.fullContent, 'CARTE MENTALE ARCHIVÉE');
+      } else if (item.type === 'quiz') {
+        await downloadPdfDocument(`Résultat Quiz - ${item.topic}`, item.fullContent, 'RÉSULTAT DE QUIZ ARCHIVÉ');
+      } else {
+        await downloadPdfDocument(`Dialogue Socratique - ${item.topic}`, item.fullContent, 'DIALOGUE SOCRATIQUE ARCHIVÉ');
+      }
+      playSuccessSound();
+    } catch (e) {
+      console.error(e);
+      alert("Erreur lors du téléchargement du PDF.");
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
+  const handleGenerateFromChapter = (chapter: any) => {
+    setLessonTopic(chapter.title);
+    setLessonContent(chapter.content);
+    setActiveTab('lesson');
+  };
+
+  const handleGenerateMindmapFromChapter = (chapter: any) => {
+    setMindmapQuery(chapter.title);
+    setActiveTab('mindmap');
+  };
+
+  const handleGenerateQuizFromChapter = (chapter: any) => {
+    setQuizTopic(chapter.title);
+    setActiveTab('quiz');
+  };
+
   return (
     <div className={`space-y-6 animate-in fade-in slide-in-from-bottom-6 duration-700 ${
       standaloneWindow ? 'fixed inset-0 z-50 bg-slate-950 p-6 md:p-10 overflow-y-auto' : ''
@@ -1027,6 +1233,14 @@ Ensure progressive difficulty (Easy, Intermediate, Advanced).`;
         <div>
           <div className="flex items-center gap-3 mb-2">
             <button
+              onClick={() => setMainView('hub')}
+              className="flex items-center gap-2 text-xs font-mono font-bold text-slate-200 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-700/80 hover:border-purple-500/50 px-3.5 py-1.5 rounded-xl transition-all shadow-md group cursor-pointer"
+              title="Retourner au Hub principal"
+            >
+              <ArrowLeft className="w-4 h-4 text-purple-400 group-hover:-translate-x-1 transition-transform" />
+              <span>Retour au Hub</span>
+            </button>
+            <button
               onClick={() => setStandaloneWindow(!standaloneWindow)}
               className="flex items-center gap-1.5 text-xs font-mono text-purple-400 hover:text-purple-300 transition-colors uppercase tracking-widest bg-purple-500/10 border border-purple-500/20 px-2.5 py-1 rounded-full cursor-pointer"
             >
@@ -1035,6 +1249,13 @@ Ensure progressive difficulty (Easy, Intermediate, Advanced).`;
             </button>
           </div>
           <h2 className="text-4xl font-black text-white tracking-tight flex items-center gap-3">
+            <button
+              onClick={() => setMainView('hub')}
+              className="p-2.5 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 rounded-2xl transition-all hover:scale-105 active:scale-95 text-purple-400 group shrink-0"
+              title="Retourner au Hub principal"
+            >
+              <ArrowLeft className="w-6 h-6 text-purple-400 group-hover:-translate-x-1 transition-transform" />
+            </button>
             <Brain className="w-10 h-10 text-violet-500 animate-pulse" />
             MOUNT <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-purple-500 to-pink-500">AI SCHOLAR</span>
           </h2>
@@ -1142,37 +1363,37 @@ Ensure progressive difficulty (Easy, Intermediate, Advanced).`;
       </div>
 
       {/* GLOBAL MENTORA DOCUMENT IMPORT & WORKSPACE ACTION BAR */}
-      <div className="p-4 bg-gradient-to-r from-violet-950/80 via-slate-900 to-indigo-950/80 border border-violet-500/40 rounded-2xl flex flex-wrap items-center justify-between gap-4 shadow-2xl">
-        <div className="flex items-center gap-3 overflow-hidden">
-          <div className="p-2.5 bg-violet-500/20 rounded-xl border border-violet-500/30 text-violet-300 shrink-0 shadow-lg">
+      <div className="p-5 bg-gradient-to-r from-violet-950/90 via-slate-900 to-indigo-950/90 border border-violet-500/40 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-2xl">
+        <div className="flex items-center gap-3.5 overflow-hidden">
+          <div className="p-3 bg-violet-500/20 rounded-2xl border border-violet-500/30 text-violet-300 shrink-0 shadow-lg">
             <FileText className="w-6 h-6 text-violet-400" />
           </div>
           <div>
-            <h4 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
-              Document Source (PDF, Word, PPTX, TXT)
+            <h4 className="text-xs font-black text-white uppercase tracking-wider flex flex-wrap items-center gap-2">
+              <span>Grand Document & PDF Volumineux</span>
               {chatDocument && (
-                <span className="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] rounded-full font-mono border border-emerald-500/30">
-                  📄 {chatDocument.fileName}
+                <span className="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] rounded-full font-mono border border-emerald-500/30 flex items-center gap-1">
+                  📄 {chatDocument.fileName} ({parsedDocResult?.totalPages || 1} p.)
                 </span>
               )}
             </h4>
-            <p className="text-[11px] text-slate-300">
+            <p className="text-[11px] text-slate-300 mt-0.5">
               {chatDocument 
-                ? `Document extrait (${Math.round(chatDocument.size / 1024)} Ko, ${chatDocument.text.length} car.). Injecté dans Chatbot, Leçons, Quiz & Exercices.`
-                : 'Importez un livre de cours, un sujet d\'examen, un PDF ou Word/PPTX pour alimenter automatiquement le Mentor Socratique.'}
+                ? `Extraction fluide (${formatBytes(chatDocument.size)}, ${chatDocument.text.length} car., ${parsedDocResult?.chapters.length || 1} chapitres). Découpé sans bloquer le navigateur.`
+                : 'Importez des manuels entiers, sujets d\'examen ou cours volumineux (PDF, DOCX, PPTX) pour synthèses, cartes mentales & quiz instantanés.'}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
-          <label className={`px-4 py-3 rounded-xl border text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all shadow-lg ${
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0 w-full md:w-auto justify-end">
+          <label className={`px-4 py-2.5 rounded-xl border text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all shadow-lg ${
             isUploadingDoc
               ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 animate-pulse'
               : chatDocument
-              ? 'bg-violet-600/30 border-violet-500 text-violet-300 shadow-[0_0_15px_rgba(139,92,246,0.3)]'
+              ? 'bg-violet-600/30 border-violet-500 text-violet-300 shadow-[0_0_15px_rgba(139,92,246,0.3)] hover:bg-violet-600/50'
               : 'bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border-violet-400/50'
           }`}
-          title="Importer un fichier PDF, Word (.docx), PowerPoint (.pptx) ou Texte"
+          title="Importer un fichier PDF (même volumineux), Word (.docx), PowerPoint (.pptx) ou Texte"
           >
             <input 
               type="file" 
@@ -1181,8 +1402,19 @@ Ensure progressive difficulty (Easy, Intermediate, Advanced).`;
               className="hidden" 
             />
             <FileText className="w-4 h-4 text-violet-200" />
-            <span>{isUploadingDoc ? 'Chargement...' : chatDocument ? 'Changer PDF/Word' : 'Importer PDF / Word / PPTX'}</span>
+            <span>{isUploadingDoc ? 'Traitement du PDF...' : chatDocument ? 'Remplacer Document' : 'Importer PDF / Word / PPTX'}</span>
           </label>
+
+          {chatDocument && (
+            <button
+              onClick={() => setActiveTab('doc-studio')}
+              className="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 border border-violet-500/40 text-violet-300 text-xs font-mono font-bold uppercase tracking-wider rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+              title="Ouvrir le studio d'analyse et découpage du document"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-violet-400" />
+              <span>Studio Document</span>
+            </button>
+          )}
 
           {onAddToWorkspace && (
             <button
@@ -1192,21 +1424,47 @@ Ensure progressive difficulty (Easy, Intermediate, Advanced).`;
                   : `Mentor Socratique - Session de cours (${studentProfile.name})\nFocus: ${studentProfile.focusArea}\nNiveau: ${studentProfile.levelCategory}`;
                 onAddToWorkspace(chatDocument ? `Document Source - ${chatDocument.fileName}` : 'Mentora AI - Bilan & Cours', exportContent);
               }}
-              className="px-4 py-3 rounded-xl bg-gradient-to-r from-emerald-600/30 to-teal-600/30 hover:from-emerald-600/50 hover:to-teal-600/50 border border-emerald-500/40 text-emerald-300 text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-2 transition-all shadow-lg"
+              className="px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600/30 to-teal-600/30 hover:from-emerald-600/50 hover:to-teal-600/50 border border-emerald-500/40 text-emerald-300 text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-lg"
               title="Exporter vers Google Workspace"
             >
               <Globe className="w-4 h-4 text-emerald-400" />
-              <span>Exporter Workspace</span>
+              <span className="hidden sm:inline">Workspace</span>
             </button>
           )}
         </div>
       </div>
 
+      {/* STREAMING PROGRESS BAR FOR HEAVY DOCUMENTS */}
+      {uploadProgress && (
+        <div className="p-4 bg-slate-900/95 border border-violet-500/60 rounded-2xl space-y-2.5 shadow-2xl animate-in fade-in slide-in-from-top-2">
+          <div className="flex justify-between items-center text-xs font-mono">
+            <span className="text-violet-300 font-bold flex items-center gap-2">
+              <RefreshCw className="w-4 h-4 animate-spin text-violet-400" />
+              {uploadProgress.message}
+            </span>
+            <span className="text-violet-300 font-bold bg-violet-950/80 px-2.5 py-0.5 rounded-lg border border-violet-500/40">
+              {uploadProgress.percent}%
+            </span>
+          </div>
+          <div className="w-full bg-slate-950 rounded-full h-3 overflow-hidden border border-slate-800 p-0.5">
+            <div 
+              className="bg-gradient-to-r from-violet-500 via-purple-500 to-emerald-400 h-full rounded-full transition-all duration-300 shadow-[0_0_12px_rgba(168,85,247,0.5)]"
+              style={{ width: `${uploadProgress.percent}%` }}
+            />
+          </div>
+          <div className="flex justify-between items-center text-[10px] font-mono text-slate-400">
+            <span>{uploadProgress.currentPage > 0 ? `Page ${uploadProgress.currentPage} / ${uploadProgress.totalPages}` : 'Découpage asynchrone non-bloquant...'}</span>
+            <span className="text-emerald-400">⚡ Zero-Freeze Architecture</span>
+          </div>
+        </div>
+      )}
+
       {/* MINIMALIST TAB NAVIGATION */}
       <div className="flex border-b border-slate-800 overflow-x-auto pb-px scrollbar-hide max-w-full">
         {[
           { id: 'dashboard', label: 'Dashboard & Stats', icon: <BarChart3 className="w-4 h-4" /> },
-          { id: 'chat', label: 'Socratic Chatbot', icon: <Sparkles className="w-4 h-4" /> },
+          { id: 'doc-studio', label: chatDocument ? `Studio Doc (${chatDocument.fileName.slice(0, 10)}...)` : 'Studio Document & PDF', icon: <FileText className="w-4 h-4" /> },
+          { id: 'chat', label: 'Mentora Tutor', icon: <Sparkles className="w-4 h-4" /> },
           { id: 'lesson', label: 'Lesson Generator', icon: <BookOpen className="w-4 h-4" /> },
           { id: 'quiz', label: 'Quizzes & Tests', icon: <Gamepad2 className="w-4 h-4" /> },
           { id: 'mindmap', label: 'Mind Mapping', icon: <Network className="w-4 h-4" /> },
@@ -1386,6 +1644,334 @@ Ensure progressive difficulty (Easy, Intermediate, Advanced).`;
           </div>
         )}
 
+        {/* TAB: STUDIO GRAND DOCUMENT & ANALYSE PDF VOLUMINEUX */}
+        {activeTab === 'doc-studio' && (
+          <div className="space-y-8 animate-in fade-in duration-500">
+            {chatDocument && parsedDocResult ? (
+              <div className="space-y-8">
+                {/* Document Overview Hero Banner */}
+                <div className="bg-slate-900/40 border border-slate-800/80 rounded-[2.5rem] p-8 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-violet-500/10 rounded-full blur-3xl pointer-events-none" />
+                  
+                  <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 pb-6 border-b border-slate-800/60">
+                    <div className="flex items-start gap-4">
+                      <div className="p-4 bg-gradient-to-tr from-violet-600 to-indigo-700 rounded-2xl text-white shadow-xl border border-violet-400/30 shrink-0">
+                        <FileText className="w-8 h-8" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-violet-500/20 text-violet-300 border border-violet-500/30">
+                            {parsedDocResult.fileType.toUpperCase()}
+                          </span>
+                          {parsedDocResult.isLargeDocument && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                              ⚡ GRAND DOCUMENT (STREAMÉ)
+                            </span>
+                          )}
+                        </div>
+                        <h3 className="text-2xl font-black text-white tracking-tight mt-1">
+                          {parsedDocResult.fileName}
+                        </h3>
+                        <p className="text-xs text-slate-400 font-mono mt-0.5">
+                          Extrait avec succès sans bloquer l'UI • Prêt pour génération et export PDF
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* PDF Global Export Buttons */}
+                    <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+                      <button
+                        onClick={async () => {
+                          setIsExportingPdf(true);
+                          try {
+                            const sampleText = parsedDocResult.text.slice(0, 4000);
+                            await exportSummaryToPdf({
+                              title: `Synthèse Globale : ${parsedDocResult.fileName}`,
+                              topic: parsedDocResult.fileName,
+                              summary: `### Synthèse du Document\n\nCe document contient **${parsedDocResult.totalPages} pages** et **${parsedDocResult.totalWords.toLocaleString()} mots** répartis en **${parsedDocResult.chapters.length} sections principales**.\n\n#### Extrait Structuré\n\n${sampleText}`,
+                              sourceDoc: parsedDocResult.fileName,
+                              badge: 'SYNTHÈSE COMPLÈTE MENTORA'
+                            });
+                            playSuccessSound();
+                          } catch (err) {
+                            console.error(err);
+                            alert("Erreur lors de l'export PDF.");
+                          } finally {
+                            setIsExportingPdf(false);
+                          }
+                        }}
+                        disabled={isExportingPdf}
+                        className="px-4 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold text-xs font-mono uppercase tracking-wider rounded-xl transition-all shadow-lg flex items-center gap-2 cursor-pointer"
+                      >
+                        {isExportingPdf ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                        <span>Exporter Synthèse PDF</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setLessonTopic(parsedDocResult.fileName);
+                          setLessonContent(parsedDocResult.text.slice(0, 3000));
+                          setActiveTab('lesson');
+                        }}
+                        className="px-4 py-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-bold text-xs font-mono uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 cursor-pointer"
+                      >
+                        <BookOpen className="w-3.5 h-3.5 text-violet-400" />
+                        <span>Créer Leçon</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setMindmapQuery(parsedDocResult.fileName.replace(/\.[^/.]+$/, ""));
+                          setActiveTab('mindmap');
+                        }}
+                        className="px-4 py-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-bold text-xs font-mono uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 cursor-pointer"
+                      >
+                        <Network className="w-3.5 h-3.5 text-purple-400" />
+                        <span>Créer Mindmap</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setQuizTopic(parsedDocResult.fileName.replace(/\.[^/.]+$/, ""));
+                          setActiveTab('quiz');
+                        }}
+                        className="px-4 py-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-bold text-xs font-mono uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 cursor-pointer"
+                      >
+                        <Gamepad2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Créer Quiz</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 4 Metric Counters */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-6">
+                    <div className="p-4 bg-slate-950/70 border border-slate-800/80 rounded-2xl">
+                      <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Nombre de Pages</p>
+                      <p className="text-xl font-black text-white mt-1">{parsedDocResult.totalPages} pages</p>
+                    </div>
+                    <div className="p-4 bg-slate-950/70 border border-slate-800/80 rounded-2xl">
+                      <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Mots Extraits</p>
+                      <p className="text-xl font-black text-emerald-400 mt-1">{parsedDocResult.totalWords.toLocaleString()} mots</p>
+                    </div>
+                    <div className="p-4 bg-slate-950/70 border border-slate-800/80 rounded-2xl">
+                      <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Sections / Chapitres</p>
+                      <p className="text-xl font-black text-violet-400 mt-1">{parsedDocResult.chapters.length} sections</p>
+                    </div>
+                    <div className="p-4 bg-slate-950/70 border border-slate-800/80 rounded-2xl">
+                      <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Taille du Fichier</p>
+                      <p className="text-xl font-black text-slate-300 mt-1">{formatBytes(parsedDocResult.fileSize)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Chapter Explorer & Section Inspector */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  {/* Left Column: Chapter Index */}
+                  <div className="lg:col-span-1 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                        <BookOpen className="w-4 h-4 text-violet-400" /> Sommaire & Sections ({parsedDocResult.chapters.length})
+                      </h4>
+                      <span className="text-[10px] font-mono text-slate-500">Cliquer pour inspecter</span>
+                    </div>
+
+                    <div className="space-y-2.5 max-h-[600px] overflow-y-auto pr-1">
+                      {parsedDocResult.chapters.map((chap, idx) => {
+                        const isSelected = (selectedChapterIdx === idx) || (selectedChapterIdx === null && idx === 0);
+                        return (
+                          <div
+                            key={chap.id}
+                            onClick={() => setSelectedChapterIdx(idx)}
+                            className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-violet-950/50 border-violet-500 text-white shadow-[0_0_20px_rgba(139,92,246,0.2)]'
+                                : 'bg-slate-900/40 border-slate-800 hover:border-slate-700 text-slate-300 hover:bg-slate-900/80'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="px-2 py-0.5 bg-slate-950 border border-slate-800 rounded text-[9px] font-mono text-violet-400 font-bold uppercase">
+                                Section {idx + 1}
+                              </span>
+                              {chap.pageNumber && (
+                                <span className="text-[10px] font-mono text-slate-500">
+                                  Page {chap.pageNumber}
+                                </span>
+                              )}
+                            </div>
+                            <h5 className="text-xs font-bold line-clamp-2 leading-relaxed">
+                              {chap.title}
+                            </h5>
+                            <div className="flex items-center gap-3 mt-2 text-[10px] font-mono text-slate-500">
+                              <span>{chap.wordCount.toLocaleString()} mots</span>
+                              <span>•</span>
+                              <span>{chap.content.length.toLocaleString()} car.</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Right Column: Selected Chapter Inspector & Direct Export */}
+                  <div className="lg:col-span-2 space-y-4">
+                    {(() => {
+                      const activeChapter = parsedDocResult.chapters[selectedChapterIdx ?? 0] || parsedDocResult.chapters[0];
+                      if (!activeChapter) return null;
+
+                      return (
+                        <div className="bg-slate-900/40 border border-slate-800/80 rounded-[2.5rem] p-6 md:p-8 space-y-6">
+                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-800/60">
+                            <div>
+                              <span className="text-[10px] font-mono text-violet-400 uppercase tracking-widest font-bold">
+                                Section Inspectée {activeChapter.pageNumber ? `(Page ${activeChapter.pageNumber})` : ''}
+                              </span>
+                              <h4 className="text-lg font-black text-white mt-1">
+                                {activeChapter.title}
+                              </h4>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => speakText(activeChapter.content.slice(0, 500))}
+                                className="p-2.5 bg-slate-950 hover:bg-slate-900 border border-slate-800 text-slate-300 hover:text-white rounded-xl text-xs transition-colors cursor-pointer"
+                                title="Écouter la lecture audio"
+                              >
+                                <Volume2 className="w-4 h-4 text-violet-400" />
+                              </button>
+
+                              <button
+                                onClick={async () => {
+                                  setIsExportingPdf(true);
+                                  try {
+                                    await exportSummaryToPdf({
+                                      title: activeChapter.title,
+                                      topic: activeChapter.title,
+                                      summary: `### ${activeChapter.title}\n\n${activeChapter.content}`,
+                                      sourceDoc: parsedDocResult.fileName,
+                                      badge: `SECTION ${selectedChapterIdx ? selectedChapterIdx + 1 : 1} / ${parsedDocResult.chapters.length}`
+                                    });
+                                    playSuccessSound();
+                                  } catch (e) {
+                                    console.error(e);
+                                    alert("Erreur lors de l'export PDF du chapitre.");
+                                  } finally {
+                                    setIsExportingPdf(false);
+                                  }
+                                }}
+                                disabled={isExportingPdf}
+                                className="px-3 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                                title="Exporter ce chapitre en PDF propre pour impression"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                <span>PDF Chapitre</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Action Buttons for this chapter */}
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <button
+                              onClick={() => handleGenerateFromChapter(activeChapter)}
+                              className="p-3 bg-slate-950 hover:bg-violet-950/40 border border-slate-800 hover:border-violet-500/50 rounded-xl text-left transition-all cursor-pointer group"
+                            >
+                              <div className="flex items-center gap-2 text-violet-400 mb-1">
+                                <BookOpen className="w-4 h-4" />
+                                <span className="text-xs font-bold uppercase font-mono">Leçon & Fiche</span>
+                              </div>
+                              <p className="text-[11px] text-slate-400 leading-snug">
+                                Transformer en cours socratique interactif
+                              </p>
+                            </button>
+
+                            <button
+                              onClick={() => handleGenerateMindmapFromChapter(activeChapter)}
+                              className="p-3 bg-slate-950 hover:bg-purple-950/40 border border-slate-800 hover:border-purple-500/50 rounded-xl text-left transition-all cursor-pointer group"
+                            >
+                              <div className="flex items-center gap-2 text-purple-400 mb-1">
+                                <Network className="w-4 h-4" />
+                                <span className="text-xs font-bold uppercase font-mono">Mindmap Visuelle</span>
+                              </div>
+                              <p className="text-[11px] text-slate-400 leading-snug">
+                                Structurer les concepts et liens logiques
+                              </p>
+                            </button>
+
+                            <button
+                              onClick={() => handleGenerateQuizFromChapter(activeChapter)}
+                              className="p-3 bg-slate-950 hover:bg-emerald-950/40 border border-slate-800 hover:border-emerald-500/50 rounded-xl text-left transition-all cursor-pointer group"
+                            >
+                              <div className="flex items-center gap-2 text-emerald-400 mb-1">
+                                <Gamepad2 className="w-4 h-4" />
+                                <span className="text-xs font-bold uppercase font-mono">Quiz & Test</span>
+                              </div>
+                              <p className="text-[11px] text-slate-400 leading-snug">
+                                Générer un QCM d'évaluation adaptatif
+                              </p>
+                            </button>
+                          </div>
+
+                          {/* Content Preview Container */}
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center text-[10px] font-mono text-slate-500">
+                              <span>Aperçu textuel du chapitre</span>
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(activeChapter.content);
+                                  alert("Texte du chapitre copié !");
+                                }}
+                                className="text-violet-400 hover:text-white flex items-center gap-1 cursor-pointer"
+                              >
+                                <Copy className="w-3 h-3" /> Copier
+                              </button>
+                            </div>
+                            <div className="p-5 bg-slate-950 rounded-2xl border border-slate-800/80 max-h-[360px] overflow-y-auto text-xs text-slate-300 font-sans leading-relaxed whitespace-pre-wrap">
+                              {activeChapter.content}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* No document loaded - Empty state & Dropzone */
+              <div className="bg-slate-900/30 border border-slate-800/80 rounded-[2.5rem] p-12 text-center space-y-6 max-w-2xl mx-auto">
+                <div className="w-20 h-20 bg-violet-500/10 border border-violet-500/30 rounded-3xl flex items-center justify-center mx-auto text-violet-400 shadow-[0_0_30px_rgba(139,92,246,0.2)]">
+                  <FileText className="w-10 h-10" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-black text-white tracking-tight">Studio Documents & PDF Volumineux</h3>
+                  <p className="text-slate-400 text-xs font-sans mt-2 max-w-md mx-auto leading-relaxed">
+                    Importez des manuels entiers, cours universitaires, rapports ou sujets d'examens (jusqu'à des centaines de pages).
+                    L'algorithme découpe le document sans figer l'application et génère fiches, mindmaps et quiz exportables en PDF.
+                  </p>
+                </div>
+
+                <div className="flex justify-center">
+                  <label className="px-6 py-4 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold text-xs uppercase tracking-widest font-mono rounded-2xl transition-all shadow-xl flex items-center gap-3 cursor-pointer">
+                    <input 
+                      type="file" 
+                      accept=".pdf,.docx,.doc,.pptx,.ppt,.txt,.md" 
+                      onChange={handleUploadChatDoc} 
+                      className="hidden" 
+                    />
+                    <FileText className="w-4 h-4" />
+                    <span>Choisir un document (PDF, Word, PPTX)</span>
+                  </label>
+                </div>
+
+                <div className="flex flex-wrap justify-center gap-3 pt-4 border-t border-slate-800/60 text-[11px] font-mono text-slate-500">
+                  <span className="px-3 py-1 bg-slate-950 border border-slate-800 rounded-lg">📄 PDF Multi-pages</span>
+                  <span className="px-3 py-1 bg-slate-950 border border-slate-800 rounded-lg">📝 Word (.docx)</span>
+                  <span className="px-3 py-1 bg-slate-950 border border-slate-800 rounded-lg">📊 PowerPoint (.pptx)</span>
+                  <span className="px-3 py-1 bg-slate-950 border border-slate-800 rounded-lg">🖨️ Export PDF Haute Qualité</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* TAB 2: AI DIAGNOSTIC ASSESSMENT */}
         {activeTab === 'diagnostic' && (
           <div className="max-w-3xl mx-auto bg-slate-900/40 border border-slate-800/80 rounded-[2.5rem] p-8 md:p-12 relative overflow-hidden">
@@ -1548,23 +2134,33 @@ Ensure progressive difficulty (Easy, Intermediate, Advanced).`;
                 </div>
               </div>
 
-              {/* Narrator Voice controls */}
+              {/* Narrator Voice & PDF Export controls */}
               {lessonContent && (
                 <div className="bg-slate-900/40 border border-slate-800/80 rounded-[2rem] p-6 space-y-4">
                   <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                    <Volume2 className="w-4 h-4 text-violet-400 animate-pulse" /> Lesson Audio-Guide
+                    <Volume2 className="w-4 h-4 text-violet-400 animate-pulse" /> Actions & Exportation
                   </h4>
                   <p className="text-[11px] text-slate-500 leading-relaxed font-sans">
-                    Listen to the complete lesson read aloud by the socratic narrator. Paragraphs highlight automatically.
+                    Écoutez la leçon lue à voix haute ou exportez-la au format PDF propre pour l'impression et vos révisions.
                   </p>
 
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2.5">
                     <button
                       onClick={handleReadLesson}
-                      className="flex-1 py-3 bg-violet-600 hover:bg-violet-500 text-white font-bold text-[10px] uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      className="w-full py-3 bg-violet-600 hover:bg-violet-500 text-white font-bold text-[10px] uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg"
                     >
                       {isReadingLesson ? <Square className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                      {isReadingLesson ? "Stop Voice" : "Listen to Lesson"}
+                      {isReadingLesson ? "Arrêter la voix" : "Écouter la Leçon"}
+                    </button>
+
+                    <button
+                      onClick={handleExportLessonPdf}
+                      disabled={isExportingPdf}
+                      className="w-full py-3 bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/40 text-emerald-300 font-bold text-[10px] uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg"
+                      title="Exporter la leçon au format PDF pour impression"
+                    >
+                      {isExportingPdf ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                      <span>{isExportingPdf ? "Génération PDF..." : "Exporter en PDF 📄"}</span>
                     </button>
                   </div>
                 </div>
@@ -1587,8 +2183,19 @@ Ensure progressive difficulty (Easy, Intermediate, Advanced).`;
                 ) : lessonContent ? (
                   <div className="space-y-6 relative z-10">
                     <div className="flex justify-between items-center border-b border-slate-800/60 pb-4">
-                      <span className="text-[10px] font-mono text-violet-400 uppercase tracking-widest font-bold">Semantic Inference</span>
-                      <span className="text-xs px-2.5 py-1 bg-violet-500/10 border border-violet-500/30 rounded text-violet-400 uppercase font-mono font-bold">Lvl: {lessonLevel}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-mono text-violet-400 uppercase tracking-widest font-bold">Semantic Inference</span>
+                        <span className="text-xs px-2.5 py-1 bg-violet-500/10 border border-violet-500/30 rounded text-violet-400 uppercase font-mono font-bold">Lvl: {lessonLevel}</span>
+                      </div>
+                      <button
+                        onClick={handleExportLessonPdf}
+                        disabled={isExportingPdf}
+                        className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer"
+                        title="Télécharger la fiche de cours en PDF"
+                      >
+                        <Download className="w-3 h-3" />
+                        <span>Télécharger PDF</span>
+                      </button>
                     </div>
 
                     {/* Rendering split paragraphs for clear narration support */}
@@ -1622,32 +2229,80 @@ Ensure progressive difficulty (Easy, Intermediate, Advanced).`;
           </div>
         )}
 
-        {/* TAB 4: SOCRATIC CHAT */}
+        {/* TAB 4: MENTORA SOCRATIC TUTOR */}
         {activeTab === 'chat' && (
-          <div className="max-w-4xl mx-auto bg-slate-900/40 border border-slate-800/80 rounded-[2.5rem] shadow-2xl h-[620px] flex flex-col justify-between overflow-hidden relative">
+          <div className="max-w-4xl mx-auto bg-slate-900/40 border border-slate-800/80 rounded-[2.5rem] shadow-2xl h-[640px] flex flex-col justify-between overflow-hidden relative">
             <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 via-transparent to-transparent pointer-events-none" />
             
-            {/* Quick Socratic Prompt Shortcuts */}
-            <div className="px-6 py-3 bg-slate-950/80 border-b border-slate-800/80 flex items-center gap-2 overflow-x-auto scrollbar-hide text-xs">
-              <span className="text-[10px] font-mono uppercase text-purple-400 shrink-0 font-bold">Shortcuts:</span>
-              <button
-                onClick={() => handleSendChat("Give me a mini step-by-step QCM to test my understanding of the current topic.")}
-                className="px-3 py-1.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 shrink-0 transition-all font-mono text-[11px] flex items-center gap-1.5 cursor-pointer"
-              >
-                <Gamepad2 className="w-3.5 h-3.5" /> 🎲 Generate Step QCM
-              </button>
-              <button
-                onClick={() => handleSendChat("Give me an intuitive visual hint or metaphor without giving me the direct answer.")}
-                className="px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 shrink-0 transition-all font-mono text-[11px] flex items-center gap-1.5 cursor-pointer"
-              >
-                <Lightbulb className="w-3.5 h-3.5" /> 💡 Socratic Hint
-              </button>
-              <button
-                onClick={() => handleSendChat("Can you break down this problem into 3 simple reasoning steps?")}
-                className="px-3 py-1.5 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-300 shrink-0 transition-all font-mono text-[11px] flex items-center gap-1.5 cursor-pointer"
-              >
-                <Target className="w-3.5 h-3.5" /> 🎯 Break down into steps
-              </button>
+            {/* Header Action Bar: Dedicated Voice Command Button & Socratic Shortcuts */}
+            <div className="px-5 py-3 bg-slate-950/90 border-b border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+              
+              {/* Voice Command Button & Language Selector */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleVoiceInput}
+                  className={`px-3.5 py-1.5 rounded-xl border font-bold text-[11px] font-mono uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-lg ${
+                    isRecording
+                      ? 'bg-rose-500/20 border-rose-500 text-rose-300 ring-2 ring-rose-500/40 shadow-[0_0_20px_rgba(244,63,94,0.3)] animate-pulse'
+                      : 'bg-gradient-to-r from-violet-600/30 to-purple-600/30 hover:from-violet-600/50 hover:to-purple-600/50 border-violet-500/40 text-violet-200 hover:text-white'
+                  }`}
+                  title="Poser une question oralement au Mentor (Commande vocale temps réel)"
+                >
+                  <Mic className={`w-3.5 h-3.5 ${isRecording ? 'text-rose-400 animate-bounce' : 'text-violet-400'}`} />
+                  <span>{isRecording ? 'Écoute Active' : 'Commande Vocale 🎙️'}</span>
+                  {isRecording && <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />}
+                </button>
+
+                {/* Speech Recognition Language Selector */}
+                <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-0.5 text-[10px] font-mono">
+                  {([
+                    { code: 'fr-FR', label: 'FR 🇫🇷' },
+                    { code: 'en-US', label: 'EN 🇬🇧' },
+                    { code: 'es-ES', label: 'ES 🇪🇸' },
+                    { code: 'ar-SA', label: 'AR 🇲🇦' }
+                  ] as const).map(item => (
+                    <button
+                      key={item.code}
+                      type="button"
+                      onClick={() => setVoiceLang(item.code)}
+                      className={`px-2 py-1 rounded-lg transition-all cursor-pointer font-bold ${
+                        voiceLang === item.code 
+                          ? 'bg-violet-600 text-white shadow-md' 
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                      title={`Langue de reconnaissance vocale : ${item.label}`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Quick Socratic Prompt Shortcuts */}
+              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+                <button
+                  type="button"
+                  onClick={() => handleSendChat("Donne-moi un mini QCM pas à pas pour tester ma compréhension du concept actuel.")}
+                  className="px-2.5 py-1.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 transition-all font-mono text-[11px] flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                >
+                  <Gamepad2 className="w-3.5 h-3.5" /> 🎲 QCM Guidé
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSendChat("Donne-moi un indice visuel ou une métaphore intuitive sans me donner la solution brute.")}
+                  className="px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 transition-all font-mono text-[11px] flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                >
+                  <Lightbulb className="w-3.5 h-3.5" /> 💡 Indice
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSendChat("Peux-tu décomposer ce problème en 3 étapes logiques simples ?")}
+                  className="px-2.5 py-1.5 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-300 transition-all font-mono text-[11px] flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                >
+                  <Target className="w-3.5 h-3.5" /> 🎯 3 Étapes
+                </button>
+              </div>
             </div>
 
             {/* Messages Area */}
@@ -1834,8 +2489,90 @@ Ensure progressive difficulty (Easy, Intermediate, Advanced).`;
               )}
 
               {micError && (
-                <div className="px-4 py-2 bg-red-500/10 border border-red-500/20 rounded-xl text-[10px] text-red-400 flex items-center gap-2">
-                  <AlertCircle className="w-3.5 h-3.5" /> {micError}
+                <div className="px-4 py-2.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-300 flex items-center justify-between gap-2 animate-in fade-in">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <span>{micError}</span>
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={() => setMicError("")}
+                    className="text-slate-400 hover:text-white text-xs font-mono px-2 py-0.5 rounded-lg hover:bg-white/10 cursor-pointer"
+                  >
+                    Fermer
+                  </button>
+                </div>
+              )}
+
+              {/* DEDICATED LIVE VOICE RECORDING & EQUALIZER PANEL (Zero Latency Experience) */}
+              {isRecording && (
+                <div className="p-4 bg-gradient-to-r from-rose-950/80 via-slate-900 to-purple-950/80 border border-rose-500/40 rounded-2xl flex flex-col gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <span className="relative flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+                      </span>
+                      <span className="text-xs font-mono font-black text-rose-300 uppercase tracking-wider">
+                        Écoute Vocale Active • Langue: {voiceLang.split('-')[0].toUpperCase()}
+                      </span>
+                    </div>
+
+                    {/* Animated Equalizer Waveform */}
+                    <div className="flex items-center gap-1 h-6 px-3 bg-slate-950/80 rounded-xl border border-rose-500/30">
+                      {audioData.map((val, idx) => (
+                        <div
+                          key={idx}
+                          className="w-1 bg-gradient-to-t from-rose-500 via-purple-400 to-emerald-400 rounded-full transition-all duration-100"
+                          style={{ height: `${Math.max(20, Math.min(100, val))}%` }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Real-time transcribed text preview */}
+                  <div className="bg-slate-950/90 border border-rose-500/20 rounded-xl p-3.5 text-xs text-slate-100 font-mono min-h-[46px] flex items-center">
+                    {chatInput || interimTranscript ? (
+                      <p className="leading-relaxed">
+                        <span>{chatInput}</span>
+                        {interimTranscript && (
+                          <span className="text-rose-400 font-bold italic ml-1"> {interimTranscript}</span>
+                        )}
+                        <span className="inline-block w-1.5 h-3.5 bg-rose-400 ml-1.5 animate-pulse align-middle" />
+                      </p>
+                    ) : (
+                      <span className="text-slate-400 italic">🎙️ Parlez naturellement... Posez votre question au Mentor en direct.</span>
+                    )}
+                  </div>
+
+                  {/* Voice Controls */}
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[10px] font-mono text-slate-400">
+                      Cliquez sur "Envoyer" ou arrêtez le micro dès que vous avez fini de poser votre question.
+                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (recognitionRef.current) try { recognitionRef.current.stop(); } catch(e){}
+                          setIsRecording(false);
+                          setInterimTranscript("");
+                        }}
+                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-mono font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Square className="w-3.5 h-3.5 text-slate-400" /> Arrêter l'écoute
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleStopVoiceAndSend(interimTranscript)}
+                        disabled={!chatInput.trim() && !interimTranscript.trim()}
+                        className="px-4 py-1.5 bg-gradient-to-r from-violet-600 via-purple-600 to-rose-600 hover:from-violet-500 hover:to-rose-500 disabled:opacity-40 text-white rounded-xl text-xs font-mono font-bold transition-all shadow-lg flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Send className="w-3.5 h-3.5" /> Envoyer la question orale 🚀
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -1864,14 +2601,20 @@ Ensure progressive difficulty (Easy, Intermediate, Advanced).`;
                 <button
                   type="button"
                   onClick={handleVoiceInput}
-                  className={`p-4 rounded-2xl border transition-all duration-300 flex items-center justify-center shrink-0 cursor-pointer ${
+                  className={`p-4 rounded-2xl border transition-all duration-300 flex items-center justify-center shrink-0 cursor-pointer relative group ${
                     isRecording 
-                      ? 'bg-red-500/20 border-red-500 text-red-400 shadow-[0_0_20px_rgba(239,68,68,0.3)] animate-pulse' 
-                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                      ? 'bg-rose-500/20 border-rose-500 text-rose-300 shadow-[0_0_25px_rgba(244,63,94,0.4)] animate-pulse ring-2 ring-rose-500/50' 
+                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-violet-500/50 hover:bg-violet-500/10'
                   }`}
-                  title="Dictate your response aloud"
+                  title={isRecording ? "Arrêter la commande vocale" : "Poser une question à l'oral (Commande Vocale)"}
                 >
-                  <Mic className="w-5 h-5" />
+                  <Mic className={`w-5 h-5 ${isRecording ? 'text-rose-400' : ''}`} />
+                  {isRecording && (
+                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+                    </span>
+                  )}
                 </button>
 
                 <input 
@@ -1881,21 +2624,23 @@ Ensure progressive difficulty (Easy, Intermediate, Advanced).`;
                     isUploadingDoc
                       ? "Extraction du fichier en cours..."
                       : isRecording 
-                      ? "Listening... Speak now." 
+                      ? `Écoute en cours (${voiceLang.split('-')[0].toUpperCase()})... Parlez maintenant.` 
                       : chatDocument
-                      ? `Posez une question sur "${chatDocument.fileName}"...`
-                      : "Posez une question ou importez un PDF / Word / PPTX..."
+                      ? `Posez une question sur "${chatDocument.fileName}" (texte ou micro)...`
+                      : "Posez votre question (au clavier ou au micro 🎙️)..."
                   }
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleSendChat(); }}
-                  disabled={isRecording || isUploadingDoc}
+                  disabled={isUploadingDoc}
                 />
 
                 <button
+                  type="button"
                   onClick={() => handleSendChat()}
-                  disabled={!chatInput.trim() || isRecording || isUploadingDoc}
+                  disabled={!chatInput.trim() || isUploadingDoc}
                   className="p-4 bg-white hover:bg-slate-100 disabled:bg-slate-900 border border-transparent disabled:border-slate-800 text-black disabled:text-slate-500 rounded-2xl transition-all font-bold shrink-0 flex items-center justify-center cursor-pointer"
+                  title="Envoyer la question au Mentor"
                 >
                   <Send className="w-5 h-5" />
                 </button>
@@ -1903,7 +2648,7 @@ Ensure progressive difficulty (Easy, Intermediate, Advanced).`;
               </div>
 
               <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono uppercase tracking-wider px-1">
-                <span>Le Mentor ne donne jamais la réponse brute • Support PDF, Word, PPTX & Micro</span>
+                <span>Le Mentor ne donne jamais la réponse brute • Commande Vocale Temps Réel 🎙️ • Support PDF & Documents</span>
                 {onAddToWorkspace && chatMessages.length > 0 && (
                   <button
                     onClick={() => {
@@ -1951,6 +2696,16 @@ Ensure progressive difficulty (Easy, Intermediate, Advanced).`;
                   >
                     {isGeneratingLesson ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
                     Generate Map
+                  </button>
+
+                  <button
+                    onClick={handleExportMindmapPdf}
+                    disabled={isExportingPdf || mindmapNodes.length === 0}
+                    className="w-full py-2.5 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/40 text-purple-300 font-bold text-xs uppercase tracking-widest rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    title="Exporter la carte mentale et ses liens conceptuels en PDF haute résolution"
+                  >
+                    {isExportingPdf ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                    <span>Exporter en PDF 🗺️</span>
                   </button>
                 </div>
               </div>
@@ -2097,7 +2852,7 @@ Ensure progressive difficulty (Easy, Intermediate, Advanced).`;
                   </p>
                 </div>
 
-                <div className="flex gap-2 w-full md:w-auto">
+                <div className="flex flex-wrap gap-2 w-full md:w-auto items-center">
                   <input 
                     type="text" 
                     className="bg-slate-950 border border-slate-800 focus:border-violet-500 rounded-xl px-3 py-2 text-xs text-white outline-none font-mono"
@@ -2112,6 +2867,18 @@ Ensure progressive difficulty (Easy, Intermediate, Advanced).`;
                   >
                     {isGeneratingQuiz ? "Loading..." : "Start"}
                   </button>
+
+                  {quizQuestions.length > 0 && (
+                    <button
+                      onClick={handleExportQuizPdf}
+                      disabled={isExportingPdf}
+                      className="px-3.5 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 rounded-xl text-[10px] font-mono font-bold uppercase tracking-widest flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
+                      title="Exporter le quiz et son corrigé complet en PDF"
+                    >
+                      {isExportingPdf ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+                      <span>PDF Corrigé 📄</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -2308,14 +3075,25 @@ Ensure progressive difficulty (Easy, Intermediate, Advanced).`;
                           </p>
                         </div>
 
-                        <div className="pt-4 border-t border-slate-800/60 flex items-center justify-between gap-2">
-                          <button
-                            onClick={() => speakText(`Summary of session on ${item.topic}: ${item.summary}`)}
-                            className="px-3 py-1.5 bg-slate-950 border border-slate-800 hover:border-purple-500/50 text-slate-300 hover:text-purple-300 rounded-xl text-[11px] font-mono flex items-center gap-1.5 transition-all cursor-pointer"
-                            title="Listen to summary"
-                          >
-                            <Volume2 className="w-3.5 h-3.5" /> Listen
-                          </button>
+                        <div className="pt-4 border-t border-slate-800/60 flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => speakText(`Summary of session on ${item.topic}: ${item.summary}`)}
+                              className="px-3 py-1.5 bg-slate-950 border border-slate-800 hover:border-purple-500/50 text-slate-300 hover:text-purple-300 rounded-xl text-[11px] font-mono flex items-center gap-1.5 transition-all cursor-pointer"
+                              title="Listen to summary"
+                            >
+                              <Volume2 className="w-3.5 h-3.5" /> Listen
+                            </button>
+
+                            <button
+                              onClick={() => handleExportHistoryItemPdf(item)}
+                              disabled={isExportingPdf}
+                              className="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 hover:border-emerald-500/60 text-emerald-300 rounded-xl text-[11px] font-mono flex items-center gap-1.5 transition-all cursor-pointer"
+                              title="Exporter cet élément d'historique en PDF"
+                            >
+                              <Download className="w-3.5 h-3.5" /> PDF
+                            </button>
+                          </div>
 
                           <button
                             onClick={() => {

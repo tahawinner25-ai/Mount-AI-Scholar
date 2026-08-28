@@ -243,8 +243,12 @@ export default function VoiceConversationView({ onBack }: VoiceConversationViewP
       };
 
     } catch (err: any) {
-      console.error("Failed to connect:", err);
-      setErrorMsg(err.message || "Impossible d'accéder au micro ou de démarrer la session.");
+      console.warn("Connexion audio/micro interrompue:", err?.message || err);
+      let userMsg = err?.message || "Impossible d'accéder au micro ou de démarrer la session.";
+      if (err?.name === "NotAllowedError" || (err?.message && err.message.toLowerCase().includes("permission"))) {
+        userMsg = "Accès au microphone refusé. Veuillez autoriser le microphone dans les paramètres de votre navigateur.";
+      }
+      setErrorMsg(userMsg);
       setStatus("error");
     }
   };

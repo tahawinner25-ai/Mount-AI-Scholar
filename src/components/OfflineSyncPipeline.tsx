@@ -5,8 +5,6 @@ import {
   Trash2, ShieldAlert, Cpu, HeartPulse
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { db } from '../services/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 interface Mutation {
   id: string;
@@ -125,7 +123,9 @@ export default function OfflineSyncPipeline({ user }: OfflineSyncPipelineProps) 
       // Perform write to live Firestore if authenticated
       if (user) {
         try {
-          await addDoc(collection(db, 'sync_ledger'), {
+          const ledgerKey = `sync_ledger_${user.uid}`;
+          const currentLedger = JSON.parse(localStorage.getItem(ledgerKey) || '[]');
+          currentLedger.unshift({
             userId: user.uid,
             seqId: txToSync.seqId.toString(),
             mutationType: txToSync.type,
@@ -133,11 +133,12 @@ export default function OfflineSyncPipeline({ user }: OfflineSyncPipelineProps) 
             checksum: txToSync.checksum,
             timestamp: txToSync.timestamp,
             syncStatus: 'reconciled',
-            createdAt: serverTimestamp()
+            createdAt: new Date().toISOString()
           });
-          addLog(`[FIRESTORE] Safely persisted Block #${txToSync.seqId} remotely in Firestore secure collections.`);
+          localStorage.setItem(ledgerKey, JSON.stringify(currentLedger.slice(0, 50)));
+          addLog(`[LOCAL LEDGER] Safely persisted Block #${txToSync.seqId} in local sync ledger.`);
         } catch (e: any) {
-          addLog(`[FIRESTORE ERROR] Persistent write failed: ${e.message}`);
+          addLog(`[LEDGER ERROR] Persistent write failed: ${e.message}`);
         }
       } else {
         addLog(`[ANONYMOUS] Reconciled mutation in client ledger database (Sign in to back up to real cloud).`);

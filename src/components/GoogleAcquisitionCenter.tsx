@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Chrome, Code, FileText, Layout, CheckCircle2, ArrowRight, Lock, Server, Share2, Cpu, Layers, Download, Sparkles, Send, Copy, AlertCircle, Laptop, Network, Terminal, Play, Globe, Settings, Eye, Smartphone } from 'lucide-react';
+import { Chrome, Code, FileText, Layout, CheckCircle2, ArrowRight, Lock, Server, Share2, Cpu, Layers, Download, Sparkles, Send, Copy, AlertCircle, Laptop, Network, Terminal, Play, Globe, Settings, Eye, Smartphone, ShieldCheck } from 'lucide-react';
 
 interface GoogleAcquisitionCenterProps {
   user: any;
@@ -154,9 +154,12 @@ export async function syncGoogleClassroomCourseWork(oauth2Client: any) {
       {/* Title block */}
       <div className="bg-slate-900/50 rounded-3xl border border-slate-800 p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
             <span className="px-3 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-full text-[10px] font-mono font-bold tracking-widest uppercase flex items-center gap-1.5">
               <Sparkles className="w-3 h-3" /> Acquisition-Ready Tech Stack
+            </span>
+            <span className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-full text-[10px] font-mono font-bold tracking-widest uppercase flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Site Verifié: googlecdd0ae90856b5bd2.html
             </span>
           </div>
           <h2 className="text-2xl font-black text-white uppercase tracking-tight">Google Acquisition Suite</h2>
@@ -174,6 +177,69 @@ export async function syncGoogleClassroomCourseWork(oauth2Client: any) {
           <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80 text-center">
             <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">Latence Locale</p>
             <p className="text-xl font-mono font-extrabold text-blue-400 mt-1">&lt; 25 ms</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Live URLs Section */}
+      <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-slate-950 p-4 rounded-xl border border-blue-500/20 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-blue-400 flex items-center gap-1.5">
+                <Globe className="w-3.5 h-3.5" /> URL de Production (Shared App)
+              </span>
+              <span className="px-2 py-0.5 bg-blue-500/10 text-blue-300 rounded text-[9px] font-mono">Partagée</span>
+            </div>
+            <p className="font-mono text-xs text-slate-200 select-all break-all">
+              https://ais-pre-5u3blxgak7knb6islvvfnt-112894933202.europe-west2.run.app
+            </p>
+          </div>
+          <div className="flex gap-2 mt-3">
+            <button
+              onClick={() => handleCopy('https://ais-pre-5u3blxgak7knb6islvvfnt-112894933202.europe-west2.run.app', 'url-pre')}
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition-colors"
+            >
+              <Copy className="w-3.5 h-3.5 text-blue-400" /> {copiedText === 'url-pre' ? 'Copié !' : 'Copier'}
+            </button>
+            <a
+              href="https://ais-pre-5u3blxgak7knb6islvvfnt-112894933202.europe-west2.run.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition-colors"
+            >
+              Ouvrir <ArrowRight className="w-3.5 h-3.5" />
+            </a>
+          </div>
+        </div>
+
+        <div className="bg-slate-950 p-4 rounded-xl border border-emerald-500/20 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-emerald-400 flex items-center gap-1.5">
+                <Terminal className="w-3.5 h-3.5" /> URL de Développement (Dev Server)
+              </span>
+              <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-300 rounded text-[9px] font-mono">Temps Réel</span>
+            </div>
+            <p className="font-mono text-xs text-slate-200 select-all break-all">
+              https://ais-dev-5u3blxgak7knb6islvvfnt-112894933202.europe-west2.run.app
+            </p>
+          </div>
+          <div className="flex gap-2 mt-3">
+            <button
+              onClick={() => handleCopy('https://ais-dev-5u3blxgak7knb6islvvfnt-112894933202.europe-west2.run.app', 'url-dev')}
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition-colors"
+            >
+              <Copy className="w-3.5 h-3.5 text-emerald-400" /> {copiedText === 'url-dev' ? 'Copié !' : 'Copier'}
+            </button>
+            <a
+              href="https://ais-dev-5u3blxgak7knb6islvvfnt-112894933202.europe-west2.run.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition-colors"
+            >
+              Ouvrir <ArrowRight className="w-3.5 h-3.5" />
+            </a>
           </div>
         </div>
       </div>

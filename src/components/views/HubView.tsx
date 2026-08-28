@@ -1,18 +1,30 @@
-import React, { useState } from 'react';
-import { BrainCircuit, BookOpen, Network, Mic, Layers, Activity, Apple, Sparkles, Shield, Rocket, Brain, Eye, Orbit, Plus, Download, FileText, Globe } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { BrainCircuit, BookOpen, Network, Mic, Layers, Activity, Apple, Sparkles, Shield, Rocket, Brain, Eye, Orbit, Plus, Download, FileText, Globe, Hand, Video, X, Database, RefreshCw, HardDrive, CheckCircle2, Wifi, WifiOff } from 'lucide-react';
 import { MainViewType } from '../../types';
 import scholarIcon from '../../assets/images/mount_ai_logo_1785927100930.jpg';
 import { downloadPdfDocument } from '../../utils/pdfExport';
 import { extractTextFromFile } from '../../services/documentParser';
+import { subscribeStorageStatus, getStorageStatus, StorageStatus } from '../../services/indexedDb';
+import SL2TScanner from '../SL2TScanner';
 
 interface HubViewProps {
   setMainView: (view: MainViewType) => void;
   onAddToWorkspace?: (title: string, text: string) => void;
+  user?: any;
 }
 
-export default function HubView({ setMainView, onAddToWorkspace }: HubViewProps) {
+export default function HubView({ setMainView, onAddToWorkspace, user }: HubViewProps) {
   const [importedDoc, setImportedDoc] = useState<{ name: string; size: number; text: string } | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [isSl2tModalOpen, setIsSl2tModalOpen] = useState(false);
+  const [storageStatus, setStorageStatus] = useState<StorageStatus>(getStorageStatus());
+
+  useEffect(() => {
+    const unsubscribe = subscribeStorageStatus((status) => {
+      setStorageStatus(status);
+    });
+    return unsubscribe;
+  }, []);
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -33,6 +45,17 @@ export default function HubView({ setMainView, onAddToWorkspace }: HubViewProps)
   };
 
   const cards = [
+    {
+      id: 'sl2t',
+      title: 'SL2T - Langue des Signes',
+      badge: 'MediaPipe Vision AI',
+      color: 'text-emerald-400',
+      borderColor: 'border-emerald-500/30 hover:border-emerald-400/60 shadow-[0_0_25px_rgba(16,185,129,0.15)]',
+      icon: Hand,
+      description: 'Identification des signes et traduction gestuelle temps réel (SL2T) via MediaPipe Gesture Recognizer & Hand Landmarks.',
+      exportTitle: 'SL2T - Transcription Langue des Signes',
+      exportText: 'Transcription temps réel de la langue des signes générée par le moteur de vision MediaPipe Mentora AI.'
+    },
     {
       id: 'dyslexia',
       title: 'Réalignement Cognitif',
@@ -64,18 +87,7 @@ export default function HubView({ setMainView, onAddToWorkspace }: HubViewProps)
       icon: Activity,
       description: 'Architecture structurée et scalabilité du projet (Performances & Sécurité).',
       exportTitle: 'Rapport d\'Architecture Technique & Sécurité',
-      exportText: 'Spécifications techniques de la PWA et du pipeline d\'inférence locale Mentora AI.'
-    },
-    {
-      id: 'gtm',
-      title: 'GTM & Launch Playbook',
-      badge: 'Elite Growth',
-      color: 'text-violet-400',
-      borderColor: 'border-violet-500/30 hover:border-violet-500/50',
-      icon: Rocket,
-      description: 'Simulateur de distribution de pointe. Élaborez des stratégies de lancement virales réelles pour propulser votre produit (Hacker News, Product Hunt, Devpost).',
-      exportTitle: 'Stratégie de Lancement & Playbook GTM',
-      exportText: 'Plan stratégique de lancement viral et distribution EdTech pour Mentora AI.'
+      exportText: 'Spécifications techniques de la PWA et du pipeline d\'IA Mentora AI.'
     },
     {
       id: 'phonetic-predictor',
@@ -87,17 +99,6 @@ export default function HubView({ setMainView, onAddToWorkspace }: HubViewProps)
       description: 'Moteur prédictif d\'orthographe à haute vélocité. Saisissez des mots phonétiques simplifiés et accédez aux probabilités lexicales.',
       exportTitle: 'Prédicteur Phonétique - Liste de Vocabulaire',
       exportText: 'Prédictions phonétiques et corrections orthographiques générées par Mentora AI.'
-    },
-    {
-      id: 'classroom',
-      title: 'Google Classroom',
-      badge: 'Classroom Sync',
-      color: 'text-blue-400',
-      borderColor: 'border-blue-500/30 hover:border-blue-500/50',
-      icon: BookOpen,
-      description: 'Intégration directe avec vos espaces scolaires Google. Synchronisez vos cours, accédez aux travaux d\'élèves et publiez des devoirs adaptés.',
-      exportTitle: 'Devoir Google Classroom - Mentora AI',
-      exportText: 'Contenu de devoir et support de révision synchronisé avec Google Classroom.'
     },
     {
       id: 'workspace',
@@ -123,13 +124,51 @@ export default function HubView({ setMainView, onAddToWorkspace }: HubViewProps)
     }
   ];
 
+  // Restreindre la carte "Faisabilité & Fiabilité" exclusivement à l'adresse du Capitaine (tahawinner25@gmail.com)
+  const isMasterAdmin = Boolean(user && user.email && user.email.toLowerCase().trim() === 'tahawinner25@gmail.com');
+  const visibleCards = cards.filter(c => c.id !== 'architecture' || isMasterAdmin);
+
   return (
     <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-1000">
       <div className="text-center space-y-6 relative flex flex-col items-center">
-        <div className="px-4 py-1.5 bg-[#8b5cf6]/10 border border-[#8b5cf6]/30 rounded-full flex items-center gap-2 shadow-[0_0_20px_rgba(139,92,246,0.15)] mb-4 shrink-0">
-          <div className="w-1.5 h-1.5 rounded-full bg-[#8b5cf6] animate-pulse" />
-          <span className="text-[10px] font-mono font-black text-[#8b5cf3] uppercase tracking-[0.2em]">Stealth EdTech Startup</span>
+        <div className="flex flex-wrap items-center justify-center gap-3 mb-2">
+          <div className="px-4 py-1.5 bg-[#8b5cf6]/10 border border-[#8b5cf6]/30 rounded-full flex items-center gap-2 shadow-[0_0_20px_rgba(139,92,246,0.15)] shrink-0">
+            <div className="w-1.5 h-1.5 rounded-full bg-[#8b5cf6] animate-pulse" />
+            <span className="text-[10px] font-mono font-black text-[#8b5cf3] uppercase tracking-[0.2em]">Stealth EdTech Startup</span>
+          </div>
+
+          {/* VISUAL INDEXEDDB STORAGE STATUS ICON & BADGE */}
+          <div 
+            className={`px-3.5 py-1.5 rounded-full border flex items-center gap-2 transition-all duration-300 font-mono text-[10px] font-bold shadow-lg ${
+              storageStatus.state === 'syncing'
+                ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.25)] animate-pulse'
+                : !storageStatus.isOnline || storageStatus.state === 'cached'
+                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.25)]'
+                : 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300'
+            }`}
+            title={`IndexedDB Status: ${storageStatus.details} • ${storageStatus.itemCount} éléments mis en cache`}
+          >
+            {storageStatus.state === 'syncing' ? (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 text-amber-400 animate-spin" />
+                <span className="tracking-wider uppercase">Syncing IndexedDB...</span>
+              </>
+            ) : !storageStatus.isOnline || storageStatus.state === 'cached' ? (
+              <>
+                <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="tracking-wider uppercase">Cached ({storageStatus.itemCount} docs / AI)</span>
+                <span className="px-1.5 py-0.2 bg-emerald-500/20 text-[9px] rounded-full text-emerald-200">100% Offline</span>
+              </>
+            ) : (
+              <>
+                <Database className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="tracking-wider uppercase">IndexedDB Ready ({storageStatus.itemCount})</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+              </>
+            )}
+          </div>
         </div>
+
         <div className="w-28 h-28 glass-panel rounded-3xl flex items-center justify-center mb-2 shadow-[0_0_50px_rgba(139,92,246,0.3)] backdrop-blur-xl hover:-translate-y-1 transition duration-500 overflow-hidden border border-[#8b5cf6]/30">
             <img src={scholarIcon} alt="Mount AI" className="w-full h-full object-cover" />
         </div>
@@ -157,13 +196,22 @@ export default function HubView({ setMainView, onAddToWorkspace }: HubViewProps)
               </h4>
               <p className="text-[11px] text-slate-400">
                 {importedDoc 
-                  ? `Fichier chargé (${Math.round(importedDoc.size / 1024)} Ko, ${importedDoc.text.length} car.). Disponible dans tous les onglets.`
-                  : 'Chargez vos fichiers PDF, Word (.docx), PowerPoint (.pptx) ou texte pour alimenter la plateforme.'}
+                  ? `Fichier chargé (${Math.round(importedDoc.size / 1024)} Ko, ${importedDoc.text.length} car.). Disponible hors ligne.`
+                  : 'Chargez vos fichiers PDF, Word (.docx), PowerPoint (.pptx) pour alimenter la plateforme avec persistance IndexedDB.'}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <button
+              onClick={() => setIsSl2tModalOpen(true)}
+              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-2 transition-all shadow-lg cursor-pointer"
+              title="Ouvrir la fenêtre d'identification SL2T (Langue des Signes)"
+            >
+              <Hand className="w-4 h-4 text-emerald-200" />
+              <span>Fenêtre SL2T 🖐️</span>
+            </button>
+
             <label className={`px-4 py-2.5 rounded-xl border text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all shadow-lg ${
               isImporting
                 ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 animate-pulse'
@@ -186,7 +234,7 @@ export default function HubView({ setMainView, onAddToWorkspace }: HubViewProps)
             {onAddToWorkspace && importedDoc && (
               <button
                 onClick={() => onAddToWorkspace(`Document Hub - ${importedDoc.name}`, importedDoc.text)}
-                className="px-3.5 py-2.5 rounded-xl bg-emerald-600/30 hover:bg-emerald-600/50 border border-emerald-500/40 text-emerald-300 text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all"
+                className="px-3.5 py-2.5 rounded-xl bg-emerald-600/30 hover:bg-emerald-600/50 border border-emerald-500/40 text-emerald-300 text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer"
                 title="Exporter vers Workspace"
               >
                 <Globe className="w-3.5 h-3.5" /> Workspace
@@ -196,8 +244,21 @@ export default function HubView({ setMainView, onAddToWorkspace }: HubViewProps)
         </div>
       </div>
 
+      {/* SL2T POPUP / MODAL IDENTIFICATION WINDOW */}
+      {isSl2tModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <SL2TScanner
+              isModal={true}
+              onClose={() => setIsSl2tModalOpen(false)}
+              onAddToWorkspace={onAddToWorkspace}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto relative z-10 mt-6">
-        {cards.map((card) => {
+        {visibleCards.map((card) => {
           const Icon = card.icon;
           return (
             <div 
@@ -261,3 +322,5 @@ export default function HubView({ setMainView, onAddToWorkspace }: HubViewProps)
     </div>
   );
 }
+
+export const MainHubView = HubView;

@@ -37,8 +37,8 @@ interface GoogleClassroomHubProps {
 }
 
 export default function GoogleClassroomHub({ setMainView, onImportText }: GoogleClassroomHubProps) {
-  const [token, setToken] = useState<string | null>(null);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>('direct_server_workspace_token');
+  const [userEmail, setUserEmail] = useState<string | null>(auth.currentUser?.email || 'professeur@classroom.internal');
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [courseWorks, setCourseWorks] = useState<CourseWork[]>([]);

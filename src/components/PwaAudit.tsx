@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Chrome, Smartphone, FileJson, Activity, CheckCircle, XCircle, AlertTriangle, RefreshCw, Code, ShieldCheck, Sparkles, Layout, Terminal, ExternalLink, ArrowRight, Laptop } from 'lucide-react';
+import { Chrome, Smartphone, FileJson, Activity, CheckCircle, XCircle, AlertTriangle, RefreshCw, Code, ShieldCheck, Sparkles, Layout, Terminal, ExternalLink, ArrowRight, Laptop, Server, Cpu, Database, Flame, Wifi, WifiOff, Globe, Info, Zap, AlertCircle } from 'lucide-react';
 
 interface AuditItem {
   id: string;
@@ -7,19 +7,35 @@ interface AuditItem {
   description: string;
   status: 'passed' | 'warning' | 'failed';
   impact: 'high' | 'medium' | 'low';
-  category: 'chrome' | 'mobile' | 'sw';
+  category: 'chrome' | 'mobile' | 'sw' | 'api';
   suggestion?: string;
   codeSnippet?: string;
+}
+
+interface HealthDiagnostics {
+  status: string;
+  timestamp: string;
+  environment: string;
+  uptimeSeconds: number;
+  diagnostics: {
+    expressServer: { status: string; port: number };
+    mlEngine: { configuredUrl: string; isOnline: boolean; latencyMs: number; details: string };
+    geminiAi: { configured: boolean; details: string };
+    firebase: { configured: boolean; projectId: string; details: string };
+  };
 }
 
 export default function PwaAudit() {
   const [isAuditing, setIsAuditing] = useState(false);
   const [auditScore, setAuditScore] = useState(88);
-  const [activeCategory, setActiveCategory] = useState<'all' | 'chrome' | 'mobile' | 'sw'>('all');
+  const [activeCategory, setActiveCategory] = useState<'all' | 'chrome' | 'mobile' | 'sw' | 'api'>('all');
   const [auditLogs, setAuditLogs] = useState<string[]>([]);
   const [realManifest, setRealManifest] = useState<any>(null);
   const [swRegistered, setSwRegistered] = useState<boolean>(false);
   const [swActive, setSwActive] = useState<boolean>(false);
+  const [healthData, setHealthData] = useState<HealthDiagnostics | null>(null);
+  const [isTestingHealth, setIsTestingHealth] = useState<boolean>(false);
+
   const [viewportStatus, setViewportStatus] = useState({
     viewportExists: false,
     appleCapable: false,
@@ -28,6 +44,36 @@ export default function PwaAudit() {
   });
 
   const [audits, setAudits] = useState<AuditItem[]>([
+    {
+      id: 'api-backend-health',
+      name: 'Express Backend API & Online Connectivity',
+      description: 'Tests if the Cloud Run Node.js / Express backend is responding on /api/health and serving static assets.',
+      status: 'passed',
+      impact: 'high',
+      category: 'api',
+      suggestion: 'Ensure server.ts binds to host 0.0.0.0 and port 3000 with Express 5 wildcards (*all).',
+      codeSnippet: `app.get("/api/health", (req, res) => res.json({ status: "ok" }));`
+    },
+    {
+      id: 'ml-engine-connectivity',
+      name: 'ML Engine (Codex API) Proxy & Gemini AI',
+      description: 'Checks connectivity to the configured ML inference URL and verifies server-side Gemini API fallback.',
+      status: 'passed',
+      impact: 'high',
+      category: 'api',
+      suggestion: 'If CODEX_API_URL is unreachable in Cloud Run, ensure GEMINI_API_KEY is configured in backend environment.',
+      codeSnippet: `const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });`
+    },
+    {
+      id: 'firebase-connectivity',
+      name: 'Firebase Cloud Firestore & Auth Config',
+      description: 'Validates Firebase credentials fetched dynamically via /api/config/firebase or fallback JSON.',
+      status: 'passed',
+      impact: 'high',
+      category: 'api',
+      suggestion: 'Set FIREBASE_PROJECT_ID and FIREBASE_API_KEY env vars or provide firebase-applet-config.json.',
+      codeSnippet: `app.get("/api/config/firebase", (req, res) => res.json({ projectId, apiKey }));`
+    },
     {
       id: 'mv3-manifest',
       name: 'Manifest Version 3 Compliance',
@@ -120,16 +166,17 @@ export default function PwaAudit() {
     }
   ]);
 
-  // Read environment metadata in real time
+  // Read environment metadata and query live API health endpoints in real time
   const runLiveAudit = async () => {
     setIsAuditing(true);
+    setIsTestingHealth(true);
     setAuditLogs([
-      "Audit-Engine: Starting Real-Time Compliance Analysis...",
+      "Audit-Engine: Starting Real-Time Compliance & API Health Analysis...",
       "Environment: Analyzing DOM elements...",
     ]);
 
     // Step 1: Scan DOM
-    await new Promise(r => setTimeout(r, 600));
+    await new Promise(r => setTimeout(r, 400));
     const metaTags = document.getElementsByTagName('meta');
     let hasViewport = false;
     let hasAppleCapable = false;
@@ -156,11 +203,55 @@ export default function PwaAudit() {
       `DOM Scan: Viewport Tag ${hasViewport ? 'FOUND' : 'MISSING'}`,
       `DOM Scan: Apple-Capable Tag ${hasAppleCapable ? 'FOUND' : 'MISSING'}`,
       `DOM Scan: Theme-Color Tag ${hasThemeColor ? 'FOUND' : 'MISSING'}`,
-      "Environment: Querying Service Worker state...",
+      "Environment: Fetching /api/health/full diagnostic endpoint...",
     ]);
 
-    // Step 2: Check Service Worker
-    await new Promise(r => setTimeout(r, 600));
+    // Step 2: Test /api/health/full
+    let apiHealthPassed = false;
+    let mlStatus: 'passed' | 'warning' | 'failed' = 'failed';
+    let firebaseStatus: 'passed' | 'warning' | 'failed' = 'failed';
+
+    try {
+      const res = await fetch('/api/health/full');
+      if (res.ok) {
+        const hData: HealthDiagnostics = await res.json();
+        setHealthData(hData);
+        apiHealthPassed = true;
+
+        const { expressServer, mlEngine, geminiAi, firebase } = hData.diagnostics;
+
+        setAuditLogs(prev => [
+          ...prev,
+          `[HEALTH] Express Backend: ${expressServer.status.toUpperCase()} on Port ${expressServer.port} (Env: ${hData.environment})`,
+          `[HEALTH] ML Engine (Codex API): ${mlEngine.isOnline ? 'ONLINE (' + mlEngine.latencyMs + 'ms)' : 'OFFLINE - ' + mlEngine.details}`,
+          `[HEALTH] Gemini AI Server: ${geminiAi.configured ? 'CONFIGURED & READY' : 'KEY MISSING'}`,
+          `[HEALTH] Firebase Database: ${firebase.configured ? 'CONFIGURED (' + firebase.projectId + ')' : 'LOCALSTORAGE OFFLINE MODE'}`,
+        ]);
+
+        if (mlEngine.isOnline) {
+          mlStatus = 'passed';
+        } else if (geminiAi.configured) {
+          mlStatus = 'warning'; // Local ML offline but Cloud Gemini fallback is ready
+        } else {
+          mlStatus = 'failed';
+        }
+
+        if (firebase.configured) {
+          firebaseStatus = 'passed';
+        } else {
+          firebaseStatus = 'warning'; // Running resiliently on LocalStorage
+        }
+      } else {
+        setAuditLogs(prev => [...prev, `[HEALTH] /api/health/full returned HTTP status ${res.status}`]);
+      }
+    } catch (err: any) {
+      setAuditLogs(prev => [...prev, `[HEALTH] Error connecting to /api/health/full: ${String(err)}`]);
+    }
+
+    setIsTestingHealth(false);
+
+    // Step 3: Check Service Worker
+    await new Promise(r => setTimeout(r, 400));
     let registered = false;
     let active = false;
 
@@ -186,8 +277,7 @@ export default function PwaAudit() {
       "Environment: Fetching /manifest.webmanifest...",
     ]);
 
-    // Step 3: Fetch real manifest.webmanifest if exists
-    await new Promise(r => setTimeout(r, 800));
+    // Step 4: Fetch real manifest.webmanifest if exists
     try {
       const response = await fetch('/manifest.webmanifest');
       if (response.ok) {
@@ -195,21 +285,27 @@ export default function PwaAudit() {
         setRealManifest(data);
         setAuditLogs(prev => [
           ...prev,
-          `Manifest: Fetch success. Detected short_name "${data.short_name || 'none'}"`,
-          `Manifest: App Display mode configured as "${data.display || 'browser'}"`,
-          `Manifest: Background color is "${data.background_color || 'none'}"`
+          `Manifest: Fetch success. Short name: "${data.short_name || 'none'}"`,
+          `Manifest: App Display mode: "${data.display || 'browser'}"`
         ]);
       } else {
-        setAuditLogs(prev => [...prev, "Manifest: /manifest.webmanifest returned status " + response.status]);
+        setAuditLogs(prev => [...prev, "Manifest: /manifest.webmanifest status " + response.status]);
       }
     } catch (err) {
       setAuditLogs(prev => [...prev, "Manifest: Error fetching manifest file: " + String(err)]);
     }
 
-    // Step 4: Recompute status
-    await new Promise(r => setTimeout(r, 400));
-    
+    // Step 5: Recompute status
     const updatedAudits = audits.map(audit => {
+      if (audit.id === 'api-backend-health') {
+        return { ...audit, status: apiHealthPassed ? 'passed' : 'failed' as any };
+      }
+      if (audit.id === 'ml-engine-connectivity') {
+        return { ...audit, status: mlStatus };
+      }
+      if (audit.id === 'firebase-connectivity') {
+        return { ...audit, status: firebaseStatus };
+      }
       if (audit.id === 'viewport-meta') {
         return { ...audit, status: hasViewport ? 'passed' : 'failed' as any };
       }
@@ -241,7 +337,7 @@ export default function PwaAudit() {
       "------------------------------------------",
       `Audit Completed! Score: ${calculatedScore}/100`,
       `Results: ${passedCount} Passed | ${warningCount} Warnings | ${failedCount} Failed`,
-      "Audit-Engine: Sandbox state fully compiled."
+      "Audit-Engine: Sandbox & Endpoint state fully verified."
     ]);
 
     setIsAuditing(false);
@@ -265,11 +361,11 @@ export default function PwaAudit() {
         <div className="space-y-3 max-w-2xl text-center lg:text-left">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#00FF00]/10 border border-[#00FF00]/20 rounded-full">
             <ShieldCheck className="w-4 h-4 text-[#00FF00]" />
-            <span className="text-[10px] font-mono font-black text-[#00FF00] uppercase tracking-widest">Chrome Web Store & Mobile PWA Standards</span>
+            <span className="text-[10px] font-mono font-black text-[#00FF00] uppercase tracking-widest">Chrome Web Store & Online API Health Standards</span>
           </div>
-          <h3 className="text-2xl font-black text-white uppercase tracking-tight">PWA Store Submission Audit</h3>
+          <h3 className="text-2xl font-black text-white uppercase tracking-tight">PWA Store & Connectivity Audit</h3>
           <p className="text-xs text-slate-400 leading-relaxed">
-            Pour maximiser la valorisation de <strong>Mount AI Scholar</strong> lors du rachat par Google, la suite logicielle doit être irréprochable sur l'exécution locale. Cet utilitaire simule et vérifie en temps réel les spécifications PWA, l'initialisation du service worker d'offline caching et le Manifest V3 pour Chromebooks.
+            Pour garantir un déploiement zéro-défaut de <strong>Mount AI Scholar</strong> en production sur Cloud Run et Chromebooks, cet audit teste en temps réel la conformité PWA, l'état de l'API Express, la connectivité du moteur ML (Codex API) et la synchronisation cloud Firebase.
           </p>
         </div>
 
@@ -307,7 +403,7 @@ export default function PwaAudit() {
             <div>
               <p className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest">Diagnostic Élite</p>
               <p className="text-sm font-bold text-white uppercase mt-0.5">
-                {auditScore >= 90 ? 'Optimisé pour le Store' : auditScore >= 70 ? 'Recommandations en attente' : 'Améliorations requises'}
+                {auditScore >= 90 ? 'Optimisé pour la Production' : auditScore >= 70 ? 'Recommandations en attente' : 'Améliorations requises'}
               </p>
             </div>
             <button
@@ -326,6 +422,172 @@ export default function PwaAudit() {
         </div>
       </div>
 
+      {/* Online API & Cloud Connectivity Health Check Monitor */}
+      <div className="bg-slate-950/90 border border-blue-500/30 rounded-3xl p-6 md:p-8 space-y-6 shadow-[0_0_40px_rgba(59,130,246,0.1)] relative overflow-hidden">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-blue-500/10 border border-blue-500/30 rounded-2xl">
+              <Activity className="w-5 h-5 text-blue-400" />
+            </div>
+            <div>
+              <h4 className="text-base font-black text-white uppercase tracking-tight flex items-center gap-2">
+                Moniteur de Santé API & Connectivité Cloud (Online Health Monitor)
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-mono rounded font-bold uppercase">
+                  <Wifi className="w-2.5 h-2.5" /> Direct Probe
+                </span>
+              </h4>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Diagnostic granulaire des endpoints réseau, du proxy ML local et des clés de fallback Gemini/Firebase.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={runLiveAudit}
+            disabled={isTestingHealth || isAuditing}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 shrink-0 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isTestingHealth ? 'animate-spin' : ''}`} />
+            Tester la Connectivité API
+          </button>
+        </div>
+
+        {/* Diagnostic Status Cards Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          
+          {/* 1. Express Server */}
+          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Server className="w-3.5 h-3.5 text-blue-400" /> Express Backend
+              </span>
+              <span className={`px-2 py-0.5 text-[9px] font-mono font-black uppercase rounded ${
+                healthData?.diagnostics.expressServer.status === 'online'
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                  : 'bg-red-500/10 text-red-400 border border-red-500/20'
+              }`}>
+                {healthData?.diagnostics.expressServer.status === 'online' ? 'EN LIGNE' : 'INACTIF'}
+              </span>
+            </div>
+            <div>
+              <p className="text-sm font-bold text-white">
+                Port {healthData?.diagnostics.expressServer.port || '3000'} • {healthData?.environment || 'production'}
+              </p>
+              <p className="text-[11px] text-slate-400 mt-1">
+                Uptime: {healthData ? `${healthData.uptimeSeconds}s` : 'En cours...'}
+              </p>
+            </div>
+          </div>
+
+          {/* 2. ML Engine (Codex API) */}
+          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Cpu className="w-3.5 h-3.5 text-indigo-400" /> Moteur ML Local
+              </span>
+              <span className={`px-2 py-0.5 text-[9px] font-mono font-black uppercase rounded ${
+                healthData?.diagnostics.mlEngine.isOnline
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                  : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+              }`}>
+                {healthData?.diagnostics.mlEngine.isOnline ? 'ONLINE' : 'FALLBACK GEMINI'}
+              </span>
+            </div>
+            <div>
+              <p className="text-xs font-bold text-white truncate">
+                {healthData?.diagnostics.mlEngine.configuredUrl || 'http://127.0.0.1:8000'}
+              </p>
+              <p className="text-[11px] text-slate-400 mt-1">
+                {healthData?.diagnostics.mlEngine.isOnline
+                  ? `Latence: ${healthData.diagnostics.mlEngine.latencyMs}ms`
+                  : 'Mode dégradé intelligent actif'}
+              </p>
+            </div>
+          </div>
+
+          {/* 3. Server-side Gemini AI */}
+          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Flame className="w-3.5 h-3.5 text-purple-400" /> Gemini Cloud AI
+              </span>
+              <span className={`px-2 py-0.5 text-[9px] font-mono font-black uppercase rounded ${
+                healthData?.diagnostics.geminiAi.configured
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                  : 'bg-red-500/10 text-red-400 border border-red-500/20'
+              }`}>
+                {healthData?.diagnostics.geminiAi.configured ? 'PRÊT' : 'CLÉ MANQUANTE'}
+              </span>
+            </div>
+            <div>
+              <p className="text-xs font-bold text-white">
+                {healthData?.diagnostics.geminiAi.configured ? 'GEMINI_API_KEY Détectée' : 'Clé non trouvée dans .env'}
+              </p>
+              <p className="text-[11px] text-slate-400 mt-1 truncate">
+                Inférence LLM & Phonèmes
+              </p>
+            </div>
+          </div>
+
+          {/* 4. Firebase Cloud Sync */}
+          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Database className="w-3.5 h-3.5 text-amber-400" /> Firebase Firestore
+              </span>
+              <span className={`px-2 py-0.5 text-[9px] font-mono font-black uppercase rounded ${
+                healthData?.diagnostics.firebase.configured
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                  : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+              }`}>
+                {healthData?.diagnostics.firebase.configured ? 'CLOUD SYNC' : 'OFFLINE LOCAL'}
+              </span>
+            </div>
+            <div>
+              <p className="text-xs font-bold text-white truncate">
+                {healthData?.diagnostics.firebase.projectId || 'Mode local'}
+              </p>
+              <p className="text-[11px] text-slate-400 mt-1">
+                {healthData?.diagnostics.firebase.configured ? 'Synchro temps réel activée' : 'Résilience via LocalStorage'}
+              </p>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Detailed Explanation for Online Deployment Failure / Fallback */}
+        <div className="bg-blue-950/30 border border-blue-500/20 rounded-2xl p-4 md:p-5 text-xs text-slate-300 space-y-3">
+          <div className="flex items-center gap-2 text-blue-400 font-bold uppercase tracking-wider text-[10px] font-mono">
+            <Info className="w-4 h-4 shrink-0" />
+            Analyse d'Ingénierie : Pourquoi une PWA/Applet peut échouer en ligne (Online Cloud Deployment)
+          </div>
+          <p className="leading-relaxed text-slate-300">
+            En environnement de conteneurisé distant (Cloud Run / Vercel / Netlify), le serveur local Python <code className="text-amber-300 bg-black/40 px-1.5 py-0.5 rounded font-mono">127.0.0.1:8000</code> n'est pas accessible. Si l'application tenta d'appeler directement ce port sans proxy, la requête échoue avec <code className="text-red-400 bg-black/40 px-1.5 py-0.5 rounded font-mono">ECONNREFUSED</code>.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+            <div className="bg-black/40 border border-slate-800 p-3 rounded-xl space-y-1">
+              <strong className="text-emerald-400 font-mono text-[10px] uppercase block">1. Proxy Universel Express</strong>
+              <p className="text-[11px] text-slate-400 leading-snug">
+                Le serveur Express intercepte <code className="text-slate-300">/api/*</code> et redirige avec un timeout de 12s vers le Cloud ou Gemini API.
+              </p>
+            </div>
+            <div className="bg-black/40 border border-slate-800 p-3 rounded-xl space-y-1">
+              <strong className="text-blue-400 font-mono text-[10px] uppercase block">2. Routage Express 5 (SPA Wildcard)</strong>
+              <p className="text-[11px] text-slate-400 leading-snug">
+                Les routes frontend sont servies via <code className="text-slate-300">app.get('*all', ...)</code> pour éviter les erreurs de syntaxe Express v5.
+              </p>
+            </div>
+            <div className="bg-black/40 border border-slate-800 p-3 rounded-xl space-y-1">
+              <strong className="text-purple-400 font-mono text-[10px] uppercase block">3. Mode Dégradé Autonome</strong>
+              <p className="text-[11px] text-slate-400 leading-snug">
+                En l'absence de réseau ou de Firebase, l'application bascule immédiatement sur LocalStorage sans planter la session.
+              </p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
       {/* Grid of Logs and Filters */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
@@ -342,7 +604,12 @@ export default function PwaAudit() {
           </div>
           <div className="p-5 font-mono text-[11px] text-[#00FF00]/80 space-y-2 overflow-y-auto flex-1 bg-black/40 scrollbar-thin">
             {auditLogs.map((log, index) => (
-              <div key={index} className={`leading-relaxed ${log.includes('MISSING') || log.includes('Error') ? 'text-red-400' : log.includes('FOUND') || log.includes('success') || log.includes('YES') ? 'text-[#00FF00]' : log.includes('---') ? 'text-slate-600' : 'text-slate-400'}`}>
+              <div key={index} className={`leading-relaxed ${
+                log.includes('MISSING') || log.includes('Error') || log.includes('OFFLINE') ? 'text-red-400' :
+                log.includes('FOUND') || log.includes('success') || log.includes('YES') || log.includes('ONLINE') || log.includes('CONFIGURED') ? 'text-[#00FF00]' :
+                log.includes('HEALTH') ? 'text-sky-300' :
+                log.includes('---') ? 'text-slate-600' : 'text-slate-400'
+              }`}>
                 <span className="text-slate-600 mr-2">[{new Date().toLocaleTimeString()}]</span>
                 {log}
               </div>
@@ -368,6 +635,12 @@ export default function PwaAudit() {
               Tous ({audits.length})
             </button>
             <button
+              onClick={() => setActiveCategory('api')}
+              className={`flex-1 min-w-[100px] px-4 py-2 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider transition-all whitespace-nowrap flex items-center justify-center gap-1.5 ${activeCategory === 'api' ? 'bg-slate-900 border border-slate-800 text-white' : 'text-slate-500 hover:text-white'}`}
+            >
+              <Activity className="w-3.5 h-3.5 text-blue-400" /> API & Cloud
+            </button>
+            <button
               onClick={() => setActiveCategory('chrome')}
               className={`flex-1 min-w-[100px] px-4 py-2 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider transition-all whitespace-nowrap flex items-center justify-center gap-1.5 ${activeCategory === 'chrome' ? 'bg-slate-900 border border-slate-800 text-white' : 'text-slate-500 hover:text-white'}`}
             >
@@ -377,7 +650,7 @@ export default function PwaAudit() {
               onClick={() => setActiveCategory('mobile')}
               className={`flex-1 min-w-[100px] px-4 py-2 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider transition-all whitespace-nowrap flex items-center justify-center gap-1.5 ${activeCategory === 'mobile' ? 'bg-slate-900 border border-slate-800 text-white' : 'text-slate-500 hover:text-white'}`}
             >
-              <Smartphone className="w-3.5 h-3.5 text-blue-400" /> Mobile Stores
+              <Smartphone className="w-3.5 h-3.5 text-indigo-400" /> Mobile Stores
             </button>
             <button
               onClick={() => setActiveCategory('sw')}
@@ -481,3 +754,4 @@ export default function PwaAudit() {
     </div>
   );
 }
+

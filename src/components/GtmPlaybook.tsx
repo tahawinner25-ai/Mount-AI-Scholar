@@ -36,7 +36,7 @@ export default function GtmPlaybook({ user, mlEngineUrl }: GtmPlaybookProps) {
 
   // Post Generator states
   const [prodName, setProdName] = useState('Mentora AI');
-  const [prodUsp, setProdUsp] = useState('Inférence locale OpenAI Codex (<25ms) pour l\'aide à la dyslexie, garantissant une protection PII absolue sans cloud.');
+  const [prodUsp, setProdUsp] = useState('Modèle IA Mentora AI (<25ms) pour l\'aide à la dyslexie, garantissant une protection PII absolue.');
   const [launchTarget, setLaunchTarget] = useState<'hn' | 'ph' | 'devpost' | 'twitter'>('hn');
   const [launchTone, setLaunchTone] = useState<'humble' | 'deeptech' | 'bold'>('humble');
   const [isGenerating, setIsGenerating] = useState(false);

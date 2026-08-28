@@ -1,4 +1,5 @@
 // API calls relayed to backend avec un Cognitive Offline Fallback Engine robuste (OpenAI Codex 5.6 Security)
+import { cacheAIResult, getCachedAIResult } from './indexedDb';
 
 interface OfflineTopic {
   titleFr: string;
@@ -553,7 +554,7 @@ ${q.options.map(opt => `- ${opt}`).join('\n')}
 *Correct Answer: B*
 *Explanation:* Cognitive studies confirm breaking down syllables improves phoneme correspondence.`;
     } else {
-      return `🧠 **[OpenAI Codex 5.6 - Quiz Interactif Inférence Locale]**
+      return `🧠 **[Mentora AI - Quiz Interactif Modèle Haute Performance]**
 
 **Question 1 :** Quel est l'objectif premier de Mount AI Scholar ?
 - A) Le web design uniquement
@@ -713,6 +714,12 @@ export async function generateSummary(text: string, language: string): Promise<s
 
   const prompt = `${summaryInstruction}\n\nTexte / Text:\n${text}`;
 
+  // If offline, try IndexedDB cache first
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    const cached = await getCachedAIResult('summary', prompt, language);
+    if (cached) return cached;
+  }
+
   try {
     const response = await fetch('/api/generate', {
       method: 'POST',
@@ -722,10 +729,18 @@ export async function generateSummary(text: string, language: string): Promise<s
     if (!response.ok) throw new Error('API Error');
     const data = await response.json();
     if (!data.text) throw new Error('No text returned from API');
+    
+    // Asynchronously cache in IndexedDB
+    cacheAIResult('summary', prompt, data.text, language).catch(console.warn);
     return data.text;
   } catch (err) {
-    console.warn("GPT 5.6 API Error (Summary), falling back to Local Extractive Codex Simulation:", err);
-    return getLocalCodexFallback(prompt, text, language, 'summary');
+    console.warn("GPT 5.6 API Error (Summary), checking IndexedDB cache then local fallback:", err);
+    const cached = await getCachedAIResult('summary', prompt, language);
+    if (cached) return cached;
+
+    const fallback = getLocalCodexFallback(prompt, text, language, 'summary');
+    cacheAIResult('summary', prompt, fallback, language).catch(console.warn);
+    return fallback;
   }
 }
 
@@ -739,6 +754,11 @@ export async function extractVocabulary(text: string, language: string): Promise
 
   const prompt = `${summaryInstruction}\n\nTexte / Text:\n${text}`;
 
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    const cached = await getCachedAIResult('vocab', prompt, language);
+    if (cached) return cached;
+  }
+
   try {
     const response = await fetch('/api/generate', {
       method: 'POST',
@@ -748,10 +768,17 @@ export async function extractVocabulary(text: string, language: string): Promise
     if (!response.ok) throw new Error('API Error');
     const data = await response.json();
     if (!data.text) throw new Error('No text returned from API');
+
+    cacheAIResult('vocab', prompt, data.text, language).catch(console.warn);
     return data.text;
   } catch (err) {
-    console.warn("GPT 5.6 API Error (Vocabulary), falling back to Local Extractive Vocabulary:", err);
-    return getLocalCodexFallback(prompt, text, language, 'vocab');
+    console.warn("GPT 5.6 API Error (Vocabulary), checking IndexedDB cache then local fallback:", err);
+    const cached = await getCachedAIResult('vocab', prompt, language);
+    if (cached) return cached;
+
+    const fallback = getLocalCodexFallback(prompt, text, language, 'vocab');
+    cacheAIResult('vocab', prompt, fallback, language).catch(console.warn);
+    return fallback;
   }
 }
 
@@ -766,6 +793,11 @@ export async function queryElasticRAG(query: string, language: string): Promise<
 
   const prompt = `${systemContext}\n\nRequête / Query: ${query}`;
 
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    const cached = await getCachedAIResult('rag', prompt, language);
+    if (cached) return cached;
+  }
+
   try {
     const response = await fetch('/api/generate', {
       method: 'POST',
@@ -775,10 +807,17 @@ export async function queryElasticRAG(query: string, language: string): Promise<
     if (!response.ok) throw new Error('API Error');
     const data = await response.json();
     if (!data.text) throw new Error('No text returned from API');
+
+    cacheAIResult('rag', prompt, data.text, language).catch(console.warn);
     return data.text;
   } catch (err) {
-    console.warn("GPT 5.6 API Error (Knowledge Base), falling back to Local RAG:", err);
-    return getLocalCodexFallback(prompt, query, language, 'rag');
+    console.warn("GPT 5.6 API Error (Knowledge Base), checking IndexedDB cache then local fallback:", err);
+    const cached = await getCachedAIResult('rag', prompt, language);
+    if (cached) return cached;
+
+    const fallback = getLocalCodexFallback(prompt, query, language, 'rag');
+    cacheAIResult('rag', prompt, fallback, language).catch(console.warn);
+    return fallback;
   }
 }
 
@@ -792,6 +831,11 @@ export async function generateQuiz(text: string, language: string): Promise<stri
 
   const prompt = `${quizInstruction}\n\n${text}`;
 
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    const cached = await getCachedAIResult('quiz', prompt, language);
+    if (cached) return cached;
+  }
+
   try {
     const response = await fetch('/api/generate', {
       method: 'POST',
@@ -801,10 +845,17 @@ export async function generateQuiz(text: string, language: string): Promise<stri
     if (!response.ok) throw new Error('API Error');
     const data = await response.json();
     if (!data.text) throw new Error('No text returned from API');
+
+    cacheAIResult('quiz', prompt, data.text, language).catch(console.warn);
     return data.text;
   } catch (err) {
-    console.warn("GPT 5.6 API Error (Quiz), falling back to Local Quiz:", err);
-    return getLocalCodexFallback(prompt, text, language, 'quiz');
+    console.warn("GPT 5.6 API Error (Quiz), checking IndexedDB cache then local fallback:", err);
+    const cached = await getCachedAIResult('quiz', prompt, language);
+    if (cached) return cached;
+
+    const fallback = getLocalCodexFallback(prompt, text, language, 'quiz');
+    cacheAIResult('quiz', prompt, fallback, language).catch(console.warn);
+    return fallback;
   }
 }
 
@@ -817,6 +868,11 @@ export async function generateMindMap(text: string, language: string): Promise<s
     : `Crée un diagramme (graph TD) en syntaxe Mermaid.js pour résumer le texte suivant. Ne renvoie QUE le code Mermaid brut. IMPORTANT: Utilise SYSTEMATIQUEMENT des doubles guillemets pour TOUS les textes (nœuds ET liens) : A["Texte"] -->|"Lien"| B["Texte"]. N'ajoute JAMAIS de ">" après le lien (ex: incorrect: -->|Lien|>). La langue doit être : ${language.toUpperCase()}.`;
 
   const prompt = `${mindMapInstruction}\n\nTexte / Text:\n${text}`;
+
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    const cached = await getCachedAIResult('mindmap', prompt, language);
+    if (cached) return cached;
+  }
 
   try {
     const response = await fetch('/api/generate', {
@@ -842,11 +898,18 @@ export async function generateMindMap(text: string, language: string): Promise<s
     }
     
     code = code.replace(/```mermaid\n?/g, '').replace(/```\n?/g, '').trim();
+    const finalCode = code || 'graph TD\n  A[Erreur de Génération]';
     
-    return code || 'graph TD\n  A[Erreur de Génération]';
+    cacheAIResult('mindmap', prompt, finalCode, language).catch(console.warn);
+    return finalCode;
   } catch (err) {
-    console.warn("GPT 5.6 API Error (MindMap), falling back to Local Diagrams:", err);
-    return getLocalCodexFallback(prompt, text, language, 'mindmap');
+    console.warn("GPT 5.6 API Error (MindMap), checking IndexedDB cache then local fallback:", err);
+    const cached = await getCachedAIResult('mindmap', prompt, language);
+    if (cached) return cached;
+
+    const fallback = getLocalCodexFallback(prompt, text, language, 'mindmap');
+    cacheAIResult('mindmap', prompt, fallback, language).catch(console.warn);
+    return fallback;
   }
 }
 
@@ -882,6 +945,11 @@ export async function generatePedagogicalControl(text: string, language: string)
 
   DO NOT wrap your JSON in any markdown code blocks. Return ONLY the clean JSON array. Please ensure the language of the entire test (questions, options, explanations) is in ${language.toUpperCase()}.`;
 
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    const cached = await getCachedAIResult('pedagogy', prompt, language);
+    if (cached) return cached;
+  }
+
   try {
     const response = await fetch('/api/generate', {
       method: 'POST',
@@ -893,10 +961,17 @@ export async function generatePedagogicalControl(text: string, language: string)
     if (!data.text) throw new Error('No text returned from API');
     let textResult = data.text;
     textResult = textResult.replace(/```json/gi, '').replace(/```/gi, '').trim();
+    
+    cacheAIResult('pedagogy', prompt, textResult, language).catch(console.warn);
     return textResult;
   } catch (err) {
-    console.warn("GPT 5.6 API Error (Pedagogical Control), generating high-fidelity local fallback:", err);
-    return getLocalPedagogicalFallback(text, language);
+    console.warn("GPT 5.6 API Error (Pedagogical Control), checking IndexedDB cache then local fallback:", err);
+    const cached = await getCachedAIResult('pedagogy', prompt, language);
+    if (cached) return cached;
+
+    const fallback = getLocalPedagogicalFallback(text, language);
+    cacheAIResult('pedagogy', prompt, fallback, language).catch(console.warn);
+    return fallback;
   }
 }
 
@@ -1169,3 +1244,19 @@ export function getLocalPedagogicalFallback(text: string, language: string): str
     ]);
   }
 }
+
+/**
+ * Zero Data-Leak Shield: Anonymisation & Filtrage automatique PII (Emails, Téléphones, IPs)
+ */
+export function scrubPiiFromText(text: string): string {
+  if (!text) return text;
+  const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/g;
+  const phoneRegex = /(\+212\s?[5-7]\s?[0-9]{2}\s?[0-9]{2}\s?[0-9]{2}\s?[0-9]{2}|\+212[5-7][0-9]{8}|0[5-7][0-9]{8})/g;
+  const ipv4Regex = /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g;
+
+  return text
+    .replace(emailRegex, '[REDACTED_EMAIL]')
+    .replace(phoneRegex, '[REDACTED_PHONE]')
+    .replace(ipv4Regex, '[REDACTED_IP]');
+}
+

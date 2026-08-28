@@ -6,11 +6,15 @@
  * Ensures the app works perfectly without internet connection on Chromebooks and mobile devices.
  */
 
-const CACHE_NAME = 'mount-ai-scholar-v1';
+const CACHE_NAME = 'mount-ai-scholar-v2';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/icon-maskable-192.png',
+  '/icon-maskable-512.png',
   '/pwa-192x192.svg',
   '/pwa-512x512.svg',
   '/icon.svg'

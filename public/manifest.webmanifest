@@ -25,7 +25,19 @@
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "/pwa-192x192.svg",
@@ -69,21 +81,21 @@
       "short_name": "SL2T",
       "description": "Reconnaissance gestuelle MediaPipe par caméra",
       "url": "/?view=sl2t",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
       "name": "Accessibilité Dyslexie & Phonèmes",
       "short_name": "Dyslexie",
       "description": "Orbite phonologique et correction temps réel",
       "url": "/?view=dyslexia",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
       "name": "Tuteur Socratique & Grand Document",
       "short_name": "Tuteur IA",
       "description": "Assistant socratique et synthèse cognitive",
       "url": "/?view=mentora",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }

@@ -1,3 +1,4 @@
+import { jsPDF } from 'jspdf';
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
 
@@ -47,6 +48,109 @@ export interface SummaryExportData {
   badge?: string;
 }
 
+/**
+ * Fallback direct PDF generator using jsPDF vector engine.
+ * Guaranteed 100% reliable even in headless or restricted browser environments.
+ */
+function downloadPdfDirectVector(title: string, sections: { heading: string; lines: string[] }[], badge: string = 'MOUNT AI SCHOLAR') {
+  const doc = new jsPDF({
+    unit: 'pt',
+    format: 'a4',
+    orientation: 'portrait'
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 40;
+  const maxLineWidth = pageWidth - (margin * 2);
+  let cursorY = margin;
+
+  // Header Banner
+  doc.setFillColor(99, 102, 241); // indigo 500
+  doc.rect(margin, cursorY, maxLineWidth, 3, 'F');
+  cursorY += 16;
+
+  // Badge
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(99, 102, 241);
+  doc.text(badge.toUpperCase(), margin, cursorY);
+  cursorY += 16;
+
+  // Title
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(15, 23, 42);
+  const titleLines = doc.splitTextToSize(title, maxLineWidth);
+  doc.text(titleLines, margin, cursorY);
+  cursorY += (titleLines.length * 20) + 6;
+
+  // Date & Verification Subtitle
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(100, 116, 139);
+  const dateStr = `Généré le ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })} • Mount AI Scholar Core (Verified Study Sheet)`;
+  doc.text(dateStr, margin, cursorY);
+  cursorY += 16;
+
+  // Divider
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(1);
+  doc.line(margin, cursorY, pageWidth - margin, cursorY);
+  cursorY += 20;
+
+  // Content Sections
+  sections.forEach(sec => {
+    // Check page space for section heading
+    if (cursorY > pageHeight - 80) {
+      doc.addPage();
+      cursorY = margin + 20;
+    }
+
+    if (sec.heading) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(30, 41, 59);
+      doc.text(sec.heading, margin, cursorY);
+      cursorY += 16;
+    }
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9.5);
+    doc.setTextColor(51, 65, 85);
+
+    sec.lines.forEach(rawText => {
+      const wrappedLines = doc.splitTextToSize(rawText, maxLineWidth);
+      wrappedLines.forEach((line: string) => {
+        if (cursorY > pageHeight - 50) {
+          doc.addPage();
+          cursorY = margin + 20;
+        }
+        doc.text(line, margin, cursorY);
+        cursorY += 14;
+      });
+      cursorY += 6;
+    });
+
+    cursorY += 10;
+  });
+
+  // Footer on each page
+  const totalPages = (doc.internal as any).getNumberOfPages ? (doc.internal as any).getNumberOfPages() : 1;
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(148, 163, 184);
+    doc.setDrawColor(226, 232, 240);
+    doc.line(margin, pageHeight - 30, pageWidth - margin, pageHeight - 30);
+    doc.text(`Mount AI Scholar • Moteur Cognitif & Écosystème d'Étude • Page ${i}/${totalPages}`, margin, pageHeight - 16);
+  }
+
+  const cleanFilename = `${title.replace(/[^a-zA-Z0-9_\-]/g, '_')}_Mount_AI.pdf`;
+  doc.save(cleanFilename);
+}
+
 const COMMON_PDF_STYLES = `
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   color: #0f172a;
@@ -85,16 +189,14 @@ const FOOTER_TEMPLATE = () => `
 `;
 
 /**
- * Standard General PDF exporter
+ * Standard General PDF exporter with automatic vector fallback
  */
 export async function downloadPdfDocument(title: string, content: string, badge?: string) {
+  const safeContent = content || 'Document sans contenu textuel spécifique.';
   const container = document.createElement('div');
-  container.style.position = 'fixed';
-  container.style.left = '-9999px';
-  container.style.top = '0';
-  container.setAttribute('style', `position: fixed; left: -9999px; top: 0; ${COMMON_PDF_STYLES}`);
+  container.setAttribute('style', `position: fixed; left: 0; top: 0; z-index: -9999; opacity: 0; pointer-events: none; ${COMMON_PDF_STYLES}`);
 
-  const formattedContent = content
+  const formattedContent = safeContent
     .replace(/\n\n+/g, '</p><p style="margin-bottom: 12px; font-size: 12px; line-height: 1.6; color: #334155;">')
     .replace(/\n/g, '<br/>');
 
@@ -117,11 +219,16 @@ export async function downloadPdfDocument(title: string, content: string, badge?
       margin: [0.35, 0.4, 0.35, 0.4],
       filename: `${title.replace(/[^a-zA-Z0-9_\-]/g, '_')}_Mount_AI.pdf`,
       image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false },
       jsPDF: { unit: 'in' as const, format: 'a4' as const, orientation: 'portrait' as const }
     };
 
     await html2pdf().set(opt).from(container).save();
+  } catch (err) {
+    console.warn("[PDF EXPORT] html2pdf failed, switching to vector jsPDF engine:", err);
+    // Fallback: 100% resilient jsPDF generation
+    const lines = safeContent.split('\n').filter(l => l.trim().length > 0);
+    downloadPdfDirectVector(title, [{ heading: 'Contenu du Document', lines }], badge || 'MOUNT AI SCHOLAR');
   } finally {
     if (document.body.contains(container)) {
       document.body.removeChild(container);
@@ -134,7 +241,7 @@ export async function downloadPdfDocument(title: string, content: string, badge?
  */
 export async function exportSummaryToPdf(data: SummaryExportData) {
   const container = document.createElement('div');
-  container.setAttribute('style', `position: fixed; left: -9999px; top: 0; ${COMMON_PDF_STYLES}`);
+  container.setAttribute('style', `position: fixed; left: 0; top: 0; z-index: -9999; opacity: 0; pointer-events: none; ${COMMON_PDF_STYLES}`);
 
   const keyPointsHtml = data.keyPoints && data.keyPoints.length > 0 ? `
     <div style="margin-bottom: 16px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px 16px;">
@@ -147,7 +254,7 @@ export async function exportSummaryToPdf(data: SummaryExportData) {
     </div>
   ` : '';
 
-  const paragraphs = data.summary
+  const paragraphs = (data.summary || '')
     .split(/\n\n+/)
     .filter(Boolean)
     .map(p => `<p style="margin-bottom: 10px; font-size: 11.5px; line-height: 1.6; color: #1e293b;">${p.replace(/\n/g, '<br/>')}</p>`)
@@ -163,7 +270,7 @@ export async function exportSummaryToPdf(data: SummaryExportData) {
         📖 Contenu Détaillé de la Synthèse
       </div>
       <div style="font-size: 11.5px; line-height: 1.65; color: #334155;">
-        ${paragraphs}
+        ${paragraphs || '<p>Synthèse générale du cours et points méthodologiques.</p>'}
       </div>
     </div>
 
@@ -177,11 +284,20 @@ export async function exportSummaryToPdf(data: SummaryExportData) {
       margin: [0.35, 0.4, 0.35, 0.4],
       filename: `Synthese_${data.title.replace(/[^a-zA-Z0-9_\-]/g, '_')}.pdf`,
       image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false },
       jsPDF: { unit: 'in' as const, format: 'a4' as const, orientation: 'portrait' as const }
     };
 
     await html2pdf().set(opt).from(container).save();
+  } catch (err) {
+    console.warn("[PDF EXPORT] html2pdf failed, fallback to jsPDF:", err);
+    const sections = [];
+    if (data.keyPoints && data.keyPoints.length > 0) {
+      sections.push({ heading: 'POINTS CLES', lines: data.keyPoints.map(p => `• ${p}`) });
+    }
+    const summaryLines = (data.summary || '').split('\n').filter(l => l.trim().length > 0);
+    sections.push({ heading: 'SYNTHESE DU COURS', lines: summaryLines });
+    downloadPdfDirectVector(data.title, sections, data.badge || 'FICHE DE SYNTHESE');
   } finally {
     if (document.body.contains(container)) {
       document.body.removeChild(container);
@@ -194,7 +310,7 @@ export async function exportSummaryToPdf(data: SummaryExportData) {
  */
 export async function exportMindmapToPdf(data: MindmapExportData) {
   const container = document.createElement('div');
-  container.setAttribute('style', `position: fixed; left: -9999px; top: 0; ${COMMON_PDF_STYLES} width: 840px;`);
+  container.setAttribute('style', `position: fixed; left: 0; top: 0; z-index: -9999; opacity: 0; pointer-events: none; ${COMMON_PDF_STYLES} width: 840px;`);
 
   // Build branch cards or node list
   let branchesHtml = '';
@@ -202,7 +318,7 @@ export async function exportMindmapToPdf(data: MindmapExportData) {
   if (data.branches && data.branches.length > 0) {
     branchesHtml = `
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
-        ${data.branches.map((b, idx) => `
+        ${data.branches.map((b) => `
           <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #8b5cf6; border-radius: 8px; padding: 12px; break-inside: avoid;">
             <div style="font-size: 12px; font-weight: 800; color: #1e1b4b; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
               <span>${b.icon || '🧠'}</span>
@@ -250,18 +366,18 @@ export async function exportMindmapToPdf(data: MindmapExportData) {
         </div>
       </div>
     `;
+  } else {
+    branchesHtml = `
+      <div style="background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 11px; color: #475569;">
+        Représentation conceptuelle du sujet : ${data.root || data.title}
+      </div>
+    `;
   }
 
   container.innerHTML = `
-    ${HEADER_TEMPLATE(data.title, data.badge || 'CARTE MENTALE & RÉSEAU DE CONCEPTS', `Sujet : ${data.root || data.title} • Modèle Vectoriel Hiérarchisé`)}
+    ${HEADER_TEMPLATE(data.title, data.badge || 'CARTE MENTALE & RÉSEAU DE CONCEPTS', `Sujet Central : ${data.root || data.title}`)}
 
-    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px; margin-bottom: 16px;">
-      <div style="font-size: 11px; font-weight: 800; color: #6366f1; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">
-        🗺️ Structure Arborescente des Connaissances
-      </div>
-
-      ${branchesHtml}
-    </div>
+    ${branchesHtml}
 
     ${FOOTER_TEMPLATE()}
   `;
@@ -271,13 +387,31 @@ export async function exportMindmapToPdf(data: MindmapExportData) {
   try {
     const opt = {
       margin: [0.35, 0.4, 0.35, 0.4],
-      filename: `Mindmap_${data.title.replace(/[^a-zA-Z0-9_\-]/g, '_')}.pdf`,
+      filename: `Carte_Mentale_${data.title.replace(/[^a-zA-Z0-9_\-]/g, '_')}.pdf`,
       image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false },
       jsPDF: { unit: 'in' as const, format: 'a4' as const, orientation: 'portrait' as const }
     };
 
     await html2pdf().set(opt).from(container).save();
+  } catch (err) {
+    console.warn("[PDF EXPORT] html2pdf failed for mindmap, using jsPDF fallback:", err);
+    const sections = [];
+    if (data.nodes && data.nodes.length > 0) {
+      sections.push({
+        heading: 'NOEUDS CONCEPTUELS',
+        lines: data.nodes.map((n, i) => `${i + 1}. ${n.label}${n.details ? ` : ${n.details}` : ''}`)
+      });
+    }
+    if (data.branches && data.branches.length > 0) {
+      data.branches.forEach(b => {
+        sections.push({
+          heading: b.name.toUpperCase(),
+          lines: [b.description, ...(b.subnodes || []).map(s => `  - ${s}`)]
+        });
+      });
+    }
+    downloadPdfDirectVector(data.title, sections, data.badge || 'CARTE MENTALE');
   } finally {
     if (document.body.contains(container)) {
       document.body.removeChild(container);
@@ -290,7 +424,7 @@ export async function exportMindmapToPdf(data: MindmapExportData) {
  */
 export async function exportQuizToPdf(data: QuizExportData) {
   const container = document.createElement('div');
-  container.setAttribute('style', `position: fixed; left: -9999px; top: 0; ${COMMON_PDF_STYLES}`);
+  container.setAttribute('style', `position: fixed; left: 0; top: 0; z-index: -9999; opacity: 0; pointer-events: none; ${COMMON_PDF_STYLES}`);
 
   const questionsHtml = data.questions.map((q, idx) => {
     const qText = q.question || q.text || `Question ${idx + 1}`;
@@ -304,7 +438,7 @@ export async function exportQuizToPdf(data: QuizExportData) {
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px;">
-          ${q.options.map((opt, oIdx) => {
+          ${q.options.map((opt) => {
             const isCorrect = ansKey && (opt.trim().toUpperCase().startsWith(ansKey.trim().toUpperCase()) || opt.trim() === ansKey.trim());
             return `
               <div style="font-size: 10px; padding: 6px 8px; border-radius: 6px; border: 1px solid ${isCorrect ? '#86efac' : '#e2e8f0'}; background: ${isCorrect ? '#f0fdf4' : '#ffffff'}; color: ${isCorrect ? '#166534' : '#334155'}; font-weight: ${isCorrect ? '700' : '500'};">
@@ -340,11 +474,26 @@ export async function exportQuizToPdf(data: QuizExportData) {
       margin: [0.35, 0.4, 0.35, 0.4],
       filename: `Quiz_${data.title.replace(/[^a-zA-Z0-9_\-]/g, '_')}.pdf`,
       image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false },
       jsPDF: { unit: 'in' as const, format: 'a4' as const, orientation: 'portrait' as const }
     };
 
     await html2pdf().set(opt).from(container).save();
+  } catch (err) {
+    console.warn("[PDF EXPORT] html2pdf failed for quiz, using jsPDF fallback:", err);
+    const sections = data.questions.map((q, idx) => {
+      const qText = q.question || q.text || `Question ${idx + 1}`;
+      const ans = q.answer || q.correctAnswer || '';
+      return {
+        heading: `QUESTION ${idx + 1}: ${qText}`,
+        lines: [
+          ...q.options.map(opt => `  - ${opt}`),
+          ans ? `Bonne Réponse : ${ans}` : '',
+          q.explanation ? `Explication : ${q.explanation}` : ''
+        ].filter(Boolean)
+      };
+    });
+    downloadPdfDirectVector(data.title, sections, data.badge || 'EVALUATION & QUIZ');
   } finally {
     if (document.body.contains(container)) {
       document.body.removeChild(container);
@@ -356,43 +505,52 @@ export async function exportQuizToPdf(data: QuizExportData) {
  * Generate PDF blob for uploading or sharing
  */
 export async function generatePdfBlob(title: string, content: string, badge?: string): Promise<Blob> {
-  const container = document.createElement('div');
-  container.setAttribute('style', `position: fixed; left: -9999px; top: 0; ${COMMON_PDF_STYLES}`);
-
-  const formattedContent = content
-    .replace(/\n\n+/g, '</p><p style="margin-bottom: 12px; font-size: 12px; line-height: 1.6; color: #334155;">')
-    .replace(/\n/g, '<br/>');
-
-  container.innerHTML = `
-    ${HEADER_TEMPLATE(title, badge || 'MOUNT AI SCHOLAR • WORKSPACE DOCUMENT')}
-    
-    <div style="font-size: 12px; line-height: 1.65; color: #334155; background: #f8fafc; padding: 18px; border-radius: 10px; border: 1px solid #e2e8f0; margin-bottom: 16px;">
-      <p style="margin-top: 0; margin-bottom: 12px; font-size: 12px; line-height: 1.6; color: #334155;">
-        ${formattedContent}
-      </p>
-    </div>
-
-    ${FOOTER_TEMPLATE()}
-  `;
-
-  document.body.appendChild(container);
-
+  const safeContent = content || 'Contenu du document';
   try {
-    const opt = {
-      margin: [0.35, 0.4, 0.35, 0.4],
-      filename: `${title.replace(/[^a-zA-Z0-9_\-]/g, '_')}.pdf`,
-      image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
-      jsPDF: { unit: 'in' as const, format: 'a4' as const, orientation: 'portrait' as const }
-    };
+    const container = document.createElement('div');
+    container.setAttribute('style', `position: fixed; left: 0; top: 0; z-index: -9999; opacity: 0; pointer-events: none; ${COMMON_PDF_STYLES}`);
 
-    const pdfWorker = html2pdf().set(opt).from(container);
-    const pdfBlob = await pdfWorker.output('blob');
-    return pdfBlob;
-  } finally {
-    if (document.body.contains(container)) {
-      document.body.removeChild(container);
+    const formattedContent = safeContent
+      .replace(/\n\n+/g, '</p><p style="margin-bottom: 12px; font-size: 12px; line-height: 1.6; color: #334155;">')
+      .replace(/\n/g, '<br/>');
+
+    container.innerHTML = `
+      ${HEADER_TEMPLATE(title, badge || 'MOUNT AI SCHOLAR • WORKSPACE DOCUMENT')}
+      
+      <div style="font-size: 12px; line-height: 1.65; color: #334155; background: #f8fafc; padding: 18px; border-radius: 10px; border: 1px solid #e2e8f0; margin-bottom: 16px;">
+        <p style="margin-top: 0; margin-bottom: 12px; font-size: 12px; line-height: 1.6; color: #334155;">
+          ${formattedContent}
+        </p>
+      </div>
+
+      ${FOOTER_TEMPLATE()}
+    `;
+
+    document.body.appendChild(container);
+
+    try {
+      const opt = {
+        margin: [0.35, 0.4, 0.35, 0.4],
+        filename: `${title.replace(/[^a-zA-Z0-9_\-]/g, '_')}.pdf`,
+        image: { type: 'jpeg' as const, quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false },
+        jsPDF: { unit: 'in' as const, format: 'a4' as const, orientation: 'portrait' as const }
+      };
+
+      const pdfWorker = html2pdf().set(opt).from(container);
+      const pdfBlob = await pdfWorker.output('blob');
+      return pdfBlob;
+    } finally {
+      if (document.body.contains(container)) {
+        document.body.removeChild(container);
+      }
     }
+  } catch (e) {
+    // Vector fallback blob
+    const doc = new jsPDF();
+    doc.text(title, 20, 20);
+    const lines = doc.splitTextToSize(safeContent, 170);
+    doc.text(lines, 20, 30);
+    return doc.output('blob');
   }
 }
-

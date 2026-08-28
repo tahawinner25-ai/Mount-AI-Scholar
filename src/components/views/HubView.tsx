@@ -3,9 +3,10 @@ import { BrainCircuit, BookOpen, Network, Mic, Layers, Activity, Apple, Sparkles
 import { MainViewType } from '../../types';
 import scholarIcon from '../../assets/images/mount_ai_logo_1785927100930.jpg';
 import { downloadPdfDocument } from '../../utils/pdfExport';
-import { extractTextFromFile } from '../../services/documentParser';
+import { extractTextFromFile, parseStructuredDocument, ParsedDocumentResult } from '../../services/documentParser';
 import { subscribeStorageStatus, getStorageStatus, StorageStatus } from '../../services/indexedDb';
 import SL2TScanner from '../SL2TScanner';
+import PDFPreviewBanner from './PDFPreviewBanner';
 
 interface HubViewProps {
   setMainView: (view: MainViewType) => void;
@@ -15,6 +16,7 @@ interface HubViewProps {
 
 export default function HubView({ setMainView, onAddToWorkspace, user }: HubViewProps) {
   const [importedDoc, setImportedDoc] = useState<{ name: string; size: number; text: string } | null>(null);
+  const [parsedDocResult, setParsedDocResult] = useState<ParsedDocumentResult | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [isSl2tModalOpen, setIsSl2tModalOpen] = useState(false);
   const [storageStatus, setStorageStatus] = useState<StorageStatus>(getStorageStatus());
@@ -31,10 +33,11 @@ export default function HubView({ setMainView, onAddToWorkspace, user }: HubView
     if (!file) return;
     setIsImporting(true);
     try {
-      const text = await extractTextFromFile(file);
-      setImportedDoc({ name: file.name, size: file.size, text });
+      const parsed = await parseStructuredDocument(file);
+      setParsedDocResult(parsed);
+      setImportedDoc({ name: file.name, size: file.size, text: parsed.text });
       if (onAddToWorkspace) {
-        onAddToWorkspace(`Fichier Importé Hub - ${file.name}`, text);
+        onAddToWorkspace(`Fichier Importé Hub - ${file.name}`, parsed.text);
       }
     } catch (err: any) {
       alert(err?.message || "Erreur lors du chargement du fichier.");
@@ -242,6 +245,27 @@ export default function HubView({ setMainView, onAddToWorkspace, user }: HubView
             )}
           </div>
         </div>
+
+        {/* PDF PREVIEW BANNER ON HUB */}
+        {importedDoc && (
+          <div className="mt-4 max-w-2xl mx-auto w-full text-left relative z-10">
+            <PDFPreviewBanner
+              document={{
+                fileName: importedDoc.name,
+                text: importedDoc.text,
+                size: importedDoc.size
+              }}
+              parsedResult={parsedDocResult}
+              onClearDocument={() => {
+                setImportedDoc(null);
+                setParsedDocResult(null);
+              }}
+              onStartAnalysis={() => {
+                setMainView('mentora');
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {/* SL2T POPUP / MODAL IDENTIFICATION WINDOW */}

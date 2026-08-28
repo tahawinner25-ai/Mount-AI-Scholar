@@ -22,6 +22,7 @@ import {
   exportQuizToPdf,
   downloadPdfDocument
 } from '../../utils/pdfExport';
+import PDFPreviewBanner from './PDFPreviewBanner';
 
 // ========================================================
 // SOUND ENGINE: Web Audio API Oscillator Orchestration
@@ -480,13 +481,15 @@ export default function MentoraView({ setMainView, user, onAddToWorkspace }: Men
       };
 
       recognition.onerror = (event: any) => {
-        console.error("Speech recognition error:", event);
+        console.warn("Mentora Speech recognition status:", event.error);
         if (event.error === 'not-allowed') {
-          setMicError("🎤 Micro bloqué ! Autorisez l'accès au microphone dans les paramètres de votre navigateur.");
+          setMicError("🎤 Micro non autorisé. Autorisez l'accès au micro via le cadenas de l'URL ou écrivez directement dans le chat.");
         } else if (event.error === 'no-speech') {
           setMicError("Aucun son détecté. Parlez bien distinctement près du micro.");
+        } else if (event.error === 'aborted') {
+          setMicError("");
         } else {
-          setMicError(`Erreur Microphone (Code: ${event.error})`);
+          setMicError(`Information Microphone (${event.error})`);
         }
         setIsRecording(false);
       };
@@ -498,8 +501,8 @@ export default function MentoraView({ setMainView, user, onAddToWorkspace }: Men
       recognitionRef.current = recognition;
       recognition.start();
     } catch (err: any) {
-      console.error("Speech recognition initialization error:", err);
-      setMicError("Impossible d'initialiser le microphone.");
+      console.warn("Speech recognition initialization notice:", err);
+      setMicError("Reconnaissance vocale non disponible sur ce navigateur. Vous pouvez taper au clavier.");
       setIsRecording(false);
     }
   };
@@ -1457,6 +1460,27 @@ Ensure progressive difficulty (Easy, Intermediate, Advanced).`;
             <span className="text-emerald-400">⚡ Zero-Freeze Architecture</span>
           </div>
         </div>
+      )}
+
+      {/* PDF & DOCUMENT PREVIEW BANNER */}
+      {chatDocument && (
+        <PDFPreviewBanner
+          document={chatDocument}
+          parsedResult={parsedDocResult}
+          onClearDocument={() => {
+            setChatDocument(null);
+            setParsedDocResult(null);
+          }}
+          onOpenStudio={() => setActiveTab('doc-studio')}
+          onStartAnalysis={(selectedText) => {
+            if (selectedText) {
+              setChatInput(`Analyse et explique-moi en détail cet extrait : "${selectedText.slice(0, 300)}..."`);
+            } else {
+              setChatInput(`Bonjour ! Guide-moi pas à pas pour comprendre le document "${chatDocument.fileName}". Pose-moi une première question socratique pour tester mes connaissances.`);
+            }
+            setActiveTab('chat');
+          }}
+        />
       )}
 
       {/* MINIMALIST TAB NAVIGATION */}

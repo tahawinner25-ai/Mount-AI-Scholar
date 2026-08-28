@@ -50,10 +50,12 @@ export default function SL2TView({ setMainView, onAddToWorkspace, user }: SL2TVi
   const [audioSynthStatus, setAudioSynthStatus] = useState<'ready' | 'unsupported'>('ready');
   const [isTestingAudio, setIsTestingAudio] = useState<boolean>(false);
   const [isTestingMic, setIsTestingMic] = useState<boolean>(false);
+  const [isTestingCamera, setIsTestingCamera] = useState<boolean>(false);
   const [micVolumeLevel, setMicVolumeLevel] = useState<number>(0);
   const [diagnosticMsg, setDiagnosticMsg] = useState<string | null>(null);
 
   const testStreamRef = useRef<MediaStream | null>(null);
+  const cameraTestStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
 
   // Check initial permissions if query API is supported
@@ -134,6 +136,40 @@ export default function SL2TView({ setMainView, onAddToWorkspace, user }: SL2TVi
       setDiagnosticMsg('Erreur lors du test de synthèse vocale.');
     };
     window.speechSynthesis.speak(utterance);
+  };
+
+  // Hardware Test: Camera video stream authorization
+  const handleTestCamera = async () => {
+    if (isTestingCamera) {
+      stopCameraTest();
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+        audio: false,
+      });
+      cameraTestStreamRef.current = stream;
+      setCameraStatus('granted');
+      setIsTestingCamera(true);
+      const track = stream.getVideoTracks()[0];
+      const settings = track ? track.getSettings() : null;
+      const resInfo = settings?.width ? `${settings.width}x${settings.height}` : 'Flux actif';
+      setDiagnosticMsg(`Caméra connectée avec succès (${track?.label || 'Webcam'} - ${resInfo}). Prête pour MediaPipe SL2T.`);
+    } catch (err: any) {
+      console.warn('Accès caméra refusé ou indisponible:', err?.message || err);
+      setCameraStatus('denied');
+      setDiagnosticMsg("Accès caméra refusé. Vérifiez les autorisations de votre navigateur ou activez la caméra dans les réglages de votre appareil.");
+    }
+  };
+
+  const stopCameraTest = () => {
+    if (cameraTestStreamRef.current) {
+      cameraTestStreamRef.current.getTracks().forEach((t) => t.stop());
+      cameraTestStreamRef.current = null;
+    }
+    setIsTestingCamera(false);
   };
 
   // Hardware Test: Microphone audio stream & Level Analyzer
@@ -337,14 +373,27 @@ export default function SL2TView({ setMainView, onAddToWorkspace, user }: SL2TVi
                       : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                   }`}
                 >
-                  {cameraStatus.toUpperCase()}
+                  {isTestingCamera ? 'TEST EN COURS' : cameraStatus.toUpperCase()}
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed">
                 Utilisé par MediaPipe Tasks pour le tracking 3D des 21 landmarks articulaires.
               </p>
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  onClick={handleTestCamera}
+                  className={`px-3 py-1.5 rounded-xl text-[11px] font-mono font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    isTestingCamera
+                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                      : 'bg-emerald-600/30 hover:bg-emerald-600/50 border border-emerald-500/40 text-emerald-200'
+                  }`}
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>{isTestingCamera ? 'Arrêter Test' : 'Tester Caméra'}</span>
+                </button>
+              </div>
               <div className="text-[10px] font-mono text-slate-500">
-                🔒 Inférence locale WebGPU / WebAssembly — aucun flux envoyé au cloud.
+                🔒 Inférence locale WebGPU / Wasm — aucun flux envoyé au cloud.
               </div>
             </div>
 

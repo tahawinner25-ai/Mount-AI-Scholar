@@ -547,13 +547,15 @@ export default function App() {
         };
 
         recognition.onerror = (event: any) => {
-          console.error("Speech API Error:", event.error);
+          console.warn("Speech API status notice:", event.error);
           if (event.error === 'not-allowed') {
-            setSpeechError("🎤 Micro bloqué! Pour l'autoriser, clique sur l'icône de cadenas dans la barre d'adresse du navigateur. Si tu es dans un iframe, ouvre l'application dans un nouvel onglet.");
+            setSpeechError("🎤 Micro non autorisé. Pour l'activer, autorisez l'accès micro via le cadenas du navigateur ou testez les phonèmes via les mots rapides et le mode simulation ci-dessous.");
           } else if (event.error === 'no-speech') {
-            setSpeechError("Aucun son détecté. Parle bien distinctement près du micro.");
+            setSpeechError("Aucun son détecté. Parlez bien distinctement près du micro.");
+          } else if (event.error === 'aborted') {
+            setSpeechError(null);
           } else {
-            setSpeechError(`Erreur Micro (Code: ${event.error})`);
+            setSpeechError(`Information Micro (Code: ${event.error})`);
           }
           setIsRecording(false);
         };
@@ -565,7 +567,7 @@ export default function App() {
         recognitionRef.current = recognition;
       }
     } catch (err) {
-      console.error("SpeechRecognition initialization failed safely:", err);
+      console.warn("SpeechRecognition initialization notice:", err);
     }
   }, [selectedLang]);
 
@@ -582,26 +584,44 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isRecording]);
 
-  const toggleRecording = () => {
+  const toggleRecording = async () => {
     if (!isRecording) {
       setSpeechError(null);
       setTranscript("");
       setDetectedPhonemes([]);
-      setIsRecording(true);
+
+      // Prompt mic permission gracefully if supported
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          stream.getTracks().forEach(t => t.stop());
+        } catch (permErr: any) {
+          console.warn("Microphone permission check notice:", permErr?.name || permErr?.message || permErr);
+          setSpeechError("🎤 Accès micro non autorisé. Autorisez l'accès via le cadenas du navigateur ou utilisez les boutons de mots d'entraînement.");
+          setIsRecording(false);
+          return;
+        }
+      }
+
       if (recognitionRef.current) {
         try {
+          setIsRecording(true);
           recognitionRef.current.start();
-        } catch (e) {
-          console.error("Already running", e);
+        } catch (e: any) {
+          console.warn("SpeechRecognition start notice:", e?.message || e);
         }
       } else {
-        alert("Ton navigateur ne supporte pas la reconnaissance vocale native (utilise Chrome/Edge sur PC/Mac).");
+        setSpeechError("Ton navigateur ne supporte pas la reconnaissance vocale native (utilise Chrome/Edge sur PC/Mac ou le mode simulation textuelle).");
         setIsRecording(false);
       }
     } else {
       setIsRecording(false);
       if (recognitionRef.current) {
-        recognitionRef.current.stop();
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {
+          // ignore
+        }
       }
     }
   };

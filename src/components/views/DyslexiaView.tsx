@@ -1274,6 +1274,21 @@ export default function DyslexiaView({
           </div>
         </div>
 
+        {speechError && (
+          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-300 text-xs flex items-center justify-between gap-3 animate-in fade-in duration-200">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🎙️</span>
+              <p className="font-sans leading-relaxed">{speechError}</p>
+            </div>
+            <button
+              onClick={toggleRecording}
+              className="text-[10px] font-mono font-bold uppercase px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 shrink-0 transition-colors"
+            >
+              Réessayer
+            </button>
+          </div>
+        )}
+
         {transcript && (
           <div className="p-4 bg-[#0b0e17] rounded-2xl border border-white/5 space-y-2 animate-in fade-in duration-300">
             <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider block font-mono">Dernier Transcript Intercepté :</span>

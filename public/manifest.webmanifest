@@ -1,22 +1,90 @@
 {
   "name": "Mount AI Scholar - Cognitive Accessibility Suite",
-  "short_name": "AI Scholar",
-  "description": "Local-first cognitive and phonological accessibility assistant powered by Gemma-2B and WebAssembly for schools.",
+  "short_name": "Mount AI",
+  "description": "Moteur IA d'apprentissage et d'accessibilité cognitive pour la dyslexie, la surdité et les troubles d'apprentissage.",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "any",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
-  "orientation": "any",
+  "categories": ["education", "productivity", "accessibility"],
+  "lang": "fr-FR",
+  "dir": "ltr",
+  "prefer_related_applications": false,
   "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
     {
       "src": "/pwa-192x192.svg",
       "sizes": "192x192",
-      "type": "image/svg+xml"
+      "type": "image/svg+xml",
+      "purpose": "any"
     },
     {
       "src": "/pwa-512x512.svg",
       "sizes": "512x512",
-      "type": "image/svg+xml"
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/hub-desktop.jpg",
+      "sizes": "1280x720",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "Hub d'apprentissage et prévisualisation de cours - Mount AI Scholar"
+    },
+    {
+      "src": "/screenshots/mobile-phonemes.jpg",
+      "sizes": "720x1280",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "Orbite phonologique et analyse vocale en temps réel"
+    },
+    {
+      "src": "/screenshots/tutor-desktop.jpg",
+      "sizes": "1280x720",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "Tuteur socratique intelligent et arène cognitive"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Scanner Langue des Signes (SL2T)",
+      "short_name": "SL2T",
+      "description": "Reconnaissance gestuelle MediaPipe par caméra",
+      "url": "/?view=sl2t",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Accessibilité Dyslexie & Phonèmes",
+      "short_name": "Dyslexie",
+      "description": "Orbite phonologique et correction temps réel",
+      "url": "/?view=dyslexia",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Tuteur Socratique & Grand Document",
+      "short_name": "Tuteur IA",
+      "description": "Assistant socratique et synthèse cognitive",
+      "url": "/?view=mentora",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }
+

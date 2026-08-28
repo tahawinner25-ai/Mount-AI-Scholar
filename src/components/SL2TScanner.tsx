@@ -55,6 +55,8 @@ export default function SL2TScanner({
   const [isLoadingModel, setIsLoadingModel] = useState(true);
   const [modelError, setModelError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'video' | 'image' | 'guide'>('video');
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+  const [cameraPermissionGranted, setCameraPermissionGranted] = useState<boolean | null>(null);
 
   // MediaPipe Confidence & Detection Sliders
   const [numHands, setNumHands] = useState(2);
@@ -141,9 +143,10 @@ export default function SL2TScanner({
   };
 
   // Démarrage de la webcam avec gestion fine des autorisations et erreurs matérielles
-  const startCamera = async () => {
+  const startCamera = async (overrideFacing?: 'user' | 'environment') => {
     if (!taskRef.current) return;
     setModelError(null);
+    const targetFacing = overrideFacing || facingMode;
 
     try {
       await taskRef.current.setRunningMode('VIDEO');
@@ -151,10 +154,12 @@ export default function SL2TScanner({
         video: {
           width: { ideal: 640 },
           height: { ideal: 480 },
-          facingMode: 'user',
+          facingMode: targetFacing,
         },
         audio: false,
       });
+
+      setCameraPermissionGranted(true);
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -174,7 +179,8 @@ export default function SL2TScanner({
         errMsg.includes('permission denied') ||
         errMsg.includes('permission dismissed')
       ) {
-        friendlyMsg = "L'accès à la caméra a été refusé par le système ou le navigateur. Vérifiez les autorisations de votre caméra ou testez avec l'onglet 'Test Photo'.";
+        setCameraPermissionGranted(false);
+        friendlyMsg = "L'accès à la caméra a été refusé. Sur mobile Samsung ou Chrome, appuyez sur l'icône de cadenas/paramètres du site pour autoriser la caméra, ou utilisez le mode 'Test Photo'.";
       } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
         friendlyMsg = "Aucune caméra détectée sur cet appareil. Branchez une webcam ou utilisez le mode 'Test Photo'.";
       } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
@@ -182,6 +188,18 @@ export default function SL2TScanner({
       }
       setModelError(friendlyMsg);
       setIsRunning(false);
+    }
+  };
+
+  // Basculer entre caméra frontale (selfie) et dorsale (arrière)
+  const toggleFacingMode = async () => {
+    const nextFacing = facingMode === 'user' ? 'environment' : 'user';
+    setFacingMode(nextFacing);
+    if (isRunning) {
+      stopCamera();
+      setTimeout(() => {
+        startCamera(nextFacing);
+      }, 150);
     }
   };
 
@@ -557,12 +575,23 @@ export default function SL2TScanner({
                   <div className="flex flex-wrap items-center justify-center gap-2">
                     <button
                       id="sl2t-start-camera-btn"
-                      onClick={startCamera}
+                      onClick={() => startCamera()}
                       disabled={isLoadingModel}
                       className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-mono font-bold text-xs rounded-xl shadow-lg flex items-center gap-2 cursor-pointer transition-all hover:scale-105"
                     >
                       <Video className="w-4 h-4" /> Démarrer la Caméra SL2T
                     </button>
+
+                    <button
+                      onClick={toggleFacingMode}
+                      type="button"
+                      className="px-3 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-mono text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition-all"
+                      title="Changer entre caméra avant et arrière"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>{facingMode === 'user' ? 'Caméra Avant (Selfie)' : 'Caméra Arrière'}</span>
+                    </button>
+
                     {modelError && (
                       <button
                         onClick={() => {
@@ -579,10 +608,23 @@ export default function SL2TScanner({
 
               {/* Live Overlay HUD Info */}
               {isRunning && (
-                <div className="absolute top-3 left-3 flex items-center gap-2 bg-slate-950/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-emerald-500/30 text-[11px] font-mono text-emerald-300">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                  <span>LIVE • {fps} FPS</span>
-                </div>
+                <>
+                  <div className="absolute top-3 left-3 flex items-center gap-2 bg-slate-950/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-emerald-500/30 text-[11px] font-mono text-emerald-300">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                    <span>LIVE • {fps} FPS</span>
+                  </div>
+
+                  <button
+                    onClick={toggleFacingMode}
+                    className="absolute top-3 right-3 p-2 bg-slate-950/85 hover:bg-slate-900 backdrop-blur-md border border-slate-700/70 hover:border-emerald-500/50 rounded-xl text-slate-300 hover:text-emerald-300 font-mono text-xs flex items-center gap-1.5 transition-all shadow-md cursor-pointer z-10"
+                    title={`Changer de caméra (Actuel: ${facingMode === 'user' ? 'Avant (Selfie)' : 'Arrière'})`}
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span className="text-[10px] hidden sm:inline">
+                      {facingMode === 'user' ? 'Caméra Avant' : 'Caméra Arrière'}
+                    </span>
+                  </button>
+                </>
               )}
 
               {isRunning && currentItems.length > 0 && (
@@ -678,25 +720,36 @@ export default function SL2TScanner({
           {/* Video Control Action Buttons */}
           {activeTab === 'video' && (
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <button
-                id="sl2t-toggle-camera-action"
-                onClick={isRunning ? stopCamera : startCamera}
-                className={`px-4 py-2 rounded-xl text-xs font-mono font-bold flex items-center gap-2 transition-all cursor-pointer ${
-                  isRunning
-                    ? 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40'
-                    : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg'
-                }`}
-              >
-                {isRunning ? (
-                  <>
-                    <CameraOff className="w-4 h-4" /> Arrêter la Caméra
-                  </>
-                ) : (
-                  <>
-                    <Camera className="w-4 h-4" /> Activer la Détection Caméra
-                  </>
-                )}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  id="sl2t-toggle-camera-action"
+                  onClick={isRunning ? stopCamera : () => startCamera()}
+                  className={`px-4 py-2 rounded-xl text-xs font-mono font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                    isRunning
+                      ? 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40'
+                      : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg'
+                  }`}
+                >
+                  {isRunning ? (
+                    <>
+                      <CameraOff className="w-4 h-4" /> Arrêter la Caméra
+                    </>
+                  ) : (
+                    <>
+                      <Camera className="w-4 h-4" /> Activer la Détection Caméra
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={toggleFacingMode}
+                  className="px-3 py-2 rounded-xl text-xs font-mono bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white flex items-center gap-1.5 transition-all cursor-pointer"
+                  title="Basculer caméra avant / arrière"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-[11px]">{facingMode === 'user' ? 'Avant' : 'Arrière'}</span>
+                </button>
+              </div>
 
               <span className="text-[10px] font-mono text-slate-500">
                 MediaPipe GestureRecognizerTask • Inférence Locale

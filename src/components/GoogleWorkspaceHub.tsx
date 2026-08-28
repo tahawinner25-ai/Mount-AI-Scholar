@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { 
   HardDrive, FileText, Calendar, Presentation, CheckSquare, 
-  Layers, ShieldCheck, CheckCircle2, AlertTriangle, Loader2, Download, 
-  FileCode, Mail, GraduationCap, X, FileUp, Search
+  Layers, CheckCircle2, AlertTriangle, Loader2, Download, 
+  FileCode, Mail, GraduationCap, FileUp, Search, Copy
 } from 'lucide-react';
 import { auth, getCachedWorkspaceToken } from '../services/firebase';
 import { downloadPdfDocument } from '../utils/pdfExport';
@@ -36,15 +36,14 @@ export default function GoogleWorkspaceHub({ setMainView, onImportText }: Google
   const [slideTexts, setSlideTexts] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error' | null; text: string }>({ type: null, text: '' });
+  const [copied, setCopied] = useState(false);
 
   // Drive state
   const [driveFiles, setDriveFiles] = useState<DriveFile[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isDriveLoading, setIsDriveLoading] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<DriveFile | null>(null);
-  const [fileContentText, setFileContentText] = useState<string>('');
 
-  const userEmail = auth.currentUser?.email || 'compte-direct@workspace.internal';
+  const userEmail = auth.currentUser?.email || 'capitaine@mentora.ai';
 
   // Helper to initialize or sync slide texts array
   const syncSlideTexts = (count: number, sourceText: string, currentArr: string[]): string[] => {
@@ -54,11 +53,11 @@ export default function GoogleWorkspaceHub({ setMainView, onImportText }: Google
       const chunkSize = Math.max(1, Math.ceil(lines.length / Math.max(1, count)));
       for (let i = 0; i < count; i++) {
         const chunk = lines.slice(i * chunkSize, (i + 1) * chunkSize).join('\n');
-        result.push(chunk || `Contenu de la slide ${i + 1}...`);
+        result.push(chunk || `Slide ${i + 1} : Synthèse et concepts clés`);
       }
     } else if (result.length < count) {
       for (let i = result.length; i < count; i++) {
-        result.push(`Contenu de la slide ${i + 1}...`);
+        result.push(`Slide ${i + 1} : Synthèse et concepts clés`);
       }
     } else if (result.length > count) {
       result = result.slice(0, count);
@@ -77,6 +76,12 @@ export default function GoogleWorkspaceHub({ setMainView, onImportText }: Google
     const updated = [...slideTexts];
     updated[index] = value;
     setSlideTexts(updated);
+  };
+
+  const handleCopyText = () => {
+    navigator.clipboard.writeText(content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleExportSlides = async () => {
@@ -108,7 +113,7 @@ export default function GoogleWorkspaceHub({ setMainView, onImportText }: Google
 
       setStatusMsg({
         type: 'success',
-        text: `Fichier "${customTitle}.pptx" (${slideCount} slides) téléchargé ! Pour l'importer dans Google Slides : Glissez-déposez le fichier .pptx dans votre Google Drive.`
+        text: `Fichier "${customTitle}.pptx" (${slideCount} slides) téléchargé ! Pour l'importer dans Google Slides : Glissez le fichier .pptx dans votre Google Drive.`
       });
     } catch (err: any) {
       console.error("Export Slides Error:", err);
@@ -142,17 +147,17 @@ export default function GoogleWorkspaceHub({ setMainView, onImportText }: Google
       const encodedContent = encodeURIComponent(content);
 
       if (appKey === 'pdf_local' || appKey === 'pdf_drive') {
-        await downloadPdfDocument(customTitle, content, 'EXPORTATION MENTORA AI');
+        await downloadPdfDocument(customTitle, content, 'MOUNT AI SCHOLAR • WORKSPACE');
         if (appKey === 'pdf_drive') {
           window.open('https://drive.google.com', '_blank');
           setStatusMsg({
             type: 'success',
-            text: `Document PDF "${customTitle}.pdf" téléchargé ! Google Drive ouvert pour dépôt rapide.`
+            text: `Document PDF "${customTitle}.pdf" téléchargé ! Google Drive ouvert pour sauvegarde.`
           });
         } else {
           setStatusMsg({
             type: 'success',
-            text: `Document PDF "${customTitle}.pdf" téléchargé sur votre appareil !`
+            text: `Document PDF "${customTitle}.pdf" téléchargé avec succès sur votre appareil !`
           });
         }
         setIsSaving(false);
@@ -174,7 +179,7 @@ export default function GoogleWorkspaceHub({ setMainView, onImportText }: Google
 
         setStatusMsg({
           type: 'success',
-          text: `Brouillon ouvert directement dans Gmail ! Le fichier .eml a aussi été téléchargé.`
+          text: `Brouillon ouvert directement dans Gmail avec tout le texte ! Le fichier .eml a aussi été téléchargé.`
         });
         setIsSaving(false);
         return;
@@ -195,46 +200,56 @@ export default function GoogleWorkspaceHub({ setMainView, onImportText }: Google
 
         setStatusMsg({
           type: 'success',
-          text: `Événement ouvert directement dans Google Calendar ! Fichier .ics généré.`
+          text: `Événement ouvert directement dans Google Calendar ! Fichier .ics synchronisé.`
         });
         setIsSaving(false);
         return;
       }
 
       if (appKey === 'docs' || appKey === 'docx_drive') {
-        const docText = `Mentora AI - ${customTitle}\n\n${content}`;
-        const blob = new Blob([docText], { type: 'application/msword' });
+        const wordHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${customTitle}</title><style>body{font-family:Arial,sans-serif;line-height:1.6;color:#1e293b;padding:40px;}h1{color:#4338ca;border-bottom:2px solid #6366f1;padding-bottom:10px;}</style></head><body><h1>${customTitle}</h1><p><em>Généré par Mount AI Scholar</em></p><hr/><div>${content.replace(/\n\n+/g, '</p><p>').replace(/\n/g, '<br/>')}</div></body></html>`;
+        const blob = new Blob(['\ufeff' + wordHtml], { type: 'application/msword' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${customTitle}.docx`;
+        a.download = `${customTitle}.doc`;
         a.click();
         URL.revokeObjectURL(url);
+
+        try {
+          await navigator.clipboard.writeText(content);
+        } catch (_) {}
 
         window.open('https://docs.new', '_blank');
         setStatusMsg({
           type: 'success',
-          text: `Document Word "${customTitle}.docx" téléchargé et Google Docs (docs.new) ouvert !`
+          text: `Document Word généré et Google Docs (docs.new) ouvert ! Le texte complet a été copié dans le presse-papiers.`
         });
         setIsSaving(false);
         return;
       }
 
       if (appKey === 'tasks') {
+        try {
+          await navigator.clipboard.writeText(`${customTitle}\n\n${content}`);
+        } catch (_) {}
         window.open('https://tasks.google.com', '_blank');
         setStatusMsg({
           type: 'success',
-          text: `Tâche "${customTitle}" prête. Redirection vers Google Tasks !`
+          text: `Tâche "${customTitle}" copiée dans le presse-papiers et Google Tasks ouvert !`
         });
         setIsSaving(false);
         return;
       }
 
       if (appKey === 'classroom') {
+        try {
+          await navigator.clipboard.writeText(`${customTitle}\n\n${content}`);
+        } catch (_) {}
         window.open('https://classroom.google.com', '_blank');
         setStatusMsg({
           type: 'success',
-          text: `Redirection vers Google Classroom pour publier "${customTitle}".`
+          text: `Redirection vers Google Classroom pour publier "${customTitle}". Contenu copié dans le presse-papiers.`
         });
         setIsSaving(false);
         return;
@@ -278,7 +293,6 @@ export default function GoogleWorkspaceHub({ setMainView, onImportText }: Google
     setIsDriveLoading(true);
     setStatusMsg({ type: null, text: '' });
 
-    // Declare global gapi / google types safely
     const win = window as any;
     if (win.gapi && win.gapi.load) {
       win.gapi.load('picker', {
@@ -338,22 +352,23 @@ export default function GoogleWorkspaceHub({ setMainView, onImportText }: Google
               Exportation Directe Workspace
             </h2>
             <p className="text-xs font-mono text-emerald-400 flex items-center gap-1 mt-0.5">
-              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" /> Sans Inscription • Accès Direct Immédiat (0 Compte Requis)
+              <span>Google Docs • Drive • Gmail • Slides • Calendar • Tasks</span>
             </p>
           </div>
         </div>
 
-        {/* Tab switcher */}
-        <div className="flex items-center gap-2 bg-slate-950/80 p-1.5 border border-slate-800 rounded-2xl">
+        {/* Sub-tab Switcher */}
+        <div className="flex items-center bg-slate-900/90 border border-slate-800 rounded-2xl p-1.5 gap-1 self-stretch md:self-auto">
           <button
             onClick={() => setActiveSubTab('editor')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`flex-1 md:flex-none px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
               activeSubTab === 'editor'
-                ? 'bg-blue-600 text-white shadow-[0_0_15px_rgba(59,130,246,0.4)]'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-blue-600 text-white shadow-lg'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
             }`}
           >
-            <FileText className="w-3.5 h-3.5" /> Zone de Rédaction Unifiée
+            <FileText className="w-4 h-4" />
+            <span>Éditeur & Export</span>
           </button>
 
           <button
@@ -361,178 +376,156 @@ export default function GoogleWorkspaceHub({ setMainView, onImportText }: Google
               setActiveSubTab('drive');
               if (driveFiles.length === 0) fetchDriveFiles();
             }}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`flex-1 md:flex-none px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
               activeSubTab === 'drive'
-                ? 'bg-blue-600 text-white shadow-[0_0_15px_rgba(59,130,246,0.4)]'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-emerald-600 text-white shadow-lg'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
             }`}
           >
-            <HardDrive className="w-3.5 h-3.5" /> Explorer Google Drive
+            <HardDrive className="w-4 h-4" />
+            <span>Explorer Drive</span>
           </button>
         </div>
       </div>
 
       {activeSubTab === 'editor' && (
         <>
-          {/* Notice for Direct Zero Registration Export */}
-          <div className="bg-gradient-to-r from-emerald-950/60 via-slate-900 to-teal-950/60 border border-emerald-500/30 rounded-2xl p-4 text-xs text-emerald-200 flex items-start gap-3 shadow-lg">
-            <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <p className="font-bold text-white flex items-center gap-1.5 text-sm">
-                <span>⚡ Zone de Rédaction Unifiée Workspace</span>
-              </p>
-              <p className="text-xs leading-relaxed text-slate-300 font-sans">
-                Écrivez ci-dessous le contenu de votre e-mail, de votre tâche, ou le texte de vos documents (Word, PDF, Slides). Exportation immédiate sans création de compte.
-              </p>
-            </div>
-          </div>
-
-          {/* Inputs & Editing Zone */}
-          <div className="space-y-4">
-            <div>
-              <label className="text-[11px] font-mono text-slate-400 uppercase tracking-widest">Titre du document / Sujet :</label>
-              <input
-                type="text"
-                value={customTitle}
-                onChange={(e) => setCustomTitle(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-blue-500 transition-colors mt-1 font-semibold"
-              />
-            </div>
-
-            {isSlidesMode ? (
-              /* SLIDES MODE: Individual text boxes per slide */
-              <div className="space-y-4 bg-amber-950/20 border border-amber-500/30 rounded-2xl p-4 md:p-6">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-500/20 pb-3">
-                  <div className="flex items-center gap-2.5">
-                    <Presentation className="w-6 h-6 text-amber-400" />
-                    <div>
-                      <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-                        Mode Présentation Slides ({slideCount} Slides)
-                      </h4>
-                      <p className="text-[11px] text-amber-300/80 font-mono mt-0.5">
-                        Rédigez le texte spécifique de chaque slide ci-dessous :
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3.5 py-1.5 rounded-xl">
-                    <span className="text-[10px] font-mono text-slate-400 uppercase">Nombre de slides :</span>
-                    <input
-                      type="number"
-                      min="1" max="50"
-                      value={slideCount}
-                      onChange={(e) => handleSlideCountChange(parseInt(e.target.value) || 1)}
-                      className="w-12 bg-transparent text-amber-400 font-bold border-b border-slate-700 text-center outline-none text-xs"
-                    />
-                  </div>
-                </div>
-
-                {/* Grid of Slide Textboxes */}
-                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
-                  {Array.from({ length: slideCount }).map((_, idx) => (
-                    <div key={idx} className="bg-slate-950 border border-slate-800 focus-within:border-amber-500/50 rounded-xl p-3.5 space-y-2 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-mono font-bold text-amber-400 uppercase tracking-widest flex items-center gap-1.5">
-                          <span>Slide {idx + 1} / {slideCount}</span>
-                        </span>
-                        <span className="text-[9px] text-slate-500 font-mono">
-                          {slideTexts[idx]?.length || 0} caractères
-                        </span>
-                      </div>
-                      <textarea
-                        rows={3}
-                        value={slideTexts[idx] || ''}
-                        onChange={(e) => handleSlideTextChange(idx, e.target.value)}
-                        placeholder={`Contenu et puces de la slide ${idx + 1}...`}
-                        className="w-full bg-slate-900/60 border border-slate-800/80 rounded-lg p-3 text-xs text-slate-200 outline-none focus:border-amber-500/50 resize-y font-sans leading-relaxed"
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                {/* Export Slides Action Button */}
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-                  <button
-                    onClick={() => setIsSlidesMode(false)}
-                    className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white rounded-xl text-xs font-medium transition-colors w-full sm:w-auto"
-                  >
-                    ← Zone de Rédaction Unifiée (Docs, Mail, PDF)
-                  </button>
-
-                  <button
-                    onClick={handleExportSlides}
-                    disabled={isSaving}
-                    className="px-6 py-3 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white font-bold rounded-xl text-xs uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 transition-all w-full sm:w-auto disabled:opacity-50 shrink-0"
-                  >
-                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Presentation className="w-4 h-4" />}
-                    <span>Générer Slides (.pptx + Google Slides)</span>
-                  </button>
-                </div>
-              </div>
-            ) : (
-              /* STANDARD MODE: Single Textarea for Docs, Mail, Calendar, Tasks, PDF */
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-[11px] font-mono text-slate-400 uppercase tracking-widest">Zone de rédaction unifiée :</label>
-                  <button
-                    onClick={() => handleExportToApp('slides')}
-                    className="text-xs font-mono text-amber-400 hover:underline flex items-center gap-1.5 font-bold"
-                  >
-                    <Presentation className="w-3.5 h-3.5" /> Diviser en zones de slides
-                  </button>
-                </div>
-                
-                <textarea
-                  rows={10}
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  className="w-full bg-slate-950/90 border border-slate-800 rounded-2xl p-5 text-sm text-slate-200 font-sans outline-none focus:border-blue-500 transition-colors resize-y shadow-inner leading-relaxed"
-                  placeholder="Écrivez le contenu de votre document, e-mail ou tâche..."
-                />
-              </div>
-            )}
-          </div>
-
           {/* Status Message */}
           {statusMsg.text && (
             <div className={`p-4 rounded-2xl border text-xs font-medium flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
               statusMsg.type === 'success' ? 'bg-emerald-950/50 border-emerald-500/40 text-emerald-300' : 'bg-red-950/50 border-red-500/40 text-red-300'
             }`}>
-              <span className="flex items-center gap-2">
-                {statusMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" /> : <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />}
+              <span className="flex items-center gap-2.5">
+                {statusMsg.type === 'success' ? <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" /> : <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />}
                 <span>{statusMsg.text}</span>
               </span>
               {statusMsg.type === 'error' && (
-                <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
-                  <button
-                    onClick={() => handleExportToApp('pdf_local')}
-                    disabled={isSaving}
-                    className="px-3.5 py-1.5 bg-emerald-600/30 hover:bg-emerald-600/50 border border-emerald-400/40 rounded-lg text-xs font-bold text-emerald-200 transition-all flex items-center gap-1.5"
-                  >
-                    <Download className="w-3.5 h-3.5" /> Télécharger PDF Local
-                  </button>
-                </div>
+                <button
+                  onClick={() => handleExportToApp('pdf_local')}
+                  disabled={isSaving}
+                  className="px-3 py-1.5 bg-emerald-600/30 hover:bg-emerald-600/50 border border-emerald-400/40 rounded-xl text-xs font-bold text-emerald-200 transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" /> Télécharger PDF Local
+                </button>
               )}
             </div>
           )}
 
-          {/* Workspace App Selection Grid */}
-          <div className="space-y-3 pt-2">
+          {/* Form */}
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-mono text-slate-400 uppercase tracking-wider mb-2">
+                Titre du Document
+              </label>
+              <input
+                type="text"
+                value={customTitle}
+                onChange={(e) => setCustomTitle(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-sm text-white font-medium outline-none focus:border-blue-500 transition-colors"
+                placeholder="Ex: Synthèse Histoire - Chapitre 3"
+              />
+            </div>
+
+            {isSlidesMode ? (
+              <div className="space-y-3 p-4 bg-slate-950/60 border border-amber-500/30 rounded-2xl">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-mono text-amber-400 font-bold uppercase flex items-center gap-1.5">
+                    <Presentation className="w-4 h-4" /> Mode Présentation ({slideCount} diapos)
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleSlideCountChange(slideCount - 1)}
+                      disabled={slideCount <= 1}
+                      className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs flex items-center justify-center disabled:opacity-30 cursor-pointer"
+                    >
+                      -
+                    </button>
+                    <span className="text-xs font-mono font-bold text-slate-300 w-6 text-center">{slideCount}</span>
+                    <button
+                      onClick={() => handleSlideCountChange(slideCount + 1)}
+                      disabled={slideCount >= 30}
+                      className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs flex items-center justify-center disabled:opacity-30 cursor-pointer"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                  {slideTexts.map((text, idx) => (
+                    <div key={idx} className="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-1.5">
+                      <span className="text-[11px] font-mono text-amber-400 font-bold uppercase">
+                        Diapositive {idx + 1}
+                      </span>
+                      <textarea
+                        rows={3}
+                        value={text}
+                        onChange={(e) => handleSlideTextChange(idx, e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 font-sans outline-none focus:border-amber-500 transition-colors resize-none"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    onClick={() => setIsSlidesMode(false)}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Retour Texte
+                  </button>
+                  <button
+                    onClick={handleExportSlides}
+                    disabled={isSaving}
+                    className="px-5 py-2.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-lg transition-all cursor-pointer"
+                  >
+                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Presentation className="w-4 h-4" />}
+                    <span>Générer & Télécharger PPTX</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-mono text-slate-400 uppercase tracking-wider">
+                    Contenu Textuel
+                  </label>
+                  <button
+                    onClick={handleCopyText}
+                    className="text-xs font-mono text-blue-400 hover:text-blue-300 flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>{copied ? 'Copié !' : 'Copier tout le texte'}</span>
+                  </button>
+                </div>
+                <textarea
+                  rows={8}
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-xs md:text-sm text-slate-200 font-sans outline-none focus:border-blue-500 transition-colors resize-y shadow-inner leading-relaxed"
+                  placeholder="Écrivez ou collez le contenu à exporter..."
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Export Apps Grid */}
+          <div className="space-y-3">
             <p className="text-[11px] font-mono text-slate-400 uppercase tracking-widest">
-              Exporter vers :
+              Exporter en un clic vers :
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
               {[
-                { id: 'docs', name: 'Google Docs', icon: FileText, color: 'text-indigo-400', desc: 'Créer Google Docs' },
-                { id: 'docx_drive', name: 'Word (.docx)', icon: FileCode, color: 'text-blue-400', desc: 'Document Word' },
-                { id: 'slides', name: 'Slides / PPTX', icon: Presentation, color: 'text-amber-400', desc: 'Présentation' },
-                { id: 'pdf_drive', name: 'Drive (PDF)', icon: HardDrive, color: 'text-red-400', desc: 'Save on Drive' },
-                { id: 'pdf_local', name: 'PDF Local', icon: Download, color: 'text-emerald-400', desc: 'Download PDF' },
-                { id: 'gmail', name: 'Gmail', icon: Mail, color: 'text-rose-400', desc: 'Email Draft' },
-                { id: 'calendar', name: 'Calendar', icon: Calendar, color: 'text-emerald-400', desc: 'Event details' },
-                { id: 'tasks', name: 'Tasks', icon: CheckSquare, color: 'text-purple-400', desc: 'Add task' },
-                { id: 'classroom', name: 'Classroom', icon: GraduationCap, color: 'text-emerald-300', desc: 'Publish' },
+                { id: 'pdf_local', name: 'Télécharger PDF', icon: Download, color: 'text-emerald-400', desc: 'Fichier PDF direct imprimable' },
+                { id: 'docs', name: 'Google Docs', icon: FileText, color: 'text-indigo-400', desc: 'Ouvrir Docs & Coller texte' },
+                { id: 'docx_drive', name: 'Document Word (.doc)', icon: FileCode, color: 'text-blue-400', desc: 'Fichier Word direct' },
+                { id: 'slides', name: 'Google Slides (.pptx)', icon: Presentation, color: 'text-amber-400', desc: 'Générer diapositives PowerPoint' },
+                { id: 'pdf_drive', name: 'Google Drive (PDF)', icon: HardDrive, color: 'text-red-400', desc: 'Sauvegarde Drive & PDF' },
+                { id: 'gmail', name: 'Gmail', icon: Mail, color: 'text-rose-400', desc: 'Brouillon e-mail direct' },
+                { id: 'calendar', name: 'Google Calendar', icon: Calendar, color: 'text-emerald-400', desc: 'Créer événement & notes' },
+                { id: 'tasks', name: 'Google Tasks', icon: CheckSquare, color: 'text-purple-400', desc: 'Ajouter tâche de révision' },
+                { id: 'classroom', name: 'Google Classroom', icon: GraduationCap, color: 'text-emerald-300', desc: 'Publier devoir de classe' },
               ].map((app) => {
                 const Icon = app.icon;
                 const isThisAppSaving = isSaving && selectedApp === app.id;
@@ -542,10 +535,10 @@ export default function GoogleWorkspaceHub({ setMainView, onImportText }: Google
                     key={app.id}
                     onClick={() => handleExportToApp(app.id as any)}
                     disabled={isSaving}
-                    className="p-3.5 bg-slate-900/90 border border-slate-800 hover:border-blue-500/60 rounded-2xl flex items-center gap-3.5 group transition-all text-left hover:scale-[1.02] disabled:opacity-50"
+                    className="p-4 bg-slate-900/90 border border-slate-800 hover:border-blue-500/60 rounded-2xl flex items-center gap-3.5 group transition-all text-left hover:scale-[1.02] disabled:opacity-50 cursor-pointer shadow-md"
                   >
-                    <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl group-hover:border-blue-500/30 shrink-0">
-                      {isThisAppSaving ? <Loader2 className="w-4 h-4 text-blue-400 animate-spin" /> : <Icon className={`w-4 h-4 ${app.color}`} />}
+                    <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl group-hover:border-blue-500/30 shrink-0">
+                      {isThisAppSaving ? <Loader2 className="w-5 h-5 text-blue-400 animate-spin" /> : <Icon className={`w-5 h-5 ${app.color}`} />}
                     </div>
                     <div>
                       <div className="text-xs font-bold text-white group-hover:text-blue-300 transition-colors flex items-center gap-1.5">
@@ -581,7 +574,7 @@ export default function GoogleWorkspaceHub({ setMainView, onImportText }: Google
               <button
                 onClick={() => fetchDriveFiles(searchQuery)}
                 disabled={isDriveLoading}
-                className="flex-1 md:flex-none px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
+                className="flex-1 md:flex-none px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 disabled:opacity-50 transition-colors cursor-pointer"
               >
                 {isDriveLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
                 Rechercher
@@ -590,7 +583,7 @@ export default function GoogleWorkspaceHub({ setMainView, onImportText }: Google
               <button
                 onClick={handleOpenDrivePicker}
                 disabled={isDriveLoading}
-                className="flex-1 md:flex-none px-4 py-2.5 bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/40 text-emerald-300 hover:text-white font-bold rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-colors"
+                className="flex-1 md:flex-none px-4 py-2.5 bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/40 text-emerald-300 hover:text-white font-bold rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-colors cursor-pointer"
                 title="Ouvrir le sélecteur officiel API Google Drive Picker"
               >
                 <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
@@ -626,7 +619,7 @@ export default function GoogleWorkspaceHub({ setMainView, onImportText }: Google
                       setContent(prev => prev + `\n\n[Importé de Drive : ${file.name}]`);
                       setActiveSubTab('editor');
                     }}
-                    className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600 border border-blue-500/30 text-blue-300 hover:text-white rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors flex items-center gap-1"
+                    className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600 border border-blue-500/30 text-blue-300 hover:text-white rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors flex items-center gap-1 cursor-pointer"
                   >
                     <FileUp className="w-3 h-3" /> Importer
                   </button>
@@ -645,4 +638,3 @@ export default function GoogleWorkspaceHub({ setMainView, onImportText }: Google
     </div>
   );
 }
-

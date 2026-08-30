@@ -70,47 +70,105 @@ export const isMobileOrIframe = (): boolean => {
   return isMobile;
 };
 
-// Google Authentication
+// Google Authentication & Workspace Scopes
 export const loginWithGoogle = async () => {
   try {
     const provider = new GoogleAuthProvider();
-    // Force le sélecteur de compte Google pour l'utilisateur actif
+    provider.addScope('https://www.googleapis.com/auth/drive.file');
+    provider.addScope('https://www.googleapis.com/auth/documents');
+    provider.addScope('https://www.googleapis.com/auth/calendar.events');
+    provider.addScope('https://www.googleapis.com/auth/tasks');
+    provider.addScope('https://www.googleapis.com/auth/gmail.compose');
+    provider.addScope('https://www.googleapis.com/auth/classroom.courses.readonly');
     provider.setCustomParameters({
       prompt: 'select_account'
     });
+
     const result = await signInWithPopup(auth, provider);
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    if (credential?.accessToken) {
+      localStorage.setItem('google_workspace_access_token', credential.accessToken);
+      localStorage.setItem('google_classroom_token', credential.accessToken);
+      localStorage.setItem('google_gmail_token', credential.accessToken);
+    }
     return result.user;
   } catch (error: any) {
     console.warn("Google Auth popup non disponible dans la sandbox, connexion de secours activée:", error);
     return {
       uid: 'google_user_' + Date.now(),
-      email: 'user@google.com',
-      displayName: 'Utilisateur Google',
+      email: 'capitaine@mentora.ai',
+      displayName: 'Capitaine Mentora',
       photoURL: 'https://lh3.googleusercontent.com/a/default-user'
     };
   }
 };
 
 export const connectGmail = async (): Promise<string | null> => {
-  return 'direct_server_workspace_token';
+  try {
+    const provider = new GoogleAuthProvider();
+    provider.addScope('https://www.googleapis.com/auth/gmail.compose');
+    provider.addScope('https://www.googleapis.com/auth/gmail.readonly');
+    const result = await signInWithPopup(auth, provider);
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    const token = credential?.accessToken || 'direct_server_workspace_token';
+    localStorage.setItem('google_gmail_token', token);
+    return token;
+  } catch (e) {
+    return localStorage.getItem('google_gmail_token') || 'direct_server_workspace_token';
+  }
 };
 
-export const getCachedAccessToken = () => 'direct_server_workspace_token';
+export const getCachedAccessToken = () => {
+  return localStorage.getItem('google_workspace_access_token') || 'direct_server_workspace_token';
+};
 
 export const connectClassroom = async (): Promise<string | null> => {
-  return 'direct_server_workspace_token';
+  try {
+    const provider = new GoogleAuthProvider();
+    provider.addScope('https://www.googleapis.com/auth/classroom.courses.readonly');
+    provider.addScope('https://www.googleapis.com/auth/classroom.coursework.me');
+    provider.addScope('https://www.googleapis.com/auth/classroom.announcements');
+    const result = await signInWithPopup(auth, provider);
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    const token = credential?.accessToken || 'direct_server_workspace_token';
+    localStorage.setItem('google_classroom_token', token);
+    return token;
+  } catch (e) {
+    return localStorage.getItem('google_classroom_token') || 'direct_server_workspace_token';
+  }
 };
 
-export const getCachedClassroomToken = () => 'direct_server_workspace_token';
+export const getCachedClassroomToken = () => {
+  return localStorage.getItem('google_classroom_token') || 'direct_server_workspace_token';
+};
 
 export const connectGoogleWorkspace = async (_forceReauth = false): Promise<string | null> => {
-  return 'direct_server_workspace_token';
+  try {
+    const provider = new GoogleAuthProvider();
+    provider.addScope('https://www.googleapis.com/auth/drive.file');
+    provider.addScope('https://www.googleapis.com/auth/documents');
+    provider.addScope('https://www.googleapis.com/auth/calendar.events');
+    provider.addScope('https://www.googleapis.com/auth/tasks');
+    provider.addScope('https://www.googleapis.com/auth/gmail.compose');
+    const result = await signInWithPopup(auth, provider);
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    const token = credential?.accessToken || 'direct_server_workspace_token';
+    localStorage.setItem('google_workspace_access_token', token);
+    return token;
+  } catch (e) {
+    return localStorage.getItem('google_workspace_access_token') || 'direct_server_workspace_token';
+  }
 };
 
-export const getCachedWorkspaceToken = () => 'direct_server_workspace_token';
+export const getCachedWorkspaceToken = () => {
+  return localStorage.getItem('google_workspace_access_token') || 'direct_server_workspace_token';
+};
 
 export const logout = async () => {
   try {
+    localStorage.removeItem('google_workspace_access_token');
+    localStorage.removeItem('google_classroom_token');
+    localStorage.removeItem('google_gmail_token');
     await signOut(auth);
   } catch (error) {
     console.error("Erreur de déconnexion:", error);

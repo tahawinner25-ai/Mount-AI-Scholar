@@ -27,6 +27,7 @@ import LoginModal from './components/LoginModal';
 import ProgressBadgesModal from './components/ProgressBadgesModal';
 import MentoraView from './components/views/MentoraView';
 import SL2TView from './components/views/SL2TView';
+import PhoneticVisualizerView from './components/views/PhoneticVisualizerView';
 import CognitiveChatbot from './components/CognitiveChatbot';
 import scholarIcon from './assets/images/mount_ai_logo_1785927100930.jpg';
 import { auth, loginWithGoogle, logout, handleFirestoreError, OperationType, isOfflineError } from './services/firebase';
@@ -1062,6 +1063,19 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
             </button>
 
             <button 
+              onClick={() => setMainView('phonetic-visualizer')} 
+              className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold ${
+                mainView === 'phonetic-visualizer' 
+                  ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-[0_0_20px_rgba(6,182,212,0.5)] border border-cyan-400' 
+                  : 'bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/20 shadow-[0_0_10px_rgba(6,182,212,0.15)]'
+              }`}
+              title="Visualisation Phonétique OpenDyslexic Live en temps réel"
+            >
+              <Sparkles className="w-4 h-4 text-cyan-400 animate-pulse" />
+              <span>Visualisation Phonétique</span>
+            </button>
+
+            <button 
               onClick={() => setMainView('sl2t')} 
               className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold ${
                 mainView === 'sl2t' 
@@ -1344,6 +1358,18 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
 
         {mainView === 'mentora' && (
           <MentoraView 
+            setMainView={setMainView}
+            user={user}
+            onAddToWorkspace={(title, text) => {
+              setWorkspaceExportTitle(title);
+              setWorkspaceExportText(text);
+              setIsWorkspaceModalOpen(true);
+            }}
+          />
+        )}
+
+        {mainView === 'phonetic-visualizer' && (
+          <PhoneticVisualizerView
             setMainView={setMainView}
             user={user}
             onAddToWorkspace={(title, text) => {

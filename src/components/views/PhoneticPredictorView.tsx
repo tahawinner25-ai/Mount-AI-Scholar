@@ -187,18 +187,7 @@ export default function PhoneticPredictorView({
     // Fast local fallback first while waiting for Gemini
     const localSugs = findLocalPhoneticSuggestions(wordToQuery);
     if (localSugs.length > 0) {
-      // Pad to 10 if needed
-      const paddedLocal = [...localSugs];
-      while (paddedLocal.length < 10) {
-        const idx = paddedLocal.length;
-        paddedLocal.push({
-          word: `${wordToQuery} (variante ${idx + 1})`,
-          probability: `${Math.max(40, 95 - idx * 5)}%`,
-          meaning: `Variante sémantique ou phonétique locale de "${wordToQuery}".`,
-          example: `Exemple d'utilisation pour "${wordToQuery}".`
-        });
-      }
-      setSuggestions(paddedLocal.slice(0, 10) as PhoneticSuggestion[]);
+      setSuggestions(localSugs.slice(0, 10) as PhoneticSuggestion[]);
       setInferenceSourceUsed('local');
       const tEnd = performance.now();
       setInferenceTimeMs(parseFloat((tEnd - tStart).toFixed(2)));
@@ -210,7 +199,7 @@ export default function PhoneticPredictorView({
       return;
     }
 
-    // Call Gemini Intelligence API endpoint
+    // Call Gemini Intelligence API endpoint with ultra-responsive debounce
     const delayDebounceFn = setTimeout(async () => {
       setIsLoading(true);
       const apiStart = performance.now();
@@ -227,10 +216,17 @@ export default function PhoneticPredictorView({
         if (response.ok) {
           const data = await response.json();
           if (data.suggestions && Array.isArray(data.suggestions) && data.suggestions.length > 0) {
-            setSuggestions(data.suggestions.slice(0, 10));
-            setInferenceSourceUsed('cloud');
-            const apiEnd = performance.now();
-            setInferenceTimeMs(parseFloat((apiEnd - apiStart).toFixed(2)));
+            // Filter out any unwanted synthetic raw placeholder text
+            const validCloudSugs = data.suggestions
+              .filter((s: any) => s && s.word && !s.word.includes('(variante'))
+              .slice(0, 10);
+            
+            if (validCloudSugs.length > 0) {
+              setSuggestions(validCloudSugs);
+              setInferenceSourceUsed('cloud');
+              const apiEnd = performance.now();
+              setInferenceTimeMs(parseFloat((apiEnd - apiStart).toFixed(2)));
+            }
           }
         }
       } catch (err) {
@@ -238,7 +234,7 @@ export default function PhoneticPredictorView({
       } finally {
         setIsLoading(false);
       }
-    }, 650);
+    }, 200);
 
     return () => clearTimeout(delayDebounceFn);
   }, [inputText, activeWordInfo?.word, predictionSource, predictorMode, isOnline, isForceOffline, selectedLang]);

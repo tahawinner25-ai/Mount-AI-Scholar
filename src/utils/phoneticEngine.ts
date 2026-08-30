@@ -10,13 +10,28 @@ export interface LocalWordDefinition {
 
 // Comprehensive dictionary of common French words with spelling difficulties
 export const FRENCH_DICTIONARY: LocalWordDefinition[] = [
+  { word: "spectacle", meaning: "Représentation théâtrale, de cirque ou artistique.", example: "Nous allons voir un magnifique spectacle ce soir.", phoneticCode: "" },
+  { word: "obstacle", meaning: "Ce qui barre le passage ou s'oppose au but.", example: "Il surmonte chaque obstacle avec méthode.", phoneticCode: "" },
+  { word: "spectateur", meaning: "Personne qui assiste à un spectacle ou événement.", example: "Le spectateur applaudit chaleureusement.", phoneticCode: "" },
+  { word: "spectaculaire", meaning: "Qui frappe l'esprit par son ampleur ou sa beauté.", example: "Le saut acrobatique était spectaculaire.", phoneticCode: "" },
   { word: "chapeau", meaning: "Coiffure qui couvre la tête.", example: "Il met son chapeau avant de sortir.", phoneticCode: "" },
+  { word: "chapon", meaning: "Jeune coq engraissé pour la table.", example: "Le chapon est servi lors du repas de fête.", phoneticCode: "" },
+  { word: "château", meaning: "Demeure seigneuriale ou forteresse ancienne.", example: "Le château domine la vallée.", phoneticCode: "" },
   { word: "bateau", meaning: "Embarcation de transport sur l'eau.", example: "Le bateau traverse le détroit de Gibraltar.", phoneticCode: "" },
-  { word: "spectacle", meaning: "Représentation théâtrale, de danse ou de musique.", example: "Nous allons voir un spectacle ce soir.", phoneticCode: "" },
+  { word: "bâton", meaning: "Morceau de bois allongé servant d'appui.", example: "Il marche en forêt avec son bâton.", phoneticCode: "" },
+  { word: "bataille", meaning: "Combat engagé entre deux armées ou lutte.", example: "La bataille pour l'inclusion se gagne par le code.", phoneticCode: "" },
+  { word: "bâtiment", meaning: "Construction servant de logement ou d'abri.", example: "Ce nouveau bâtiment abrite le laboratoire d'IA.", phoneticCode: "" },
+  { word: "c'est ça", meaning: "Expression confirmant une idée exacte.", example: "Oui, c'est ça, tu as parfaitement raison !", phoneticCode: "" },
+  { word: "c'est sa", meaning: "Locution désignant la possession de quelqu'un.", example: "C'est sa décision et son projet.", phoneticCode: "" },
+  { word: "ceux-ci", meaning: "Pronom désignant des objets ou personnes proches.", example: "Regarde ceux-ci avec attention.", phoneticCode: "" },
+  { word: "il fait beau", meaning: "Expression indiquant des conditions météo ensoleillées.", example: "Il fait beau aujourd'hui pour se promener.", phoneticCode: "" },
+  { word: "pharmacie", meaning: "Officine où l'on prépare et vend des médicaments.", example: "La pharmacie de garde est ouverte toute la nuit.", phoneticCode: "" },
+  { word: "pharmacien", meaning: "Professionnel de santé spécialiste des médicaments.", example: "Le pharmacien donne de précieux conseils.", phoneticCode: "" },
   { word: "magnifique", meaning: "Qui est d'une grande beauté.", example: "Le coucher de soleil sur Marrakech est magnifique.", phoneticCode: "" },
   { word: "ordinateur", meaning: "Machine électronique de traitement de l'information.", example: "Le Capitaine code sur son ordinateur portable.", phoneticCode: "" },
   { word: "bilingue", meaning: "Qui parle couramment deux langues.", example: "Il est bilingue en arabe et en français.", phoneticCode: "" },
   { word: "école", meaning: "Établissement où l'on donne un enseignement.", example: "Les élèves apprennent à lire à l'école.", phoneticCode: "" },
+  { word: "écolier", meaning: "Enfant qui fréquente l'école primaire.", example: "L'écolier range ses crayons dans sa trousse.", phoneticCode: "" },
   { word: "physique", meaning: "Science qui étudie les propriétés de la matière.", example: "La physique explique le mouvement des planètes.", phoneticCode: "" },
   { word: "faute", meaning: "Manquement à une règle d'orthographe ou de calcul.", example: "L'intelligence artificielle aide à corriger chaque faute.", phoneticCode: "" },
   { word: "horloge", meaning: "Appareil qui indique l'heure.", example: "L'horloge du salon sonne toutes les heures.", phoneticCode: "" },
@@ -28,7 +43,7 @@ export const FRENCH_DICTIONARY: LocalWordDefinition[] = [
   { word: "photographe", meaning: "Artiste qui prend des photos.", example: "Le photographe immortalise les paysages du Maroc.", phoneticCode: "" },
   { word: "effort", meaning: "Mobilisation de forces pour vaincre une difficulté.", example: "Chaque effort rapproche du succès.", phoneticCode: "" },
   { word: "affecter", meaning: "Toucher ou modifier l'état de quelque chose.", example: "La fatigue peut affecter la concentration.", phoneticCode: "" },
-  { word: "accueil", meaning: "Action de recevoir quelqu'hui.", example: "L'école réserve un accueil chaleureux aux nouveaux.", phoneticCode: "" },
+  { word: "accueil", meaning: "Action de recevoir quelqu'un.", example: "L'école réserve un accueil chaleureux aux nouveaux.", phoneticCode: "" },
   { word: "arrêter", meaning: "Interrompre une action ou un mouvement.", example: "Il ne faut jamais s'arrêter d'apprendre.", phoneticCode: "" },
   { word: "aller", meaning: "Se déplacer vers un lieu.", example: "Il veut aller étudier dans la Silicon Valley.", phoneticCode: "" },
   { word: "habiter", meaning: "Avoir sa demeure dans un lieu.", example: "Il aime habiter au Maroc.", phoneticCode: "" },
@@ -195,25 +210,24 @@ export function findLocalPhoneticSuggestions(word: string): Array<{word: string,
     const phoneticDistance = getLevenshteinDistance(inputPhonetic, entry.phoneticCode);
     
     // 2. Direct spelling distance
-    const spellingDistance = getLevenshteinDistance(cleanWord, entry.word);
+    const spellingDistance = getLevenshteinDistance(cleanWord, entry.word.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
 
-    // Let's create a combined score: lower is better
-    // Direct phonetic match has highest weight
+    // Combined score: lower is better
     let score = phoneticDistance * 2.5 + spellingDistance * 1.0;
 
     // Direct starting letter bonus
     if (cleanWord[0] === entry.word[0]) {
-      score -= 1.0; // reward starting with same letter
+      score -= 1.5;
     }
 
     // Exact phonetic match gives a major boost
     if (inputPhonetic === entry.phoneticCode) {
-      score -= 5.0;
+      score -= 6.0;
     }
 
-    // Exact direct match means they typed it correctly, let's keep it but maybe rank it high
+    // Exact direct match
     if (cleanWord === entry.word) {
-      score -= 10.0;
+      score -= 12.0;
     }
 
     return {
@@ -227,16 +241,15 @@ export function findLocalPhoneticSuggestions(word: string): Array<{word: string,
   // Sort by score ascending (lowest score is best match)
   const sorted = matches.sort((a, b) => a.score - b.score);
 
-  // Filter out completely unrelated stuff and pick top 4
-  const topMatches = sorted.slice(0, 4).map(m => {
-    // Calculate a simulated match probability based on score
-    let pct = 80;
+  // Return up to 10 top valid dictionary matches
+  const topMatches = sorted.slice(0, 10).map((m, idx) => {
+    let pct = Math.max(45, 95 - idx * 5);
     if (m.spellingDistance === 0) pct = 99;
-    else if (m.phoneticDistance === 0) pct = 95;
+    else if (m.phoneticDistance === 0) pct = Math.max(90, 96 - idx * 2);
     else {
       const maxLen = Math.max(cleanWord.length, m.entry.word.length);
       const accuracy = 1 - (m.phoneticDistance / maxLen);
-      pct = Math.round(Math.max(50, Math.min(90, accuracy * 100)));
+      pct = Math.round(Math.max(45, Math.min(88, accuracy * 100)));
     }
 
     return {

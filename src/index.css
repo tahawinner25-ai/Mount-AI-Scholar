@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
+@import url('https://fonts.cdnfonts.com/css/opendyslexic');
 
 @theme {
   --animate-shimmer: shimmer 1.5s infinite;
@@ -19,6 +20,10 @@
       transform: translateY(-20px) scale(1.02);
     }
   }
+}
+
+.font-opendyslexic {
+  font-family: 'OpenDyslexic', 'OpenDyslexic-Regular', 'OpenDyslexic3', 'Atkinson Hyperlegible', sans-serif !important;
 }
 
 body {

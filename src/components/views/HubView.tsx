@@ -60,6 +60,17 @@ export default function HubView({ setMainView, onAddToWorkspace, user }: HubView
       exportText: 'Transcription temps réel de la langue des signes générée par le moteur de vision MediaPipe Mentora AI.'
     },
     {
+      id: 'phonetic-visualizer',
+      title: 'Visualisation Phonétique',
+      badge: 'OpenDyslexic Live',
+      color: 'text-cyan-400',
+      borderColor: 'border-cyan-500/30 hover:border-cyan-400/60 shadow-[0_0_25px_rgba(6,182,212,0.2)]',
+      icon: Sparkles,
+      description: 'Moteur de synesthésie vocale temps réel avec typographie OpenDyslexic à base-lourde, séparation syllabique colorée et TTS.',
+      exportTitle: 'Visualisation Phonétique OpenDyslexic',
+      exportText: 'Décomposition phonétique et synesthésie graphémique OpenDyslexic générée par Mentora AI.'
+    },
+    {
       id: 'dyslexia',
       title: 'Réalignement Cognitif',
       badge: 'Phonèmes & Synesthésie',

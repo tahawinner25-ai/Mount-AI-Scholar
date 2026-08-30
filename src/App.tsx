@@ -29,6 +29,7 @@ import MentoraView from './components/views/MentoraView';
 import SL2TView from './components/views/SL2TView';
 import PhoneticVisualizerView from './components/views/PhoneticVisualizerView';
 import CognitiveChatbot from './components/CognitiveChatbot';
+import AppPresentationLanding from './components/AppPresentationLanding';
 import scholarIcon from './assets/images/mount_ai_logo_1785927100930.jpg';
 import { auth, loginWithGoogle, logout, handleFirestoreError, OperationType, isOfflineError } from './services/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
@@ -139,10 +140,9 @@ export default function App() {
   
   // Auth State (Modifié pour résilience mobile : support du Mode Invité/Démo sans restriction de domaine)
   const [user, setUser] = useState<any>(() => {
-    const savedGuest = localStorage.getItem('is_guest');
     const params = new URLSearchParams(window.location.search);
     const hasGuestParam = params.get('guest') === 'true' || params.get('bypass') === 'true' || window.location.hash.includes('guest');
-    if (savedGuest === 'true' || hasGuestParam) {
+    if (hasGuestParam) {
       console.log("🎮 Initialisation : Chargement automatique en Mode Invité / Démo");
       return {
         uid: 'guest_1337',
@@ -153,6 +153,7 @@ export default function App() {
     }
     return null;
   });
+  const [showLoginDialog, setShowLoginDialog] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [engineStatus, setEngineStatus] = useState<'offline' | 'online'>('offline');
@@ -957,24 +958,44 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
   }
 
   if (!user && mainView !== 'mentora') {
+    if (!showLoginDialog) {
+      return (
+        <AppPresentationLanding
+          onGoToLogin={() => setShowLoginDialog(true)}
+          onDirectGuest={loginAsGuest}
+        />
+      );
+    }
+
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col font-sans relative overflow-hidden items-center justify-center">
+      <div className="min-h-screen bg-slate-950 flex flex-col font-sans relative overflow-hidden items-center justify-center p-4">
          <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-600/20 blur-[120px] rounded-full mix-blend-screen pointer-events-none" />
          <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-orange-600/20 blur-[120px] rounded-full mix-blend-screen pointer-events-none" />
          
-         <div className="relative z-10 w-full max-w-lg p-10 bg-slate-900/40 backdrop-blur-lg border border-slate-700/50 rounded-3xl shadow-2xl flex flex-col items-center">
-            <div className="absolute top-5 right-5 px-3 py-1 bg-orange-500/10 border border-orange-500/20 rounded-full flex items-center gap-1.5 shadow-[0_0_15px_rgba(249,115,22,0.15)]">
-              <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
-              <span className="text-[9px] font-mono font-bold text-orange-400 uppercase tracking-widest">Stealth Startup</span>
+         <div className="relative z-10 w-full max-w-lg p-8 sm:p-10 bg-slate-900/60 backdrop-blur-xl border border-slate-700/50 rounded-3xl shadow-2xl flex flex-col items-center">
+            {/* Bouton Retour Présentation */}
+            <div className="w-full flex items-center justify-between mb-4">
+              <button
+                onClick={() => setShowLoginDialog(false)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-xs font-mono transition"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Présentation</span>
+              </button>
+
+              <div className="px-3 py-1 bg-orange-500/10 border border-orange-500/20 rounded-full flex items-center gap-1.5 shadow-[0_0_15px_rgba(249,115,22,0.15)]">
+                <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
+                <span className="text-[9px] font-mono font-bold text-orange-400 uppercase tracking-widest">Stealth Startup</span>
+              </div>
             </div>
 
-            <div className="w-24 h-24 rounded-2xl flex flex-col items-center justify-center mb-6 shadow-[0_0_40px_rgba(249,115,22,0.4)] border border-orange-400/20 overflow-hidden">
+            <div className="w-20 h-20 rounded-2xl flex flex-col items-center justify-center mb-5 shadow-[0_0_40px_rgba(249,115,22,0.4)] border border-orange-400/20 overflow-hidden">
               <img src={scholarIcon} alt="Mount AI Scholar" className="w-full h-full object-cover" />
             </div>
             
-            <h1 className="text-4xl font-black text-white tracking-tight mb-2 text-center uppercase drop-shadow-lg">Mount AI Scholar</h1>
-            <p className="text-slate-300 text-center mb-10 font-medium text-lg leading-relaxed max-w-sm">
-              Stealth EdTech Startup building intelligent cognitive learning environments powered by local AI.
+            <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight mb-2 text-center uppercase drop-shadow-lg">Mount AI Scholar</h1>
+            <p className="text-slate-300 text-center mb-8 font-medium text-sm sm:text-base leading-relaxed max-w-sm">
+              Authentification sécurisée Google pour accéder à vos cours, statistiques et modules d'apprentissage cognitifs.
             </p>
             
             {loginError && (
@@ -997,15 +1018,15 @@ ${bullets.length > 0 ? bullets.map((b, idx) => `* **Point Fort ${idx+1} :** ${b}
                   <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                   <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                 </svg>
-                <span className="relative z-10 uppercase tracking-widest text-sm">Login with Google</span>
+                <span className="relative z-10 uppercase tracking-widest text-sm">Se connecter avec Google</span>
             </button>
 
             <button 
               onClick={loginAsGuest} 
-              className="mt-4 w-full py-4.5 bg-slate-900 border border-slate-800 hover:border-orange-500/50 text-slate-300 font-bold rounded-2xl flex items-center justify-center gap-3 transition shadow-lg relative overflow-hidden group hover:-translate-y-1"
+              className="mt-4 w-full py-4 bg-slate-900 border border-slate-800 hover:border-orange-500/50 text-slate-300 font-bold rounded-2xl flex items-center justify-center gap-3 transition shadow-lg relative overflow-hidden group hover:-translate-y-1"
             >
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="uppercase tracking-widest text-xs">Accès Invité / Démo Mobile</span>
+                <span className="uppercase tracking-widest text-xs">Accès Invité / Démo Immédiate</span>
             </button>
             <p className="mt-8 text-xs text-slate-500 font-mono text-center">SYSTEM ACCESSIBLE UNDER AUTHORIZATION ONLY</p>
          </div>

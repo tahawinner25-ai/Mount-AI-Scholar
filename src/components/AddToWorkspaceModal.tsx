@@ -429,15 +429,96 @@ export default function AddToWorkspaceModal({ isOpen, onClose, title, textToSave
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {[
-              { id: 'pdf_local', name: 'Télécharger PDF', icon: Download, color: 'text-emerald-400', desc: 'Fichier PDF direct' },
-              { id: 'docs', name: 'Google Docs', icon: FileText, color: 'text-indigo-400', desc: 'Ouvrir Docs & Coller' },
-              { id: 'docx_drive', name: 'Word (.doc)', icon: FileCode, color: 'text-blue-400', desc: 'Document Word direct' },
-              { id: 'slides', name: 'Slides (.pptx)', icon: Presentation, color: 'text-amber-400', desc: 'Présentation PPTX' },
-              { id: 'pdf_drive', name: 'Google Drive', icon: HardDrive, color: 'text-red-400', desc: 'Dépôt Drive & PDF' },
-              { id: 'gmail', name: 'Gmail', icon: Mail, color: 'text-rose-400', desc: 'Brouillon e-mail' },
-              { id: 'calendar', name: 'Google Calendar', icon: Calendar, color: 'text-emerald-400', desc: 'Événement & Notes' },
-              { id: 'tasks', name: 'Google Tasks', icon: CheckSquare, color: 'text-purple-400', desc: 'Ajouter une tâche' },
-              { id: 'classroom', name: 'Google Classroom', icon: GraduationCap, color: 'text-emerald-300', desc: 'Publier devoir' },
+              { 
+                id: 'pdf_local', 
+                name: 'Télécharger PDF', 
+                icon: Download, 
+                color: 'text-emerald-400', 
+                bgGradient: 'bg-emerald-950/40 hover:bg-emerald-900/40', 
+                border: 'border-emerald-500/30 hover:border-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]',
+                iconBg: 'bg-emerald-500/20 border-emerald-500/40',
+                desc: 'Fichier PDF direct' 
+              },
+              { 
+                id: 'docs', 
+                name: 'Google Docs', 
+                icon: FileText, 
+                color: 'text-blue-400', 
+                bgGradient: 'bg-blue-950/40 hover:bg-blue-900/40', 
+                border: 'border-blue-500/30 hover:border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.15)]',
+                iconBg: 'bg-blue-500/20 border-blue-500/40',
+                desc: 'Ouvrir Docs & Coller' 
+              },
+              { 
+                id: 'docx_drive', 
+                name: 'Word (.doc)', 
+                icon: FileCode, 
+                color: 'text-indigo-400', 
+                bgGradient: 'bg-indigo-950/40 hover:bg-indigo-900/40', 
+                border: 'border-indigo-500/30 hover:border-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.15)]',
+                iconBg: 'bg-indigo-500/20 border-indigo-500/40',
+                desc: 'Document Word direct' 
+              },
+              { 
+                id: 'slides', 
+                name: 'Slides (.pptx)', 
+                icon: Presentation, 
+                color: 'text-amber-400', 
+                bgGradient: 'bg-amber-950/40 hover:bg-amber-900/40', 
+                border: 'border-amber-500/30 hover:border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.15)]',
+                iconBg: 'bg-amber-500/20 border-amber-500/40',
+                desc: 'Présentation PPTX' 
+              },
+              { 
+                id: 'pdf_drive', 
+                name: 'Google Drive', 
+                icon: HardDrive, 
+                color: 'text-cyan-400', 
+                bgGradient: 'bg-cyan-950/40 hover:bg-cyan-900/40', 
+                border: 'border-cyan-500/30 hover:border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.15)]',
+                iconBg: 'bg-cyan-500/20 border-cyan-500/40',
+                desc: 'Dépôt Drive & PDF' 
+              },
+              { 
+                id: 'gmail', 
+                name: 'Gmail', 
+                icon: Mail, 
+                color: 'text-rose-400', 
+                bgGradient: 'bg-rose-950/40 hover:bg-rose-900/40', 
+                border: 'border-rose-500/30 hover:border-rose-400 shadow-[0_0_15px_rgba(244,63,94,0.15)]',
+                iconBg: 'bg-rose-500/20 border-rose-500/40',
+                desc: 'Brouillon e-mail' 
+              },
+              { 
+                id: 'calendar', 
+                name: 'Google Calendar', 
+                icon: Calendar, 
+                color: 'text-teal-400', 
+                bgGradient: 'bg-teal-950/40 hover:bg-teal-900/40', 
+                border: 'border-teal-500/30 hover:border-teal-400 shadow-[0_0_15px_rgba(20,184,166,0.15)]',
+                iconBg: 'bg-teal-500/20 border-teal-500/40',
+                desc: 'Événement & Notes' 
+              },
+              { 
+                id: 'tasks', 
+                name: 'Google Tasks', 
+                icon: CheckSquare, 
+                color: 'text-purple-400', 
+                bgGradient: 'bg-purple-950/40 hover:bg-purple-900/40', 
+                border: 'border-purple-500/30 hover:border-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.15)]',
+                iconBg: 'bg-purple-500/20 border-purple-500/40',
+                desc: 'Ajouter une tâche' 
+              },
+              { 
+                id: 'classroom', 
+                name: 'Google Classroom', 
+                icon: GraduationCap, 
+                color: 'text-emerald-300', 
+                bgGradient: 'bg-emerald-950/40 hover:bg-emerald-900/40', 
+                border: 'border-emerald-500/30 hover:border-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]',
+                iconBg: 'bg-emerald-500/20 border-emerald-500/40',
+                desc: 'Publier devoir' 
+              },
             ].map((app) => {
               const Icon = app.icon;
               const isThisAppSaving = isSaving && selectedApp === app.id;
@@ -447,16 +528,16 @@ export default function AddToWorkspaceModal({ isOpen, onClose, title, textToSave
                   key={app.id}
                   onClick={() => handleExportToApp(app.id as any)}
                   disabled={isSaving}
-                  className="p-3 bg-slate-900/90 border border-slate-800 hover:border-blue-500/60 rounded-2xl flex items-center gap-3 group transition-all text-left hover:scale-[1.02] disabled:opacity-50 cursor-pointer"
+                  className={`p-3.5 backdrop-blur-xl border ${app.bgGradient} ${app.border} rounded-2xl flex items-center gap-3 group transition-all text-left hover:scale-[1.03] active:scale-[0.98] disabled:opacity-50 cursor-pointer`}
                 >
-                  <div className="p-2 bg-slate-950 border border-slate-800 rounded-xl group-hover:border-blue-500/30 shrink-0">
-                    {isThisAppSaving ? <Loader2 className="w-4 h-4 text-blue-400 animate-spin" /> : <Icon className={`w-4 h-4 ${app.color}`} />}
+                  <div className={`p-2.5 rounded-xl border ${app.iconBg} group-hover:scale-110 transition-transform shrink-0 shadow-md`}>
+                    {isThisAppSaving ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <Icon className={`w-4 h-4 ${app.color}`} />}
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-white group-hover:text-blue-300 transition-colors flex items-center gap-1.5">
+                    <div className="text-xs font-bold text-white group-hover:text-amber-200 transition-colors flex items-center gap-1.5">
                       {app.name}
                     </div>
-                    <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                    <div className="text-[10px] text-slate-400 font-mono mt-0.5">
                       {app.desc}
                     </div>
                   </div>

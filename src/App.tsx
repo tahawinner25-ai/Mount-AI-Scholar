@@ -1,134 +1,757 @@
-import React, { useMemo, useRef, useState } from 'react';
-import {
-  Activity, ArrowUpRight, Bell, BookOpen, Brain, Check, ChevronRight, Clock3,
-  FileText, Flame, Hash, Headphones, Heart, LayoutDashboard, Lightbulb,
-  Link2, Lock, MessageCircle, MoreHorizontal, Paperclip, Play, Plus,
-  Search, Send, Sparkles, Target, Trophy, Upload, Users, X, Zap,
-  Video, VideoOff, Mic, MicOff, MonitorUp, PhoneOff, Maximize2, Wifi,
-  UsersRound, ScreenShare, Circle
+import React, { useState, useEffect } from 'react';
+import { MainViewType, ArchSubTabType } from './types';
+import { 
+  BookOpen, Brain, BrainCircuit, Loader2, X, Languages, ChevronDown, 
+  FileText, Sparkles, Zap, Globe, Volume2, VolumeX, Trophy, Target, 
+  Activity, Mic, Network, Gamepad2, Presentation, Headphones, Layers, 
+  ArrowLeft, Send, LogIn, LogOut, Play, Settings, GraduationCap, Award, 
+  CheckCircle2, Clock, History, Database, SearchCode, Terminal, Code, 
+  Moon, Trash2, Paperclip, CreditCard, Download, FolderArchive, Hand, Lock,
+  Shield, Orbit, Radio, Plus, User, Flame
 } from 'lucide-react';
-
-const nav = [
-  { id: 'home', label: 'Vue d’ensemble', icon: LayoutDashboard },
-  { id: 'learn', label: 'Mon apprentissage', icon: BookOpen },
-  { id: 'community', label: 'Communauté', icon: Users },
-  { id: 'live', label: 'Salle d’étude live', icon: Video },
-  { id: 'challenges', label: 'Défis & compétitions', icon: Trophy },
-];
-
-const feed = [
-  { id: 1, name: 'Amine L.', initials: 'AL', color: 'coral', time: 'il y a 8 min', tag: '#Physique', text: 'Je viens de comprendre la différence entre un champ électrique et une force. Cette carte mentale m’a sauvé.', likes: 24, comments: 6, type: 'post' },
-  { id: 2, name: 'Clara S.', initials: 'CS', color: 'purple', time: 'il y a 22 min', tag: '#Méthodo', text: 'Mon espace de révision pour le bac est enfin prêt. Qui veut faire le sprint de 25 minutes avec moi ?', likes: 41, comments: 12, type: 'post' },
-];
-
-const recommendations = [
-  { source: 'YouTube', icon: '▶', color: 'red', title: 'La relativité expliquée en 12 minutes', meta: 'Science Étonnante · 12 min', thumb: 'gradient-red' },
-  { source: 'Instagram', icon: '◎', color: 'pink', title: '5 méthodes pour retenir un cours dense', meta: 'Study with Léa · Carousel', thumb: 'gradient-pink' },
-  { source: 'Spotify', icon: '◉', color: 'green', title: 'Focus Flow · Deep study', meta: 'Playlist · 2 h 14', thumb: 'gradient-green' },
-];
-
-const initialMessages = [
-  { who: 'Léa', initials: 'LM', color: 'orange', text: 'Tu as avancé sur le projet de bio ?', time: '09:41' },
-  { who: 'Moi', initials: 'TM', color: 'blue', text: 'Oui, je viens de finir la partie sur l’ADN. Je t’envoie ma mindmap ?', time: '09:43' },
-  { who: 'Léa', initials: 'LM', color: 'orange', text: 'Carrément, et on se fait le quiz après 🔥', time: '09:44' },
-];
-
-function Avatar({ initials, color = 'blue', small = false }: { initials: string; color?: string; small?: boolean }) {
-  return <div className={`avatar avatar-${color} ${small ? 'avatar-small' : ''}`}>{initials}</div>;
-}
-
-function StatCard({ icon: Icon, label, value, hint, color }: any) {
-  return <div className="stat-card">
-    <div className={`stat-icon stat-${color}`}><Icon size={18} /></div>
-    <div><p>{label}</p><strong>{value}</strong><span className="stat-hint">{hint}</span></div>
-  </div>;
-}
+import { 
+  startGuestSession, 
+  expireGuestSession, 
+  isGuestLockedOut, 
+  isGuestSessionActive, 
+  getGuestSessionRemainingMs, 
+  getGuestLockoutRemainingMs, 
+  formatRemainingTime 
+} from './utils/guestManager';
+import Markdown from 'react-markdown';
+import { generateSummary, generateQuiz, generateMindMap, getLocalPedagogicalFallback } from './services/ai';
+import { extractTextFromFile } from './services/documentParser';
+import Mermaid from './components/Mermaid';
+import ExamQuiz from './components/ExamQuiz';
+import CyberSecurityLab from './components/CyberSecurityLab';
+import OfflineSyncPipeline from './components/OfflineSyncPipeline';
+import GoogleAcquisitionCenter from './components/GoogleAcquisitionCenter';
+import PwaAudit from './components/PwaAudit';
+import HubView from './components/views/HubView';
+import DyslexiaView from './components/views/DyslexiaView';
+import HistoryView from './components/views/HistoryView';
+import GtmPlaybook from './components/GtmPlaybook';
+import PhonemeOrbit from './components/PhonemeOrbit';
+import VoiceConversationView from './components/views/VoiceConversationView';
+import PhoneticPredictorView from './components/views/PhoneticPredictorView';
+import GoogleClassroomHub from './components/GoogleClassroomHub';
+import GoogleWorkspaceHub from './components/GoogleWorkspaceHub';
+import AddToWorkspaceModal from './components/AddToWorkspaceModal';
+import SubscriptionModal from './components/SubscriptionModal';
+import LoginModal from './components/LoginModal';
+import ProgressBadgesModal from './components/ProgressBadgesModal';
+import DailyStreakNavbar from './components/DailyStreakNavbar';
+import MentoraView from './components/views/MentoraView';
+import SL2TView from './components/views/SL2TView';
+import PhoneticVisualizerView from './components/views/PhoneticVisualizerView';
+import { AppPresentationLanding } from './components/AppPresentationLanding';
+import scholarIcon from './assets/images/mount_ai_logo_1785927100930.jpg';
+import { auth, loginWithGoogle, logout } from './services/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { addHistoryItem } from './services/historyService';
 
 export default function App() {
-  const [active, setActive] = useState('home');
-  const [showChat, setShowChat] = useState(false);
-  const [chat, setChat] = useState(initialMessages);
-  const [chatInput, setChatInput] = useState('');
-  const [liked, setLiked] = useState<number[]>([]);
-  const [file, setFile] = useState<string | null>(null);
+  const [isBadgesModalOpen, setIsBadgesModalOpen] = useState(false);
+  const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [userTier, setUserTier] = useState<'free' | 'pro'>(() => {
+    return (localStorage.getItem('user_tier') as 'free' | 'pro') || 'free';
+  });
+
+  const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
+  const [workspaceExportTitle, setWorkspaceExportTitle] = useState("Mount AI Scholar - Notes & Synthèse");
+  const [workspaceExportText, setWorkspaceExportText] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioData, setAudioData] = useState<number[]>(new Array(30).fill(0));
+  const [detectedPhonemes, setDetectedPhonemes] = useState<string[]>([]);
+  const [transcript, setTranscript] = useState("");
+  const [injectedExercise, setInjectedExercise] = useState<string | undefined>(undefined);
+  
+  const [mainView, setMainView] = useState<MainViewType>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const view = params.get('view');
+    if (view === 'phoneme-gravity' || window.location.hash === '#phoneme-gravity') return 'phoneme-gravity';
+    return 'hub';
+  });
+  
+  const [learningMode, setLearningMode] = useState<'mindmap' | 'quiz' | 'exam' | 'summary'>('summary');
+  const [inputText, setInputText] = useState("");
+  const [learningResult, setLearningResult] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generated, setGenerated] = useState(false);
-  const [search, setSearch] = useState('');
-  const [cameraOn, setCameraOn] = useState(false);
-  const [micOn, setMicOn] = useState(true);
-  const [sharing, setSharing] = useState(false);
-  const [liveJoined, setLiveJoined] = useState(false);
-  const [liveMessage, setLiveMessage] = useState('');
-  const [liveMessages, setLiveMessages] = useState([
-    { name: 'Léa', text: 'On commence par 25 min de focus ?', color: 'orange' },
-    { name: 'Yanis', text: 'Oui, je partage mon écran avec le plan du projet.', color: 'green' },
-  ]);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [selectedLang, setSelectedLang] = useState("French");
+  
+  const langMap: Record<string, string> = {
+    "English": "en-US",
+    "French": "fr-FR",
+    "Arabic": "ar-SA",
+    "Spanish": "es-ES",
+    "German": "de-DE"
+  };
+  const [speechError, setSpeechError] = useState<string | null>(null);
+  
+  const [user, setUser] = useState<any>(() => {
+    if (isGuestSessionActive()) {
+      return {
+        uid: 'guest_1337',
+        displayName: 'Invité (Session 30 min)',
+        email: 'guest@mountai.scholar',
+        isGuest: true
+      };
+    }
+    return null;
+  });
 
-  const filteredFeed = useMemo(() => feed.filter((item) => !search || `${item.name} ${item.tag} ${item.text}`.toLowerCase().includes(search.toLowerCase())), [search]);
+  const [archSubTab, setArchSubTab] = useState<ArchSubTabType>('cyber');
+  const [guestRemainingMs, setGuestRemainingMs] = useState(0);
 
-  const generate = () => { setIsGenerating(true); setTimeout(() => { setIsGenerating(false); setGenerated(true); }, 900); };
-  const sendLiveMessage = () => { if (!liveMessage.trim()) return; setLiveMessages([...liveMessages, { name: 'Moi', text: liveMessage.trim(), color: 'blue' }]); setLiveMessage(''); };
-  const joinLiveRoom = async () => {
-    setLiveJoined(true);
+  // Monitor guest session & Firebase auth
+  useEffect(() => {
+    const monitorGuest = () => {
+      if (user?.isGuest) {
+        const remaining = getGuestSessionRemainingMs();
+        setGuestRemainingMs(remaining);
+        if (remaining <= 0) {
+          expireGuestSession();
+          setUser(null);
+          setMainView('hub');
+          alert("⏱️ Votre accès invité de 30 minutes est terminé !");
+        }
+      }
+    };
+
+    monitorGuest();
+    const interval = setInterval(monitorGuest, 1000);
+    return () => clearInterval(interval);
+  }, [user?.isGuest]);
+
+  useEffect(() => {
+    if (user?.isGuest) return;
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (user?.isGuest) return;
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
+  }, [user?.isGuest]);
+
+  const handleGlobalFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
     try {
-      const stream = await navigator.mediaDevices?.getUserMedia({ video: true, audio: true });
-      if (stream) setCameraOn(true);
-    } catch {
-      // The demo room remains usable when permissions are unavailable.
+      const text = await extractTextFromFile(file);
+      setInputText(text);
+      setInjectedExercise(text);
+
+      const currentUser = user || { isGuest: true, uid: 'guest_1337' };
+      addHistoryItem(currentUser, {
+        type: 'pdf',
+        fileExtension: '.pdf',
+        title: file.name,
+        mode: 'pdf_import',
+        language: selectedLang,
+        originalText: `Fichier importé : ${file.name} (${Math.round(file.size / 1024)} Ko)`,
+        generatedContent: text,
+        metadata: {
+          fileName: file.name,
+          fileSize: file.size,
+          tags: ['Import', 'Document']
+        }
+      });
+    } catch (err: any) {
+      alert(err?.message || "Erreur lors de la lecture du fichier.");
+    } finally {
+      if (e.target) e.target.value = '';
     }
   };
-  const toggleSharing = async () => {
-    if (sharing) { setSharing(false); return; }
+
+  const handleGenerate = async () => {
+    if (!inputText.trim()) return;
+    setIsGenerating(true);
     try {
-      const displayStream = await navigator.mediaDevices?.getDisplayMedia({ video: true });
-      if (displayStream) { setSharing(true); displayStream.getVideoTracks()[0]?.addEventListener('ended', () => setSharing(false)); }
-    } catch {
-      // Keep the live room usable when screen sharing is cancelled or unavailable.
+      let res = '';
+      if (learningMode === 'summary') {
+        res = await generateSummary(inputText, selectedLang);
+      } else if (learningMode === 'quiz') {
+        res = await generateQuiz(inputText, selectedLang);
+      } else if (learningMode === 'mindmap') {
+        res = await generateMindMap(inputText, selectedLang);
+      } else {
+        res = await generateSummary(inputText, selectedLang);
+      }
+      setLearningResult(res);
+
+      const currentUser = user || { isGuest: true, uid: 'guest_1337' };
+      addHistoryItem(currentUser, {
+        type: learningMode === 'quiz' ? 'quiz' : learningMode === 'mindmap' ? 'mindmap' : 'summary',
+        fileExtension: learningMode === 'quiz' ? '.quiz' : learningMode === 'mindmap' ? '.map' : '.md',
+        title: `${learningMode.toUpperCase()} - ${new Date().toLocaleTimeString()}`,
+        mode: learningMode,
+        language: selectedLang,
+        originalText: inputText.slice(0, 300),
+        generatedContent: res
+      });
+    } catch (err: any) {
+      console.warn("AI generation fallback:", err);
+      const fallback = getLocalPedagogicalFallback(inputText, selectedLang);
+      setLearningResult(fallback);
+    } finally {
+      setIsGenerating(false);
     }
   };
-  const leaveLiveRoom = () => { setLiveJoined(false); setCameraOn(false); setSharing(false); };
-  const sendMessage = () => { if (!chatInput.trim()) return; setChat([...chat, { who: 'Moi', initials: 'TM', color: 'blue', text: chatInput.trim(), time: 'maintenant' }]); setChatInput(''); };
 
-  return <div className="app-shell">
-    <aside className="sidebar">
-      <div className="brand"><div className="brand-mark"><Sparkles size={19} /></div><span>mount<span className="brand-accent">.</span>ai</span></div>
-      <div className="profile-mini"><Avatar initials="TM" color="blue" small /><div><strong>Thomas Martin</strong><span>Licence · Sciences</span></div><MoreHorizontal size={16} /></div>
-      <p className="nav-label">ESPACE DE TRAVAIL</p>
-      <nav>{nav.map(({ id, label, icon: Icon }) => <button key={id} className={active === id ? 'nav-item active' : 'nav-item'} onClick={() => setActive(id)}><Icon size={18} /><span>{label}</span>{id === 'community' && <b className="nav-badge">3</b>}</button>)}</nav>
-      <p className="nav-label nav-label-tools">OUTILS IA</p>
-      <button className="nav-item" onClick={() => { setActive('learn'); setGenerated(false); }}><Brain size={18} /><span>Studio de synthèse</span><span className="new-pill">IA</span></button>
-      <button className="nav-item" onClick={() => setActive('learn')}><Link2 size={18} /><span>Mindmaps & quiz</span></button>
-      <button className="nav-item" onClick={() => setActive('challenges')}><Target size={18} /><span>Analyse de projet</span></button>
-      <div className="sidebar-bottom"><div className="streak-card"><div className="streak-top"><Flame size={17} fill="currentColor" /><span>Ta série</span><strong>12 jours</strong></div><div className="streak-bar"><i style={{ width: '76%' }} /></div><small>Encore 18 min pour garder ta série</small></div><button className="settings-btn"><div className="avatar avatar-blue avatar-small">TM</div><span>Mon profil</span><ChevronRight size={16} /></button></div>
-    </aside>
+  const speakText = async (text: string) => {
+    if (!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = langMap[selectedLang] || 'fr-FR';
+    utterance.rate = 0.95;
+    window.speechSynthesis.speak(utterance);
+  };
 
-    <main className="main-content">
-      <header className="topbar"><div className="breadcrumb"><span>Mon espace</span><ChevronRight size={14} /><strong>{active === 'home' ? 'Vue d’ensemble' : nav.find(n => n.id === active)?.label}</strong></div><div className="top-actions"><div className="search-box"><Search size={16} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher un cours, une personne..." /></div><button className="icon-button"><Bell size={18} /><i className="notification-dot" /></button><button className="invite-btn" onClick={() => setShowChat(true)}><MessageCircle size={16} /> Messages</button></div></header>
+  const handleOpenWorkspaceExport = (title: string, text: string) => {
+    setWorkspaceExportTitle(title);
+    setWorkspaceExportText(text);
+    setIsWorkspaceModalOpen(true);
+  };
 
-      {active === 'home' && <>
-        <section className="hero"><div><p className="eyebrow"><span className="live-dot" /> BONJOUR THOMAS</p><h1>Prêt à faire<br /><em>progresser tes idées ?</em></h1><p className="hero-sub">Ton espace pour apprendre, partager et relever<br />les défis qui comptent.</p><button className="primary-btn" onClick={() => setActive('learn')}>Reprendre ma session <ArrowUpRight size={17} /></button></div><div className="hero-orbit"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="hero-note note-one"><Brain size={15} /><span>Focus mode</span><strong>25:00</strong></div><div className="hero-note note-two"><Zap size={15} /><span>Énergie</span><strong>+240 XP</strong></div><div className="hero-core"><Sparkles size={29} /><span>ton<br />moment</span></div></div></section>
-        <section className="stats-grid"><StatCard icon={Activity} label="Temps d’étude" value="4h 32" hint="+18% cette semaine" color="blue" /><StatCard icon={Trophy} label="XP gagnés" value="2 840" hint="Top 8% de ta promo" color="orange" /><StatCard icon={Target} label="Objectif semaine" value="72%" hint="2 sessions restantes" color="purple" /><StatCard icon={Users} label="Dans ta communauté" value="128" hint="+12 nouveaux cette semaine" color="green" /></section>
-        <div className="section-heading"><div><p className="eyebrow">LE FIL DE TA COMMUNAUTÉ</p><h2>Ce qui se passe autour de toi</h2></div><button className="text-btn" onClick={() => setActive('community')}>Voir tout <ArrowUpRight size={16} /></button></div>
-        <section className="dashboard-grid"><div className="feed-column"><div className="composer"><Avatar initials="TM" color="blue" /><button onClick={() => setActive('community')}>Partager une idée, une victoire ou une question...</button><button className="composer-action"><Paperclip size={18} /></button></div>{filteredFeed.map(item => <article className="feed-card" key={item.id}><div className="feed-header"><Avatar initials={item.initials} color={item.color} /><div><strong>{item.name}</strong><span>{item.time} · <b>{item.tag}</b></span></div><MoreHorizontal size={18} className="muted-icon" /></div><p className="feed-text">{item.text}</p><div className="feed-actions"><button className={liked.includes(item.id) ? 'liked' : ''} onClick={() => setLiked(liked.includes(item.id) ? liked.filter(id => id !== item.id) : [...liked, item.id])}><Heart size={16} fill={liked.includes(item.id) ? 'currentColor' : 'none'} /> {item.likes + (liked.includes(item.id) ? 1 : 0)}</button><button onClick={() => setShowChat(true)}><MessageCircle size={16} /> {item.comments}</button><button><ShareIcon /> Partager</button></div></article>)}</div><aside className="right-column"><div className="panel focus-panel"><div className="panel-title"><div><p className="eyebrow">SESSION EN COURS</p><h3>Révision biologie</h3></div><span className="status-pill"><span /> En ligne</span></div><div className="focus-timer"><div className="timer-ring"><span>18</span><small>MIN</small></div><div><strong>ADN & génétique</strong><span>Objectif : consolider les bases</span><button onClick={() => setActive('learn')}><Play size={13} fill="currentColor" /> Reprendre</button></div></div><div className="focus-progress"><div><span>Progression</span><strong>68%</strong></div><div className="progress-track"><i style={{ width: '68%' }} /></div></div></div><div className="panel"><div className="panel-title"><div><p className="eyebrow">POUR TOI</p><h3>À découvrir ensuite</h3></div><button className="dots-btn"><MoreHorizontal size={18} /></button></div><div className="recommendations">{recommendations.map((rec, i) => <div className="recommendation" key={rec.title}><div className={`rec-thumb ${rec.thumb}`}><span>{rec.icon}</span><small>{i === 0 ? '12:04' : i === 1 ? '5 slides' : '2 h 14'}</small></div><div><span className={`source source-${rec.color}`}>{rec.source}</span><strong>{rec.title}</strong><small>{rec.meta}</small></div><button><ArrowUpRight size={15} /></button></div>)}</div></div></aside></section>
-      </>}
+  const handleDirectGuest = () => {
+    const res = startGuestSession();
+    if (res.success) {
+      setUser({
+        uid: 'guest_1337',
+        displayName: 'Invité (Session 30 min)',
+        email: 'guest@mountai.scholar',
+        isGuest: true
+      });
+      setIsLoginModalOpen(false);
+    } else {
+      alert("⏱️ Session invité verrouillée pendant 24h. Veuillez vous connecter avec Google.");
+    }
+  };
 
-      {active === 'learn' && <section className="learn-page"><div className="page-title"><div><p className="eyebrow">STUDIO DE SYNTHÈSE IA</p><h1>Transforme tes cours<br /><em>en super-pouvoirs.</em></h1><p>Importe un document volumineux et obtiens en quelques secondes un résumé, une mindmap et un quiz personnalisés.</p></div><div className="ai-badge"><Sparkles size={18} /> MOTEUR IA ACTIF</div></div><div className="studio-grid"><div className="upload-card"><div className="upload-art"><FileText size={34} /><div className="upload-orb" /></div><h2>Dépose ton cours ici</h2><p>PDF, Word, PowerPoint ou texte brut<br /><span>Jusqu’à 200 Mo par fichier</span></p><input ref={fileRef} type="file" accept=".pdf,.doc,.docx,.ppt,.pptx,.txt" hidden onChange={e => setFile(e.target.files?.[0]?.name || null)} /><button className="primary-btn" onClick={() => fileRef.current?.click()}><Upload size={16} /> {file || 'Choisir un fichier'}</button>{file && <div className="file-ready"><Check size={15} /> {file} est prêt à être analysé</div>}<div className="privacy-note"><Lock size={14} /> Tes documents restent privés et sécurisés.</div></div><div className="generation-card"><div className="card-header"><div><p className="eyebrow">WORKFLOW INTELLIGENT</p><h2>Que veux-tu créer ?</h2></div><span className="sparkle-small"><Sparkles size={15} /></span></div><div className="mode-options"><button className="mode-option selected"><div className="mode-icon mode-blue"><FileText size={19} /></div><span><strong>Résumé express</strong><small>Les idées essentielles en 2 min</small></span><Check size={16} /></button><button className="mode-option"><div className="mode-icon mode-purple"><Link2 size={19} /></div><span><strong>Mindmap visuelle</strong><small>Relie les concepts entre eux</small></span><ChevronRight size={16} /></button><button className="mode-option"><div className="mode-icon mode-orange"><Target size={19} /></div><span><strong>Quiz adaptatif</strong><small>Teste ta compréhension</small></span><ChevronRight size={16} /></button></div><button className="generate-btn" onClick={generate}>{isGenerating ? <><span className="loader" /> Analyse en cours...</> : <><Sparkles size={17} /> Générer avec l’IA</>}</button>{generated && <div className="generated-preview"><span className="success-badge"><Check size={13} /> Généré</span><strong>ADN & génétique — synthèse express</strong><p>3 concepts clés, 5 connexions, 10 questions disponibles.</p><div className="preview-actions"><button onClick={() => setActive('home')}>Voir le résultat <ArrowUpRight size={14} /></button><button>Exporter</button></div></div>}</div></div><div className="recent-row"><div><p className="eyebrow">TES CRÉATIONS RÉCENTES</p><h2>Reprendre là où tu t’es arrêté</h2></div><div className="recent-cards"><div className="recent-card"><div className="recent-icon purple-bg"><Link2 size={18} /></div><div><strong>Physique quantique</strong><span>Mindmap · il y a 2 h</span></div><ChevronRight size={16} /></div><div className="recent-card"><div className="recent-icon orange-bg"><Target size={18} /></div><div><strong>Histoire moderne</strong><span>Quiz · hier</span></div><ChevronRight size={16} /></div></div></div></section>}
+  // If user is not authenticated and has no active guest session, display the full Presentation Landing Page first
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-[#020617] text-white flex flex-col font-sans selection:bg-orange-500/30 relative">
+        <AppPresentationLanding 
+          onGoToLogin={() => setIsLoginModalOpen(true)}
+          onDirectGuest={handleDirectGuest}
+        />
+        <LoginModal 
+          isOpen={isLoginModalOpen} 
+          onClose={() => setIsLoginModalOpen(false)} 
+          onGoogleLogin={async () => {
+            const logged = await loginWithGoogle();
+            if (logged) setUser(logged);
+          }}
+          onGuestLogin={handleDirectGuest}
+          onOpenStripeCheckout={() => {
+            setIsLoginModalOpen(false);
+            setIsSubscriptionModalOpen(true);
+          }}
+          userTier={userTier}
+          userEmail={user?.email}
+        />
+      </div>
+    );
+  }
 
-      {active === 'community' && <section className="community-page"><div className="page-title compact"><div><p className="eyebrow">LA PLACE PUBLIQUE</p><h1>Apprendre ensemble,<br /><em>aller plus loin.</em></h1><p>Partage tes progrès, trouve ton groupe et transforme l’émulation en moteur.</p></div><button className="primary-btn"><Plus size={16} /> Créer une publication</button></div><div className="community-layout"><div className="community-feed"><div className="community-tabs"><button className="active">Pour toi</button><button>Suivis</button><button>Groupes</button><div className="tab-search"><Search size={15} /> Explorer</div></div>{feed.concat({ id: 3, name: 'Yanis K.', initials: 'YK', color: 'green', time: 'il y a 1 h', tag: '#Challenge', text: 'Notre équipe cherche une personne forte en Python pour le challenge Climate Data. Départ lundi !', likes: 18, comments: 9, type: 'post' }).map(item => <article className="feed-card community-post" key={item.id}><div className="feed-header"><Avatar initials={item.initials} color={item.color} /><div><strong>{item.name}</strong><span>{item.time} · <b>{item.tag}</b></span></div><MoreHorizontal size={18} className="muted-icon" /></div><p className="feed-text">{item.text}</p><div className="feed-actions"><button><Heart size={16} /> {item.likes}</button><button onClick={() => setShowChat(true)}><MessageCircle size={16} /> {item.comments}</button><button><ShareIcon /> Partager</button></div></article>)}</div><aside className="community-side"><div className="panel group-panel"><div className="group-cover" /><div className="group-content"><div className="group-avatars"><Avatar initials="AL" color="coral" small /><Avatar initials="CS" color="purple" small /><Avatar initials="YK" color="green" small /><span>+24</span></div><h3>Study Lab · Sciences</h3><p>Un groupe pour avancer sans pression, mais avec ambition.</p><button className="outline-btn">Rejoindre le groupe</button></div></div><div className="panel"><p className="eyebrow">MEMBRES ACTIFS</p><h3>Les esprits du moment</h3>{[['AL','Amine L.','+420 XP','coral'],['CS','Clara S.','+380 XP','purple'],['YK','Yanis K.','+310 XP','green']].map(([initials,name,xp,color]) => <div className="member-row" key={name}><Avatar initials={initials} color={color} small /><div><strong>{name}</strong><span>{xp} cette semaine</span></div><button><MessageCircle size={15} /></button></div>)}</div></aside></div></section>}
+  return (
+    <div className="min-h-screen bg-[#020617] text-white flex flex-col font-sans selection:bg-orange-500/30 relative">
+      {/* Background Ambience & Glows */}
+      <div className="atmosphere" />
 
-      {active === 'challenges' && <section className="challenge-page"><div className="page-title compact"><div><p className="eyebrow">ARÈNE COGNITIVE</p><h1>Les défis qui font<br /><em>grandir les idées.</em></h1><p>Travaille en équipe, soumets un projet et reçois une analyse IA utile, pas juste une note.</p></div><div className="rank-card"><Trophy size={20} /><span>Ton classement</span><strong>#18</strong><small>+6 places ce mois</small></div></div><div className="challenge-grid"><div className="challenge-main"><div className="challenge-banner"><div><span className="challenge-live"><span /> OUVERT AUX INSCRIPTIONS</span><h2>Climate Data Sprint</h2><p>Construis une visualisation qui raconte l’évolution climatique de ta région.</p><div className="challenge-meta"><span><Clock3 size={14} /> 5 jours restants</span><span><Users size={14} /> 842 participants</span><span><Trophy size={14} /> 2 000 XP</span></div><button className="light-btn">Découvrir le défi <ArrowUpRight size={15} /></button></div><div className="banner-shape"><Activity size={66} /></div></div><div className="section-heading inner"><div><p className="eyebrow">AUTRES DÉFIS</p><h2>À ton niveau</h2></div><button className="text-btn">Voir le catalogue <ArrowUpRight size={16} /></button></div><div className="challenge-list"><div className="challenge-row"><div className="challenge-symbol purple-bg"><Brain size={21} /></div><div><strong>Explain like I’m 5 · Physique</strong><span>Débutant · 3 jours · 640 participants</span></div><div className="challenge-xp">+800 XP</div><ChevronRight size={17} /></div><div className="challenge-row"><div className="challenge-symbol orange-bg"><CodeIcon /></div><div><strong>Build in public · Python</strong><span>Intermédiaire · 12 jours · 214 participants</span></div><div className="challenge-xp">+1 500 XP</div><ChevronRight size={17} /></div></div></div><aside className="challenge-side"><div className="panel analysis-panel"><div className="analysis-icon"><Sparkles size={20} /></div><p className="eyebrow">ANALYSE IA DE PROJET</p><h3>Un regard juste sur ton travail.</h3><p>Dépose ton projet de compétition. L’IA analyse la clarté, la structure et l’impact — avec des pistes d’amélioration actionnables.</p><button className="primary-btn" onClick={() => setActive('learn')}><Upload size={15} /> Analyser mon projet</button></div><div className="panel mini-rank"><div className="panel-title"><h3>Top de la semaine</h3><Trophy size={17} className="gold" /></div>{[['01','Sofia B.','2 940','coral'],['02','Amine L.','2 810','purple'],['03','Thomas M.','2 840','blue']].map(([rank,name,xp,color]) => <div className="rank-row" key={rank}><span>{rank}</span><Avatar initials={name.split(' ').map(n => n[0]).join('')} color={color} small /><strong>{name}</strong><b>{xp} XP</b></div>)}</div></aside></div></section>}
-    {active === 'live' && <section className="live-page">
-      <div className="live-topline"><div><p className="eyebrow"><span className="live-dot" /> SESSION EN DIRECT · 4 PARTICIPANTS</p><h1>La salle d’étude<br /><em>où l’on avance ensemble.</em></h1><p>Un espace calme pour rester concentré, poser une question et repartir avec un plan clair.</p></div><div className="live-room-code"><span>CODE DE LA SALLE</span><strong>FOCUS-482</strong><button onClick={() => navigator.clipboard?.writeText('FOCUS-482')}><Link2 size={14} /> Copier</button></div></div>
-      <div className="live-layout"><div className="live-stage"><div className="live-stage-head"><div><strong>Study Lab · Session du soir</strong><span><Wifi size={12} /> Connexion stable</span></div><div className="live-stage-actions"><button><Maximize2 size={15} /></button><span className="recording-pill"><Circle size={8} fill="currentColor" /> LIVE</span></div></div><div className="video-grid"><div className="video-tile video-me"><div className="video-placeholder"><Video size={28} /><span>{cameraOn ? 'Caméra active' : 'Active ta caméra'}</span></div><div className="video-name"><Avatar initials="TM" color="blue" small /> Thomas (toi) {micOn ? <Mic size={13} /> : <MicOff size={13} />}</div></div><div className="video-tile video-lea"><div className="participant-art art-lea"><span>LM</span><div className="focus-ring" /></div><div className="video-name"><Avatar initials="LM" color="orange" small /> Léa Martin <Mic size={13} /></div></div><div className="video-tile video-yanis"><div className="participant-art art-yanis"><span>YK</span><div className="focus-ring" /></div><div className="video-name"><Avatar initials="YK" color="green" small /> Yanis K. <Mic size={13} /></div></div><div className="video-tile video-clara"><div className="participant-art art-clara"><span>CS</span><div className="focus-ring" /></div><div className="video-name"><Avatar initials="CS" color="purple" small /> Clara S. <MicOff size={13} /></div></div></div><div className="live-controls"><button className={micOn ? 'control-btn' : 'control-btn off'} onClick={() => setMicOn(!micOn)}>{micOn ? <Mic size={18} /> : <MicOff size={18} />}</button><button className={cameraOn ? 'control-btn' : 'control-btn off'} onClick={() => setCameraOn(!cameraOn)}>{cameraOn ? <Video size={18} /> : <VideoOff size={18} />}</button><button className={sharing ? 'control-btn active-control' : 'control-btn'} onClick={toggleSharing}><MonitorUp size={18} /></button><button className="control-btn"><HandIcon /> <span className="control-label">Lever la main</span></button><button className="hangup-btn" onClick={leaveLiveRoom}><PhoneOff size={18} /></button></div>{!liveJoined && <div className="join-overlay"><div className="join-icon"><Video size={27} /></div><h2>Prêt pour une session focus ?</h2><p>Rejoins la salle pour voir les autres étudiants et participer au chat.</p><button className="primary-btn" onClick={joinLiveRoom}><Video size={16} /> Rejoindre la salle</button></div>}{sharing && <div className="sharing-banner"><ScreenShare size={15} /> Tu partages ton écran · les autres voient ton espace de travail</div>}</div><aside className="live-sidebar"><div className="live-tabs"><button className="active">Chat de groupe</button><button>Participants <b>4</b></button></div><div className="live-chat-body">{liveMessages.map((message, index) => <div className="live-message" key={`${message.name}-${index}`}><Avatar initials={message.name === 'Moi' ? 'TM' : message.name.slice(0,2).toUpperCase()} color={message.color} small /><div><strong>{message.name}</strong><p>{message.text}</p><small>{index + 1} min</small></div></div>)}</div><div className="live-composer"><input value={liveMessage} onChange={e => setLiveMessage(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendLiveMessage()} placeholder="Écrire dans le groupe..." /><button onClick={sendLiveMessage}><Send size={15} /></button></div><div className="session-plan"><p className="eyebrow">PLAN DE SESSION</p><div><span className="plan-check"><Check size={11} /></span><strong>Tour de table · 5 min</strong></div><div><span className="plan-check"><Check size={11} /></span><strong>Focus silencieux · 25 min</strong></div><div><span className="plan-next"><Clock3 size={11} /></span><strong>Débrief collectif · 10 min</strong></div><button>Modifier le plan <ArrowUpRight size={13} /></button></div></aside></div><div className="live-bottom-cards"><div><UsersRound size={17} /><div><strong>Inviter ton groupe</strong><span>Partage le code FOCUS-482 à tes camarades.</span></div><button onClick={() => navigator.clipboard?.writeText('FOCUS-482')}>Copier le lien</button></div><div><Sparkles size={17} /><div><strong>Mode concentration activé</strong><span>Notifications silencieuses pendant la session.</span></div><span className="toggle-on">ON</span></div></div></section>}
+      {/* Main Glassmorphism Header */}
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/70 backdrop-blur-2xl px-4 lg:px-8 py-3.5 transition-all">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setMainView('hub')}
+              className="flex items-center gap-3 text-left group transition-all"
+            >
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-orange-500 via-amber-500 to-blue-600 p-0.5 shadow-lg shadow-orange-500/20 group-hover:scale-105 transition-transform overflow-hidden">
+                <img src={scholarIcon} alt="Mount AI" className="w-full h-full object-cover rounded-[14px]" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-base font-black tracking-tight text-white">
+                    Mount AI<span className="text-orange-500">: Scholar</span>
+                  </span>
+                  <span className="px-2 py-0.5 bg-orange-500/10 border border-orange-500/30 text-orange-400 text-[9px] font-mono font-bold rounded uppercase tracking-wider hidden sm:inline-block">
+                    Stealth EdTech
+                  </span>
+                </div>
+                <span className="block text-[10px] text-slate-400 font-mono tracking-wider">
+                  Cognitive Learning Suite & On-Device AI
+                </span>
+              </div>
+            </button>
+          </div>
 
-    </main>
+          {/* Navigation Items (Glassmorphism Pill) */}
+          <nav className="hidden lg:flex items-center gap-1 bg-white/5 border border-white/10 p-1.5 rounded-2xl backdrop-blur-xl">
+            {[
+              { id: 'hub', label: 'Hub' },
+              { id: 'presentation', label: 'Présentation & FAQ' },
+              { id: 'sl2t', label: 'SL2T Sign' },
+              { id: 'phonetic-visualizer', label: 'Visualiseur' },
+              { id: 'dyslexia', label: 'Dyslexie' },
+              { id: 'mentora', label: 'Tutor IA' },
+              { id: 'learning', label: 'Synthèse' },
+              { id: 'phonetic-predictor', label: 'Prédicteur' },
+              { id: 'workspace', label: 'Workspace' },
+              { id: 'classroom', label: 'Classroom' },
+              { id: 'history', label: 'Historique' },
+              { id: 'architecture', label: 'Architecture' },
+            ].map(({ id, label }) => (
+              <button 
+                key={id}
+                onClick={() => setMainView(id as MainViewType)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  mainView === id 
+                    ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-slate-950 shadow-md shadow-orange-500/20' 
+                    : 'text-slate-300 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
 
-    {showChat && <div className="chat-drawer"><div className="chat-head"><div><p className="eyebrow">MESSAGES</p><h3>Ton espace de discussion</h3></div><button onClick={() => setShowChat(false)}><X size={18} /></button></div><div className="chat-contact"><Avatar initials="LM" color="orange" small /><div><strong>Léa Martin</strong><span><i /> En ligne · Projet biologie</span></div><MoreHorizontal size={17} /></div><div className="chat-body">{chat.map((message, index) => <div className={`message ${message.who === 'Moi' ? 'mine' : ''}`} key={`${message.time}-${index}`}><Avatar initials={message.initials} color={message.color} small /><div><span>{message.text}</span><small>{message.time}</small></div></div>)}</div><div className="chat-compose"><input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendMessage()} placeholder="Écrire un message..." /><button onClick={sendMessage}><Send size={16} /></button></div></div>}
-    <button className="floating-chat" onClick={() => setShowChat(true)}><MessageCircle size={19} /><span>Discuter avec ta communauté</span><b>3</b></button>
-  </div>;
+          {/* User & Actions Bar */}
+          <div className="flex items-center gap-2.5">
+            <DailyStreakNavbar />
+
+            {/* Badges Modal trigger */}
+            <button
+              onClick={() => setIsBadgesModalOpen(true)}
+              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-amber-400 transition-all hover:scale-105"
+              title="Trophées & Badges"
+            >
+              <Trophy className="w-4 h-4" />
+            </button>
+
+            {/* Add to Google Workspace Button */}
+            <button
+              onClick={() => handleOpenWorkspaceExport('Mount AI Scholar - Workspace', 'Notes & révisions synchronisées avec Google Workspace.')}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-xs font-bold transition-all"
+              title="Ajouter aux extensions Google Workspace"
+            >
+              <Globe className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Workspace</span>
+            </button>
+
+            {/* User Profile or Guest / Login */}
+            {user ? (
+              <div className="flex items-center gap-2 bg-slate-900/80 border border-white/10 px-3 py-1.5 rounded-xl">
+                <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-orange-500 to-amber-500 text-slate-950 flex items-center justify-center text-xs font-black">
+                  {user.displayName ? user.displayName[0].toUpperCase() : 'U'}
+                </div>
+                <div className="hidden sm:flex flex-col text-left">
+                  <span className="text-xs text-slate-200 font-bold max-w-[90px] truncate leading-tight">
+                    {user.displayName || user.email || 'Utilisateur'}
+                  </span>
+                  {user.isGuest && (
+                    <span className="text-[9px] text-amber-400 font-mono">
+                      {formatRemainingTime(guestRemainingMs)}
+                    </span>
+                  )}
+                </div>
+                <button 
+                  onClick={async () => {
+                    if (user.isGuest) expireGuestSession();
+                    await logout();
+                    setUser(null);
+                  }}
+                  className="text-slate-400 hover:text-rose-400 transition-colors p-1"
+                  title="Déconnexion"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button 
+                onClick={() => setIsLoginModalOpen(true)}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 text-orange-400 text-xs font-bold transition-all"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Connexion</span>
+              </button>
+            )}
+
+            {/* Pro Upgrade Button */}
+            <button 
+              onClick={() => setIsSubscriptionModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-slate-950 text-xs font-black shadow-lg shadow-orange-500/20 transition-all hover:scale-105 active:scale-95"
+            >
+              <Zap className="w-3.5 h-3.5 fill-current" />
+              <span className="hidden sm:inline">Pro Scholar</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content Area with Glassmorphism Views */}
+      <main className="flex-1 relative z-10 px-4 lg:px-8 py-8 max-w-7xl mx-auto w-full">
+        {mainView === 'hub' && (
+          <HubView 
+            setMainView={setMainView} 
+            onAddToWorkspace={handleOpenWorkspaceExport}
+            user={user}
+          />
+        )}
+
+        {mainView === 'presentation' && (
+          <AppPresentationLanding 
+            isLoggedIn={true}
+            onEnterApp={() => setMainView('hub')}
+            onGoToLogin={() => setIsLoginModalOpen(true)}
+            onDirectGuest={handleDirectGuest}
+          />
+        )}
+
+        {mainView === 'dyslexia' && (
+          <DyslexiaView 
+            selectedLang={selectedLang}
+            setSelectedLang={setSelectedLang}
+            isRecording={isRecording}
+            toggleRecording={() => setIsRecording(!isRecording)}
+            transcript={transcript}
+            detectedPhonemes={detectedPhonemes}
+            audioData={audioData}
+            speechError={speechError}
+            user={user}
+            loginWithGoogle={loginWithGoogle}
+            logout={logout}
+            langMap={langMap}
+            speakText={speakText}
+            handleUrlOrManualEdgeInput={async (text) => setInputText(text)}
+            isAnalyzingEdge={false}
+            edgePerformanceMs={42}
+            injectedExercise={injectedExercise}
+            onAddToWorkspace={handleOpenWorkspaceExport}
+          />
+        )}
+
+        {mainView === 'mentora' && (
+          <MentoraView 
+            setMainView={setMainView} 
+            onAddToWorkspace={handleOpenWorkspaceExport} 
+            user={user} 
+          />
+        )}
+
+        {mainView === 'sl2t' && (
+          <SL2TView 
+            setMainView={setMainView} 
+            onAddToWorkspace={handleOpenWorkspaceExport} 
+            user={user}
+          />
+        )}
+
+        {mainView === 'phonetic-visualizer' && (
+          <PhoneticVisualizerView 
+            setMainView={setMainView} 
+            user={user} 
+            onAddToWorkspace={handleOpenWorkspaceExport} 
+          />
+        )}
+
+        {mainView === 'phonetic-predictor' && (
+          <PhoneticPredictorView 
+            setMainView={setMainView} 
+            selectedLang={selectedLang} 
+            speakText={speakText} 
+            injectedText={inputText}
+            onAddToWorkspace={handleOpenWorkspaceExport} 
+          />
+        )}
+
+        {mainView === 'phoneme-gravity' && (
+          <PhonemeOrbit 
+            user={user}
+            selectedLang={selectedLang}
+            onBack={() => setMainView('hub')} 
+          />
+        )}
+
+        {mainView === 'voice-conversation' && (
+          <VoiceConversationView 
+            onBack={() => setMainView('hub')} 
+          />
+        )}
+
+        {mainView === 'learning' && (
+          <div className="space-y-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 glass-panel p-6 rounded-3xl backdrop-blur-2xl">
+              <div>
+                <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+                  <Brain className="w-6 h-6 text-orange-400" />
+                  Studio d'Apprentissage & Synthèse Cognitive
+                </h1>
+                <p className="text-sm text-slate-400 mt-1">
+                  Importez vos cours volumineux (PDF, Word, PPTX) et générez des résumés, quiz interactifs et mindmaps en un clic.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 px-4 py-2 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 text-orange-400 rounded-xl cursor-pointer text-xs font-bold transition-all">
+                  <Paperclip className="w-4 h-4" />
+                  <span>Importer un Document</span>
+                  <input 
+                    type="file" 
+                    accept=".pdf,.doc,.docx,.ppt,.pptx,.txt" 
+                    className="hidden" 
+                    onChange={handleGlobalFileUpload}
+                  />
+                </label>
+                
+                <select 
+                  value={selectedLang} 
+                  onChange={(e) => setSelectedLang(e.target.value)}
+                  className="bg-slate-900 border border-white/10 text-slate-200 text-xs rounded-xl px-3 py-2 outline-none font-bold"
+                >
+                  <option value="French">Français</option>
+                  <option value="English">English</option>
+                  <option value="Arabic">العربية</option>
+                  <option value="Spanish">Español</option>
+                  <option value="German">Deutsch</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Document Input & Modes */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-1 space-y-4">
+                <div className="glass-panel p-6 rounded-3xl space-y-4">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-orange-400" />
+                    Mode de Génération
+                  </h3>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: 'summary', label: 'Résumé Express', icon: FileText },
+                      { id: 'quiz', label: 'Quiz Interactif', icon: Target },
+                      { id: 'mindmap', label: 'Mindmap Conceptuelle', icon: Network },
+                      { id: 'exam', label: 'Contrôle & Barème', icon: Award }
+                    ].map(({ id, label, icon: Icon }) => (
+                      <button
+                        key={id}
+                        onClick={() => setLearningMode(id as any)}
+                        className={`p-3 rounded-2xl border text-left flex flex-col gap-2 transition-all ${
+                          learningMode === id 
+                            ? 'bg-orange-500/10 border-orange-500 text-orange-400 shadow-lg shadow-orange-500/10' 
+                            : 'bg-slate-950/50 border-white/5 text-slate-400 hover:text-slate-200 hover:bg-white/5'
+                        }`}
+                      >
+                        <Icon className="w-4 h-4" />
+                        <span className="text-xs font-bold">{label}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="space-y-2 pt-2">
+                    <label className="text-xs text-slate-400 font-bold">Contenu ou extrait du cours :</label>
+                    <textarea 
+                      value={inputText}
+                      onChange={(e) => setInputText(e.target.value)}
+                      placeholder="Collez votre cours ou importez un document ci-dessus..."
+                      rows={8}
+                      className="w-full bg-slate-950/80 border border-white/10 rounded-2xl p-3.5 text-xs text-slate-200 placeholder:text-slate-600 outline-none focus:border-orange-500 transition-colors resize-none"
+                    />
+                  </div>
+
+                  <button
+                    onClick={handleGenerate}
+                    disabled={isGenerating || !inputText.trim()}
+                    className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-400 hover:to-amber-500 disabled:opacity-50 text-slate-950 font-black rounded-2xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20 transition-all cursor-pointer"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Génération en cours...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 fill-current" />
+                        <span>Lancer la Synthèse Cognitive</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Result Area */}
+              <div className="lg:col-span-2 space-y-4">
+                <div className="glass-panel p-6 rounded-3xl min-h-[480px] flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs uppercase tracking-wider text-orange-400 font-mono font-bold">
+                          Résultat Structuré
+                        </span>
+                      </div>
+
+                      {learningResult && (
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => speakText(learningResult)}
+                            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors"
+                            title="Écouter la synthèse"
+                          >
+                            <Volume2 className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => handleOpenWorkspaceExport('Synthèse de Cours', learningResult)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold transition-all shadow-md"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Workspace</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {learningResult ? (
+                      <div className="prose prose-invert max-w-none text-sm leading-relaxed text-slate-300">
+                        {learningMode === 'mindmap' && learningResult.includes('graph TD') ? (
+                          <Mermaid chart={learningResult} />
+                        ) : learningMode === 'quiz' ? (
+                          <ExamQuiz language={selectedLang} originalTextContext={inputText} />
+                        ) : (
+                          <Markdown>{learningResult}</Markdown>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="py-24 text-center space-y-3">
+                        <div className="w-14 h-14 rounded-3xl glass-panel border border-white/10 flex items-center justify-center mx-auto text-slate-500 shadow-xl">
+                          <Sparkles className="w-7 h-7 text-orange-400/60" />
+                        </div>
+                        <p className="text-sm text-slate-400 max-w-sm mx-auto">
+                          Sélectionnez un mode, collez ou importez votre contenu, et lancez la synthèse cognitive.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {mainView === 'workspace' && (
+          <GoogleWorkspaceHub setMainView={setMainView} />
+        )}
+
+        {mainView === 'classroom' && (
+          <GoogleClassroomHub setMainView={setMainView} />
+        )}
+
+        {mainView === 'history' && (
+          <HistoryView 
+            user={user} 
+            setMainView={setMainView} 
+            speakText={speakText} 
+          />
+        )}
+
+        {mainView === 'gtm' && (
+          <GtmPlaybook 
+            user={user}
+            mlEngineUrl={window.location.origin}
+          />
+        )}
+
+        {mainView === 'architecture' && (
+          <div className="space-y-6">
+            <div className="flex items-center gap-2 border-b border-white/10 pb-4">
+              <button 
+                onClick={() => setArchSubTab('cyber')}
+                className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all ${
+                  archSubTab === 'cyber' ? 'bg-orange-500 text-slate-950' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                CyberSécurité & PII
+              </button>
+              <button 
+                onClick={() => setArchSubTab('google-deploy')}
+                className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all ${
+                  archSubTab === 'google-deploy' ? 'bg-orange-500 text-slate-950' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Google Acquisition
+              </button>
+              <button 
+                onClick={() => setArchSubTab('pwa-audit')}
+                className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all ${
+                  archSubTab === 'pwa-audit' ? 'bg-orange-500 text-slate-950' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Audit PWA & ChromeOS
+              </button>
+            </div>
+
+            {archSubTab === 'cyber' && <CyberSecurityLab />}
+            {archSubTab === 'google-deploy' && <GoogleAcquisitionCenter user={user} />}
+            {archSubTab === 'pwa-audit' && <PwaAudit />}
+          </div>
+        )}
+      </main>
+
+      {/* Persistent Footer with Signature */}
+      <footer className="w-full border-t border-slate-800/80 bg-slate-950/80 backdrop-blur-md px-4 py-4 text-center">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs font-mono text-slate-500">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+            <span className="text-slate-300 font-bold">Mount AI: Scholar</span>
+            <span className="text-slate-600">|</span>
+            <span>Écosystème Cognitif & On-Device AI</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400 font-medium">Créé par <strong className="text-orange-400 font-black tracking-wide uppercase">Taha Dev Junior</strong></span>
+          </div>
+        </div>
+      </footer>
+
+      {/* Modals & Extension Drawers */}
+      <SubscriptionModal 
+        isOpen={isSubscriptionModalOpen} 
+        onClose={() => setIsSubscriptionModalOpen(false)} 
+        userEmail={user?.email || "capitaine@mentora.ai"}
+        currentTier={userTier} 
+        onTierChange={(newTier) => {
+          setUserTier(newTier);
+          localStorage.setItem('user_tier', newTier);
+        }}
+      />
+
+      <LoginModal 
+        isOpen={isLoginModalOpen} 
+        onClose={() => setIsLoginModalOpen(false)} 
+        onGoogleLogin={async () => {
+          const logged = await loginWithGoogle();
+          if (logged) setUser(logged);
+        }}
+        onGuestLogin={handleDirectGuest}
+        onOpenStripeCheckout={() => {
+          setIsLoginModalOpen(false);
+          setIsSubscriptionModalOpen(true);
+        }}
+        userTier={userTier}
+        userEmail={user?.email}
+      />
+
+      <ProgressBadgesModal 
+        isOpen={isBadgesModalOpen} 
+        onClose={() => setIsBadgesModalOpen(false)} 
+      />
+
+      <AddToWorkspaceModal 
+        isOpen={isWorkspaceModalOpen} 
+        onClose={() => setIsWorkspaceModalOpen(false)} 
+        title={workspaceExportTitle} 
+        textToSave={workspaceExportText} 
+      />
+    </div>
+  );
 }
-
-function HandIcon() { return <span className="hand-icon">✋</span>; }
-function ShareIcon() { return <span className="share-icon">↗</span>; }
-function CodeIcon() { return <span className="code-icon">&lt;/&gt;</span>; }

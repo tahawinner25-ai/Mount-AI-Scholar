@@ -144,7 +144,7 @@ export default function MemoryAgentView({
           <div>
             <h4 className="text-base font-black text-white uppercase tracking-wider">Tuteur Cognitif Adaptatif — MemoryAgent 🇲🇦</h4>
             <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest mt-0.5 block">
-              Moteur de rééducation prédictive propulsé par la <span className="text-[#a855f7] font-black">Sovereign API (OpenAI GPT 5.6 Core)</span>
+              Moteur de rééducation prédictive propulsé par la <span className="text-[#a855f7] font-black">Sovereign API (Google Gemini Core)</span>
             </span>
           </div>
         </div>

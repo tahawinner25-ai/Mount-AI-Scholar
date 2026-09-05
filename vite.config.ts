@@ -17,7 +17,7 @@ export default defineConfig(({mode}) => {
     },
     build: {
       outDir: 'dist',
-      emptyOutDir: false,
+      emptyOutDir: true,
       target: 'es2022',
     },
     esbuild: {

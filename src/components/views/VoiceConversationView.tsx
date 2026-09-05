@@ -103,7 +103,7 @@ export default function VoiceConversationView({ onBack }: VoiceConversationViewP
         floatData[i] = sample / (sample < 0 ? 0x8000 : 0x7FFF);
       }
 
-      // 3. Create AudioBuffer (24kHz is GPT 5.6 Live's native output sample rate)
+      // 3. Create AudioBuffer (24kHz is Gemini Live's native output sample rate)
       const audioBuffer = outputAudioCtx.createBuffer(1, numSamples, 24000);
       audioBuffer.copyToChannel(floatData, 0);
 
@@ -205,7 +205,7 @@ export default function VoiceConversationView({ onBack }: VoiceConversationViewP
           }
 
           if (msg.interrupted) {
-            console.log("[WS] GPT 5.6 was interrupted by user speech.");
+            console.log("[WS] Gemini was interrupted by user speech.");
             stopAndClearAllSources();
             setStatus("listening");
             // Commit any current partial AI speech text as interrupted
@@ -333,7 +333,7 @@ export default function VoiceConversationView({ onBack }: VoiceConversationViewP
           </h2>
           <p className="text-slate-500 font-medium font-mono text-xs uppercase tracking-widest mt-2 flex items-center gap-2">
             <Sparkles className="w-3.5 h-3.5 text-orange-500 animate-pulse" />
-            OpenAI GPT 5.6 Live API • Zero Latency Multimodal Conversational Engine
+            Google Gemini Live API • Zero Latency Multimodal Conversational Engine
           </p>
         </div>
 
@@ -347,12 +347,12 @@ export default function VoiceConversationView({ onBack }: VoiceConversationViewP
               status === "error" ? "bg-red-500" : "bg-slate-600"
             }`} />
             <span className="text-[10px] font-mono font-bold text-white uppercase tracking-widest">
-              {status === "idle" && "Déconnecté"}
-              {status === "connecting" && "Connexion en cours..."}
-              {status === "connected" && "Connecté • Prêt"}
-              {status === "listening" && "GPT 5.6 vous écoute..."}
-              {status === "speaking" && "GPT 5.6 parle..."}
-              {status === "error" && "Erreur"}
+              {status === "idle" && "Disconnected"}
+              {status === "connecting" && "Connecting..."}
+              {status === "connected" && "Connected • Ready"}
+              {status === "listening" && "Listening to you..."}
+              {status === "speaking" && "Mount AI speaking..."}
+              {status === "error" && "Error"}
             </span>
           </div>
         </div>
@@ -370,7 +370,7 @@ export default function VoiceConversationView({ onBack }: VoiceConversationViewP
                 Acoustic Field
               </span>
               <h3 className="text-sm font-black text-white uppercase tracking-widest">
-                Portail Vocal Actif
+                Active Voice Portal
               </h3>
             </div>
 
@@ -410,12 +410,12 @@ export default function VoiceConversationView({ onBack }: VoiceConversationViewP
 
                 {/* Status text label on sphere */}
                 <span className="text-[9px] font-black uppercase tracking-widest mt-2 block font-mono">
-                  {status === "speaking" && "DIFFUSION"}
-                  {status === "listening" && "ÉCOUTE ACTIVE"}
-                  {status === "connected" && "DISPO"}
+                  {status === "speaking" && "SPEAKING"}
+                  {status === "listening" && "LISTENING"}
+                  {status === "connected" && "READY"}
                   {status === "connecting" && "SYNC..."}
-                  {status === "error" && "ERREUR"}
-                  {status === "idle" && "MUET"}
+                  {status === "error" && "ERROR"}
+                  {status === "idle" && "MUTED"}
                 </span>
               </div>
             </div>
@@ -433,19 +433,19 @@ export default function VoiceConversationView({ onBack }: VoiceConversationViewP
                 {status === "idle" || status === "error" ? (
                   <>
                     <Mic className="w-4 h-4" />
-                    Démarrer la Conversation
+                    Start Voice Conversation
                   </>
                 ) : (
                   <>
                     <VolumeX className="w-4 h-4" />
-                    Arrêter & Raccrocher
+                    Stop & Disconnect
                   </>
                 )}
               </button>
 
               {status === "idle" && (
                 <p className="text-[10px] text-slate-500 text-center uppercase tracking-widest font-mono">
-                  Utilise le micro de ton PC/iPad pour interagir
+                  Uses your microphone for real-time interaction
                 </p>
               )}
             </div>
@@ -461,11 +461,11 @@ export default function VoiceConversationView({ onBack }: VoiceConversationViewP
               <div className="flex items-center gap-2.5">
                 <MessageSquare className="w-4 h-4 text-orange-500" />
                 <h3 className="text-sm font-black text-white uppercase tracking-widest">
-                  Fils de Transcription Direct
+                  Live Transcript Stream
                 </h3>
               </div>
               <span className="px-2.5 py-1 bg-orange-500/10 text-orange-500 border border-orange-500/20 text-[8px] font-mono font-black uppercase tracking-widest rounded-lg">
-                Temps Réel
+                Real-Time
               </span>
             </div>
 
@@ -479,7 +479,7 @@ export default function VoiceConversationView({ onBack }: VoiceConversationViewP
                   } animate-in slide-in-from-bottom-2 duration-300`}
                 >
                   <span className="text-[8px] font-mono text-slate-500 uppercase tracking-widest mb-1 font-black">
-                    {m.sender === "user" ? "Vous" : "GPT 5.6 Live"}
+                    {m.sender === "user" ? "You" : "Mount AI Live"}
                   </span>
                   <div className={`p-4 rounded-2xl text-xs font-medium leading-relaxed shadow-md ${
                     m.sender === "user"
@@ -494,7 +494,7 @@ export default function VoiceConversationView({ onBack }: VoiceConversationViewP
               {/* Streaming Content indicators */}
               {currentUserText && (
                 <div className="flex flex-col items-end max-w-[85%] ml-auto animate-pulse">
-                  <span className="text-[8px] font-mono text-slate-500 uppercase tracking-widest mb-1 font-black">Vous (Détection parole...)</span>
+                  <span className="text-[8px] font-mono text-slate-500 uppercase tracking-widest mb-1 font-black">You (Detecting speech...)</span>
                   <div className="p-4 rounded-2xl text-xs bg-slate-950/60 border border-slate-800 text-slate-400 rounded-tr-none">
                     {currentUserText}
                   </div>
@@ -503,7 +503,7 @@ export default function VoiceConversationView({ onBack }: VoiceConversationViewP
 
               {currentSpeechText && (
                 <div className="flex flex-col items-start max-w-[85%] mr-auto">
-                  <span className="text-[8px] font-mono text-orange-500 uppercase tracking-widest mb-1 font-black">GPT 5.6 Live (Synthèse...)</span>
+                  <span className="text-[8px] font-mono text-orange-500 uppercase tracking-widest mb-1 font-black">Mount AI Live (Speaking...)</span>
                   <div className="p-4 rounded-2xl text-xs bg-orange-500/5 border border-orange-500/10 text-orange-300 rounded-tl-none">
                     {currentSpeechText}
                   </div>
@@ -514,7 +514,7 @@ export default function VoiceConversationView({ onBack }: VoiceConversationViewP
                 <div className="h-full flex flex-col items-center justify-center text-center text-slate-500 space-y-4 py-12">
                   <Volume2 className="w-8 h-8 opacity-25" />
                   <p className="text-xs max-w-sm leading-relaxed font-sans font-medium">
-                    Aucune parole transmise pour le moment. Cliquez sur le bouton pour démarrer le canal audio bidirectionnel.
+                    No speech transmitted yet. Click the start button to open the real-time two-way audio stream.
                   </p>
                 </div>
               )}
@@ -527,7 +527,7 @@ export default function VoiceConversationView({ onBack }: VoiceConversationViewP
               <div className="mt-4 p-4.5 bg-red-500/10 border border-red-500/20 rounded-2xl flex gap-3.5 items-start">
                 <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
                 <div className="text-xs text-red-400 font-sans leading-relaxed">
-                  <strong className="text-white font-bold uppercase tracking-widest text-[9px] block mb-0.5">Erreur de Flux</strong>
+                  <strong className="text-white font-bold uppercase tracking-widest text-[9px] block mb-0.5">Stream Error</strong>
                   {errorMsg}
                 </div>
               </div>
@@ -536,14 +536,14 @@ export default function VoiceConversationView({ onBack }: VoiceConversationViewP
             {/* Suggestion tags to click/talk about */}
             <div className="mt-6 pt-4 border-t border-slate-800/60">
               <span className="text-[9px] font-mono font-black text-slate-500 uppercase tracking-widest block mb-2">
-                Idées de Sujets d'Entraînement
+                Suggested Conversation Prompts
               </span>
               <div className="flex flex-wrap gap-2">
                 {[
-                  "Propose-moi un virelangue",
-                  "Aide-moi à épeler spectacle",
-                  "Comment prononcer le mot phonétique ?",
-                  "Explique la dyslexie simplement"
+                  "Give me a challenging tongue twister",
+                  "Help me spell sophisticated words",
+                  "How do I pronounce cognitive synesthesia?",
+                  "Explain dyslexia and saccadic reading"
                 ].map((topic, i) => (
                   <button
                     key={i}

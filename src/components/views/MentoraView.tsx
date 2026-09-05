@@ -308,6 +308,14 @@ export default function MentoraView({ setMainView, user, onAddToWorkspace }: Men
   const [isTypingChat, setIsTypingChat] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [micError, setMicError] = useState("");
+
+  // Deep Cognitive Analysis State (Giving AI sufficient time to analyze dossiers & chapters)
+  const [isDeepAnalyzing, setIsDeepAnalyzing] = useState(false);
+  const [deepAnalysisStage, setDeepAnalysisStage] = useState<1 | 2 | 3>(1);
+  const [deepAnalysisProgress, setDeepAnalysisProgress] = useState(0);
+  const [deepAnalysisMsg, setDeepAnalysisMsg] = useState("");
+  const [deepAnalysisTaskTitle, setDeepAnalysisTaskTitle] = useState("");
+  const [deepAnalysisElapsedSec, setDeepAnalysisElapsedSec] = useState(0);
   const [voiceLang, setVoiceLang] = useState<'fr-FR' | 'en-US' | 'es-ES' | 'ar-SA'>('fr-FR');
   const [audioData, setAudioData] = useState<number[]>(new Array(16).fill(0));
   const [interimTranscript, setInterimTranscript] = useState("");
@@ -766,7 +774,7 @@ Try sketching this concept as a network of connected bubbles or explaining it al
   };
 
   // ========================================================
-  // AI ACTIONS: Socratic Chat Interface
+  // AI ACTIONS: Socratic & Document Tutor Chat Interface
   // ========================================================
   const handleSendChat = async (overridePrompt?: string) => {
     const textToSend = overridePrompt || chatInput;
@@ -782,18 +790,45 @@ Try sketching this concept as a network of connected bubbles or explaining it al
     if (!overridePrompt) setChatInput("");
     setIsTypingChat(true);
 
+    const isSummaryOrDirectRequest = /résume|resume|synthèse|synthese|summary|summarize|explique-moi ce document|analyse ce document|lis ce document|lire/i.test(textToSend);
+
     const docContextPrompt = chatDocument
-      ? `\n\n[ATTACHED FILE SOURCE (${chatDocument.fileName})]:\n"""\n${chatDocument.text.slice(0, 12000)}\n"""\nBase your socratic guidance and exercises directly on the content of this imported document!`
+      ? `\n\n[ATTACHED FILE SOURCE (${chatDocument.fileName})]:\n"""\n${chatDocument.text.slice(0, 16000)}\n"""\nBase your insights, summaries, socratic questions and explanations directly on the full content of this imported document!`
       : '';
 
-    const socraticPrompt = `ABSOLUTE UNVIOLABLE RULE: You are Mentora AI, the elite Socratic Mentor.
-You must NEVER give direct answers, numerical results, or ready-made solutions to the student! Even if they ask "give me the answer", "what is the result" or "answer directly"! Explain politely that as a Socratic Mentor, your duty is to stimulate their synaptic connections so they discover the answer themselves.
+    let socraticPrompt = "";
+    if (isSummaryOrDirectRequest && chatDocument) {
+      socraticPrompt = `You are Mentora AI, the elite educational AI Tutor powered by Gemini.
+The student has imported the document "${chatDocument.fileName}" and is asking you to read, analyze, or summarize it.
+${docContextPrompt}
+
+LATEST STUDENT REQUEST: "${textToSend}"
+
+MANDATORY RESPONSE STRUCTURE:
+1. Clear, structured, and pedagogical Summary / Analysis of the document contents with key takeaways and concepts.
+2. 3 essential takeaways highlighted with bullet points.
+3. A concluding Socratic question and an optional mini QCM to test the student's assimilation:
+
+[QCM]
+Question: In this document, what is the core concept or key discovery?
+A) Option A
+B) Option B
+C) Option C
+D) Option D
+Answer: A) Option A
+Explanation: Socratic explanation.
+[/QCM]
+
+Respond clearly, with generous formatting, in the language matching the student's request (French or English).`;
+    } else {
+      socraticPrompt = `ABSOLUTE RULE: You are Mentora AI, the elite Socratic Mentor powered by Gemini.
+You must guide the student to understand concepts deeply through socratic questioning, visual analogies, and progressive challenges.
 ${docContextPrompt}
 
 MANDATORY RESPONSE STRUCTURE:
 1. A dynamic compliment or encouraging remark.
 2. An intuitive visual analogy or strategic hint explaining the problem.
-3. A guiding question or step-by-step puzzle for the first step.
+3. A guiding question or step-by-step puzzle for the next step.
 4. MANDATORILY include at the end of your response a QCM validation block in the exact format:
 
 [QCM]
@@ -810,7 +845,8 @@ Message history:
 ${chatMessages.map(m => `${m.role === 'user' ? 'Student' : 'Mentora'}: ${m.content}`).join('\n')}
 
 Latest student question: "${textToSend}"
-Respond strictly, socratically, in perfect English, concise and engaging:`;
+Respond socratically, in clear English or French (matching user), concise and engaging:`;
+    }
 
     const msgId = `msg-${Date.now()}`;
 
@@ -846,7 +882,13 @@ Respond strictly, socratically, in perfect English, concise and engaging:`;
 
     } catch (e) {
       console.error(e);
-      const fallbackMsgContent = `Great question Captain! I won't give you the direct answer because you have full potential to find it yourself.\n\nImagine this problem like a pyramid: instead of looking at the apex, let's focus on the first foundation block.\n\n[QCM]\nQuestion: In your opinion, where should we start to break down this topic?\nA) Analyze key terms and isolate the first variable\nB) Guess a random number\nC) Wait without taking action\nAnswer: A) Analyze key terms and isolate the first variable\nExplanation: Well done! Isolating problem components is the mark of great scientific minds.\n[/QCM]`;
+      let fallbackMsgContent = "";
+      if (chatDocument && isSummaryOrDirectRequest) {
+        const samplePoints = chatDocument.text.slice(0, 500).split('. ').filter(Boolean).slice(0, 3);
+        fallbackMsgContent = `## 📄 Synthèse du document : ${chatDocument.fileName}\n\nJ'ai analysé votre document (**${formatBytes(chatDocument.size)}**, ~${chatDocument.text.length} caractères).\n\n### Points Clés Identifiés :\n${samplePoints.map(p => `* 💡 ${p.trim()}.`).join('\n')}\n\n[QCM]\nQuestion: Sur quel aspect souhaitez-vous approfondir votre étude ?\nA) Les concepts fondamentaux\nB) Les applications pratiques\nC) Générer un quiz de test\nAnswer: A) Les concepts fondamentaux\nExplanation: L'assimilation des bases est le levier principal de réussite cognitive.\n[/QCM]`;
+      } else {
+        fallbackMsgContent = `Great question Captain! I won't give you the direct answer because you have full potential to find it yourself.\n\nImagine this problem like a pyramid: instead of looking at the apex, let's focus on the first foundation block.\n\n[QCM]\nQuestion: In your opinion, where should we start to break down this topic?\nA) Analyze key terms and isolate the first variable\nB) Guess a random number\nC) Wait without taking action\nAnswer: A) Analyze key terms and isolate the first variable\nExplanation: Well done! Isolating problem components is the mark of great scientific minds.\n[/QCM]`;
+      }
       
       const assistantMsg: Message = {
         role: 'assistant',
@@ -1210,20 +1252,258 @@ Ensure progressive difficulty (Easy, Intermediate, Advanced).`;
     }
   };
 
+  // ========================================================
+  // DEEP COGNITIVE ANALYSIS ENGINE (Dossiers, Documents & Chapters)
+  // Multi-Phase Analysis: Sémantique -> Synthèse -> Structuration
+  // ========================================================
+  const runDeepDocumentAnalysis = async (
+    sourceText: string,
+    title: string,
+    mode: 'lesson' | 'mindmap' | 'quiz' | 'all' = 'lesson'
+  ) => {
+    if (!sourceText.trim()) {
+      alert("Le texte source est vide.");
+      return;
+    }
+
+    setIsDeepAnalyzing(true);
+    setDeepAnalysisTaskTitle(title);
+    setDeepAnalysisStage(1);
+    setDeepAnalysisProgress(15);
+    setDeepAnalysisMsg("Phase 1/3 : Ingestion sémantique & extraction des axiomes clés...");
+    setDeepAnalysisElapsedSec(0);
+
+    // Dynamic timer for UI feedback and giving time to the AI analysis
+    const timer = setInterval(() => {
+      setDeepAnalysisElapsedSec(prev => prev + 1);
+    }, 1000);
+
+    const stage2Timer = setTimeout(() => {
+      setDeepAnalysisStage(2);
+      setDeepAnalysisProgress(55);
+      setDeepAnalysisMsg("Phase 2/3 : Déduction socratique, synthèse conceptuelle & cartographie...");
+    }, 1800);
+
+    const stage3Timer = setTimeout(() => {
+      setDeepAnalysisStage(3);
+      setDeepAnalysisProgress(85);
+      setDeepAnalysisMsg("Phase 3/3 : Validation pédagogique, formulation structurée & formats d'exportation...");
+    }, 3800);
+
+    try {
+      const cleanSource = sourceText.slice(0, 16000); // Send rich context to the AI
+
+      if (mode === 'lesson' || mode === 'all') {
+        const lessonPrompt = `Tu es Mentora AI, le tuteur socratique et professeur de sciences cognitives le plus avancé.
+Effectue une ANALYSE APPROFONDIE et génère une FICHE DE SYNTHÈSE PÉDAGOGIQUE MAÎTRESSE à partir du texte suivant :
+
+TITRE DU DOSSIER : "${title}"
+
+TEXTE SOURCE DU DOSSIER :
+${cleanSource}
+
+CONSIGNES DE STRUCTURATION OBLIGATOIRES (Markdown propre et soigné) :
+1. ## 🎓 Grand Titre & Contexte Fondamental
+2. ### 📌 1. Définitions & Axiomes Clés (avec explications limpides)
+3. ### ⚙️ 2. Développement Analytique (3 sous-sections thématiques détaillant les mécanismes, formules ou principes logiques)
+4. ### 💡 3. Applications Pratiques & Exemples Concrets
+5. ### 🧠 4. Synthèse Mémorielle (3 points d'ancrage essentiels avec emojis)
+6. ### ❓ 5. Défi Socratique & Question de Réflexion Ouverte
+
+Rédige en français avec rigueur, clarté et bienveillance pédagogique.`;
+
+        const res = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: lessonPrompt })
+        });
+        if (!res.ok) throw new Error("Erreur lors de la génération de la leçon.");
+        const data = await res.json();
+        const content = data.text || "Synthèse générée.";
+        setLessonTopic(title);
+        setLessonContent(content);
+        addHistoryItem('lesson', title, content);
+      }
+
+      if (mode === 'mindmap' || mode === 'all') {
+        const mindmapPrompt = `Tu es un expert en cartographie cognitive et cartographie conceptuelle.
+Génère une structure de CARTE MENTALE CONCEPTUELLE (Mindmap) au format JSON STRICT pour le sujet : "${title}".
+À partir du texte source :
+${cleanSource.slice(0, 5000)}
+
+Le format de retour doit être STRICTEMENT du JSON sans markdown autour :
+{
+  "nodes": [
+    {"id": "1", "label": "Concept Principal", "category": "core", "details": "Définition maîtresse"},
+    {"id": "2", "label": "Axe Majeur 1", "category": "sub", "details": "Détails essentiels 1"},
+    {"id": "3", "label": "Axe Majeur 2", "category": "sub", "details": "Détails essentiels 2"},
+    {"id": "4", "label": "Application / Exemple 1", "category": "detail", "details": "Détail d'application 1"},
+    {"id": "5", "label": "Application / Exemple 2", "category": "detail", "details": "Détail d'application 2"},
+    {"id": "6", "label": "Perspectives & Limites", "category": "sub", "details": "Ouverture réflexive"}
+  ],
+  "edges": [
+    {"from": "1", "to": "2"},
+    {"from": "1", "to": "3"},
+    {"from": "2", "to": "4"},
+    {"from": "3", "to": "5"},
+    {"from": "1", "to": "6"}
+  ]
+}`;
+
+        const resMap = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: mindmapPrompt })
+        });
+        if (resMap.ok) {
+          const mapData = await resMap.json();
+          let rawJson = mapData.text.trim();
+          if (rawJson.includes('```json')) {
+            rawJson = rawJson.split('```json')[1].split('```')[0].trim();
+          } else if (rawJson.includes('```')) {
+            rawJson = rawJson.split('```')[1].split('```')[0].trim();
+          }
+          const parsed = JSON.parse(rawJson);
+          if (parsed && parsed.nodes) {
+            const nodesWithCoords = parsed.nodes.map((node: any, idx: number) => {
+              let x = 250;
+              let y = 200;
+              if (node.category === 'core') {
+                x = 250;
+                y = 200;
+              } else if (node.category === 'sub') {
+                const angle = (idx * 2 * Math.PI) / (parsed.nodes.filter((n: any) => n.category === 'sub').length || 4);
+                x = 250 + 130 * Math.cos(angle);
+                y = 200 + 100 * Math.sin(angle);
+              } else {
+                const angle = (idx * 2 * Math.PI) / (parsed.nodes.length || 5) + 0.5;
+                x = 250 + 200 * Math.cos(angle);
+                y = 200 + 150 * Math.sin(angle);
+              }
+              return { ...node, x, y };
+            });
+            setMindmapQuery(title);
+            setMindmapNodes(nodesWithCoords);
+            setMindmapEdges(parsed.edges || []);
+            setSelectedNode(nodesWithCoords[0]);
+            addHistoryItem('mindmap', title, `Mindmap générée pour ${title} (${nodesWithCoords.length} nœuds).`);
+          }
+        }
+      }
+
+      if (mode === 'quiz' || mode === 'all') {
+        const quizPrompt = `Tu es un expert en évaluation formative et psychométrie pédagogique.
+Génère un QUIZ ADAPTATIF de 4 questions QCM fondé STRICTEMENT sur le texte source suivant :
+
+TITRE : "${title}"
+TEXTE SOURCE :
+${cleanSource.slice(0, 6000)}
+
+Le format de retour doit être STRICTEMENT un tableau JSON valide sans markdown :
+[
+  {
+    "id": 1,
+    "text": "Question d'assimilation 1 ?",
+    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "correctAnswer": "Option A",
+    "explanation": "Explication socratique claire de la réponse exacte et pourquoi les autres sont fausses."
+  },
+  {
+    "id": 2,
+    "text": "Question de compréhension 2 ?",
+    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "correctAnswer": "Option B",
+    "explanation": "Explication socratique détaillée."
+  },
+  {
+    "id": 3,
+    "text": "Question d'application concrète 3 ?",
+    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "correctAnswer": "Option C",
+    "explanation": "Explication socratique détaillée."
+  },
+  {
+    "id": 4,
+    "text": "Question d'analyse avancée 4 ?",
+    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "correctAnswer": "Option D",
+    "explanation": "Explication socratique approfondie."
+  }
+]`;
+
+        const resQuiz = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: quizPrompt })
+        });
+        if (resQuiz.ok) {
+          const quizData = await resQuiz.json();
+          let rawJson = quizData.text.trim();
+          if (rawJson.includes('```json')) {
+            rawJson = rawJson.split('```json')[1].split('```')[0].trim();
+          } else if (rawJson.includes('```')) {
+            rawJson = rawJson.split('```')[1].split('```')[0].trim();
+          }
+          const parsedQuiz = JSON.parse(rawJson);
+          if (Array.isArray(parsedQuiz) && parsedQuiz.length > 0) {
+            setQuizTopic(title);
+            setQuizQuestions(parsedQuiz);
+            setCurrentQuizIdx(0);
+            setSelectedQuizOption(null);
+            setQuizAnswered(false);
+            addHistoryItem('quiz', title, `Quiz de ${parsedQuiz.length} questions généré pour ${title}.`);
+          }
+        }
+      }
+
+      setDeepAnalysisProgress(100);
+      setDeepAnalysisMsg("Analyse cognitive terminée avec succès !");
+      playSuccessSound();
+
+      // Update student profile XP
+      const updatedProfile = {
+        ...studentProfile,
+        xp: studentProfile.xp + 100
+      };
+      saveProfile(updatedProfile);
+
+      // Route to destination tab
+      if (mode === 'mindmap') {
+        setActiveTab('mindmap');
+      } else if (mode === 'quiz') {
+        setActiveTab('quiz');
+      } else {
+        setActiveTab('lesson');
+      }
+
+    } catch (err) {
+      console.error("Deep analysis error:", err);
+      // Fallback generation
+      if (mode === 'lesson' || mode === 'all') {
+        const sampleText = sourceText.slice(0, 1500);
+        const fallbackLesson = `## 📄 Synthèse Approfondie : ${title}\n\n### 1. Concepts Fondamentaux\nCe dossier aborde les points cardinaux suivants :\n\n${sampleText}\n\n### 2. Points Clés & Déductions\n* 💡 **Axiome 1 :** L'analyse continue et la lecture active consolident les synapses mémorielles.\n* 💡 **Axiome 2 :** La décomposition des idées complexes évite la surcharge cognitive.\n\n*Question Socratique :* Comment ce concept peut-il être appliqué pour résoudre un cas réel ?`;
+        setLessonTopic(title);
+        setLessonContent(fallbackLesson);
+        setActiveTab('lesson');
+      }
+    } finally {
+      clearInterval(timer);
+      clearTimeout(stage2Timer);
+      clearTimeout(stage3Timer);
+      setIsDeepAnalyzing(false);
+    }
+  };
+
   const handleGenerateFromChapter = (chapter: any) => {
-    setLessonTopic(chapter.title);
-    setLessonContent(chapter.content);
-    setActiveTab('lesson');
+    runDeepDocumentAnalysis(chapter.content, `${chapter.title}`, 'lesson');
   };
 
   const handleGenerateMindmapFromChapter = (chapter: any) => {
-    setMindmapQuery(chapter.title);
-    setActiveTab('mindmap');
+    runDeepDocumentAnalysis(chapter.content, `${chapter.title}`, 'mindmap');
   };
 
   const handleGenerateQuizFromChapter = (chapter: any) => {
-    setQuizTopic(chapter.title);
-    setActiveTab('quiz');
+    runDeepDocumentAnalysis(chapter.content, `${chapter.title}`, 'quiz');
   };
 
   return (
@@ -1483,6 +1763,79 @@ Ensure progressive difficulty (Easy, Intermediate, Advanced).`;
         />
       )}
 
+      {/* DEEP COGNITIVE ANALYZER LIVE HUD (Giving AI adequate time to synthesize dossiers) */}
+      {isDeepAnalyzing && (
+        <div className="p-6 bg-gradient-to-r from-violet-950/90 via-slate-900/95 to-indigo-950/90 border border-violet-500/60 rounded-3xl space-y-4 shadow-[0_0_40px_rgba(139,92,246,0.25)] animate-in fade-in zoom-in-95 duration-300">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-violet-600/30 border border-violet-500/50 flex items-center justify-center shrink-0">
+                <Brain className="w-5 h-5 text-violet-300 animate-pulse" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono font-bold bg-violet-500/20 text-violet-300 border border-violet-500/30 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    Analyse Cognitive Approfondie en cours
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400">
+                    ⏱️ {deepAnalysisElapsedSec}s écoulées
+                  </span>
+                </div>
+                <h4 className="text-sm font-black text-white tracking-tight mt-0.5">
+                  {deepAnalysisTaskTitle}
+                </h4>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs font-mono font-bold text-violet-300 bg-violet-950/60 px-3 py-1.5 rounded-xl border border-violet-500/30">
+              <RefreshCw className="w-3.5 h-3.5 animate-spin text-violet-400" />
+              <span>{deepAnalysisProgress}%</span>
+            </div>
+          </div>
+
+          {/* Real-time Progress Bar */}
+          <div className="w-full bg-slate-950 rounded-full h-3.5 overflow-hidden border border-slate-800 p-0.5">
+            <div 
+              className="bg-gradient-to-r from-violet-500 via-purple-500 to-emerald-400 h-full rounded-full transition-all duration-700 shadow-[0_0_15px_rgba(168,85,247,0.6)]"
+              style={{ width: `${deepAnalysisProgress}%` }}
+            />
+          </div>
+
+          {/* 3 Active Analysis Stages */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
+            <div className={`p-2.5 rounded-xl border text-xs font-mono transition-all flex items-center gap-2 ${
+              deepAnalysisStage >= 1
+                ? 'bg-violet-900/30 border-violet-500/40 text-violet-200'
+                : 'bg-slate-950/50 border-slate-800 text-slate-600'
+            }`}>
+              <span className={`w-2 h-2 rounded-full ${deepAnalysisStage === 1 ? 'bg-violet-400 animate-ping' : deepAnalysisStage > 1 ? 'bg-emerald-400' : 'bg-slate-700'}`} />
+              <span className="text-[10px] uppercase tracking-wider font-bold">1. Ingestion Sémantique</span>
+            </div>
+
+            <div className={`p-2.5 rounded-xl border text-xs font-mono transition-all flex items-center gap-2 ${
+              deepAnalysisStage >= 2
+                ? 'bg-purple-900/30 border-purple-500/40 text-purple-200'
+                : 'bg-slate-950/50 border-slate-800 text-slate-600'
+            }`}>
+              <span className={`w-2 h-2 rounded-full ${deepAnalysisStage === 2 ? 'bg-purple-400 animate-ping' : deepAnalysisStage > 2 ? 'bg-emerald-400' : 'bg-slate-700'}`} />
+              <span className="text-[10px] uppercase tracking-wider font-bold">2. Synthèse & Mindmap</span>
+            </div>
+
+            <div className={`p-2.5 rounded-xl border text-xs font-mono transition-all flex items-center gap-2 ${
+              deepAnalysisStage >= 3
+                ? 'bg-emerald-900/30 border-emerald-500/40 text-emerald-200'
+                : 'bg-slate-950/50 border-slate-800 text-slate-600'
+            }`}>
+              <span className={`w-2 h-2 rounded-full ${deepAnalysisStage === 3 ? 'bg-emerald-400 animate-ping' : 'bg-slate-700'}`} />
+              <span className="text-[10px] uppercase tracking-wider font-bold">3. Structuration & Quiz</span>
+            </div>
+          </div>
+
+          <p className="text-xs text-violet-300/90 font-mono italic">
+            {deepAnalysisMsg}
+          </p>
+        </div>
+      )}
+
       {/* MINIMALIST TAB NAVIGATION */}
       <div className="flex border-b border-slate-800 overflow-x-auto pb-px scrollbar-hide max-w-full">
         {[
@@ -1702,8 +2055,18 @@ Ensure progressive difficulty (Easy, Intermediate, Advanced).`;
                       </div>
                     </div>
 
-                    {/* PDF Global Export Buttons */}
+                    {/* PDF Global Export & Deep AI Generation Buttons */}
                     <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+                      <button
+                        onClick={() => runDeepDocumentAnalysis(parsedDocResult.text, parsedDocResult.fileName, 'all')}
+                        disabled={isDeepAnalyzing}
+                        className="px-4 py-2.5 bg-gradient-to-r from-violet-600 via-purple-600 to-pink-600 hover:from-violet-500 hover:to-pink-500 text-white font-bold text-xs font-mono uppercase tracking-wider rounded-xl transition-all shadow-lg flex items-center gap-2 cursor-pointer animate-pulse"
+                        title="Analyser tout le dossier en profondeur et générer fiche complète, mindmap et quiz avec temps d'analyse IA optimisé"
+                      >
+                        <Sparkles className="w-4 h-4 text-yellow-300" />
+                        <span>Analyse Approfondie Totale (Fiche + Map + Quiz)</span>
+                      </button>
+
                       <button
                         onClick={async () => {
                           setIsExportingPdf(true);
@@ -1725,41 +2088,54 @@ Ensure progressive difficulty (Easy, Intermediate, Advanced).`;
                           }
                         }}
                         disabled={isExportingPdf}
-                        className="px-4 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold text-xs font-mono uppercase tracking-wider rounded-xl transition-all shadow-lg flex items-center gap-2 cursor-pointer"
+                        className="px-3.5 py-2.5 bg-slate-950 hover:bg-slate-800 border border-emerald-500/40 text-emerald-300 font-bold text-xs font-mono uppercase tracking-wider rounded-xl transition-all shadow-lg flex items-center gap-2 cursor-pointer"
+                        title="Exporter la synthèse complète au format PDF haute résolution"
                       >
                         {isExportingPdf ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                         <span>Exporter Synthèse PDF</span>
                       </button>
 
+                      {onAddToWorkspace && (
+                        <button
+                          onClick={() => {
+                            onAddToWorkspace(
+                              `Synthèse Globale : ${parsedDocResult.fileName}`,
+                              `# Synthèse Globale du Document : ${parsedDocResult.fileName}\n\nPages : ${parsedDocResult.totalPages} | Mots : ${parsedDocResult.totalWords.toLocaleString()} | Chapitres : ${parsedDocResult.chapters.length}\n\n## Contenu\n${parsedDocResult.text.slice(0, 8000)}`
+                            );
+                          }}
+                          className="px-3.5 py-2.5 bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-500/50 text-emerald-300 font-bold text-xs font-mono uppercase tracking-wider rounded-xl transition-all shadow-lg flex items-center gap-1.5 cursor-pointer"
+                          title="Exporter le document vers Google Workspace (Docs/Drive)"
+                        >
+                          <Globe className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Workspace ↗</span>
+                        </button>
+                      )}
+
                       <button
-                        onClick={() => {
-                          setLessonTopic(parsedDocResult.fileName);
-                          setLessonContent(parsedDocResult.text.slice(0, 3000));
-                          setActiveTab('lesson');
-                        }}
-                        className="px-4 py-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-bold text-xs font-mono uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 cursor-pointer"
+                        onClick={() => runDeepDocumentAnalysis(parsedDocResult.text, parsedDocResult.fileName, 'lesson')}
+                        disabled={isDeepAnalyzing}
+                        className="px-3.5 py-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-bold text-xs font-mono uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 cursor-pointer"
+                        title="Générer une leçon socratique complète à partir du dossier"
                       >
                         <BookOpen className="w-3.5 h-3.5 text-violet-400" />
                         <span>Créer Leçon</span>
                       </button>
 
                       <button
-                        onClick={() => {
-                          setMindmapQuery(parsedDocResult.fileName.replace(/\.[^/.]+$/, ""));
-                          setActiveTab('mindmap');
-                        }}
-                        className="px-4 py-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-bold text-xs font-mono uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 cursor-pointer"
+                        onClick={() => runDeepDocumentAnalysis(parsedDocResult.text, parsedDocResult.fileName.replace(/\.[^/.]+$/, ""), 'mindmap')}
+                        disabled={isDeepAnalyzing}
+                        className="px-3.5 py-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-bold text-xs font-mono uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 cursor-pointer"
+                        title="Générer une carte mentale conceptuelle à partir du dossier"
                       >
                         <Network className="w-3.5 h-3.5 text-purple-400" />
                         <span>Créer Mindmap</span>
                       </button>
 
                       <button
-                        onClick={() => {
-                          setQuizTopic(parsedDocResult.fileName.replace(/\.[^/.]+$/, ""));
-                          setActiveTab('quiz');
-                        }}
-                        className="px-4 py-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-bold text-xs font-mono uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 cursor-pointer"
+                        onClick={() => runDeepDocumentAnalysis(parsedDocResult.text, parsedDocResult.fileName.replace(/\.[^/.]+$/, ""), 'quiz')}
+                        disabled={isDeepAnalyzing}
+                        className="px-3.5 py-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-bold text-xs font-mono uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 cursor-pointer"
+                        title="Générer un quiz QCM adaptatif à partir du dossier"
                       >
                         <Gamepad2 className="w-3.5 h-3.5 text-emerald-400" />
                         <span>Créer Quiz</span>
@@ -1889,6 +2265,22 @@ Ensure progressive difficulty (Easy, Intermediate, Advanced).`;
                                 <Download className="w-3.5 h-3.5" />
                                 <span>PDF Chapitre</span>
                               </button>
+
+                              {onAddToWorkspace && (
+                                <button
+                                  onClick={() => {
+                                    onAddToWorkspace(
+                                      `${activeChapter.title} - ${parsedDocResult.fileName}`,
+                                      `# ${activeChapter.title}\n\n**Source :** ${parsedDocResult.fileName} (Page ${activeChapter.pageNumber || 1})\n\n${activeChapter.content}`
+                                    );
+                                  }}
+                                  className="px-3 py-2 bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-500/50 text-emerald-300 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
+                                  title="Exporter ce chapitre vers Google Workspace"
+                                >
+                                  <Globe className="w-3.5 h-3.5 text-emerald-400" />
+                                  <span>Workspace ↗</span>
+                                </button>
+                              )}
                             </div>
                           </div>
 
@@ -2186,6 +2578,19 @@ Ensure progressive difficulty (Easy, Intermediate, Advanced).`;
                       {isExportingPdf ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                       <span>{isExportingPdf ? "Génération PDF..." : "Exporter en PDF 📄"}</span>
                     </button>
+
+                    {onAddToWorkspace && (
+                      <button
+                        onClick={() => {
+                          onAddToWorkspace(`Leçon : ${lessonTopic}`, lessonContent);
+                        }}
+                        className="w-full py-3 bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-500/50 text-emerald-300 font-bold text-[10px] uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg"
+                        title="Exporter la fiche de cours vers Google Workspace (Docs/Drive)"
+                      >
+                        <Globe className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Exporter vers Workspace ↗</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
@@ -2305,6 +2710,24 @@ Ensure progressive difficulty (Easy, Intermediate, Advanced).`;
 
               {/* Quick Socratic Prompt Shortcuts */}
               <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+                {chatDocument && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleSendChat(`Résume-moi en détail et de manière claire les points clés du document "${chatDocument.fileName}".`)}
+                      className="px-2.5 py-1.5 rounded-xl bg-violet-500/20 hover:bg-violet-500/30 border border-violet-500/40 text-violet-200 transition-all font-mono text-[11px] flex items-center gap-1.5 cursor-pointer whitespace-nowrap font-bold"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-violet-400" /> 📄 Résumer Document
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSendChat(`Lis et analyse les concepts clés du document "${chatDocument.fileName}" puis pose-moi une première question de réflexion.`)}
+                      className="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-200 transition-all font-mono text-[11px] flex items-center gap-1.5 cursor-pointer whitespace-nowrap font-bold"
+                    >
+                      <BookOpen className="w-3.5 h-3.5 text-emerald-400" /> 🔍 Analyser & Questionner
+                    </button>
+                  </>
+                )}
                 <button
                   type="button"
                   onClick={() => handleSendChat("Donne-moi un mini QCM pas à pas pour tester ma compréhension du concept actuel.")}
@@ -2731,6 +3154,27 @@ Ensure progressive difficulty (Easy, Intermediate, Advanced).`;
                     {isExportingPdf ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                     <span>Exporter en PDF 🗺️</span>
                   </button>
+
+                  {onAddToWorkspace && mindmapNodes.length > 0 && (
+                    <button
+                      onClick={() => {
+                        const mindmapText = `# Carte Mentale : ${mindmapQuery}\n\n## Nœuds Conceptuels\n` + 
+                          mindmapNodes.map(n => `- **${n.label}** (${n.category}) : ${n.details || 'N/A'}`).join('\n') +
+                          `\n\n## Liens Logiques\n` +
+                          mindmapEdges.map(e => {
+                            const from = mindmapNodes.find(n => n.id === e.from)?.label || e.from;
+                            const to = mindmapNodes.find(n => n.id === e.to)?.label || e.to;
+                            return `- ${from} ➔ ${to}`;
+                          }).join('\n');
+                        onAddToWorkspace(`Carte Mentale : ${mindmapQuery}`, mindmapText);
+                      }}
+                      className="w-full py-2.5 bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-500/50 text-emerald-300 font-bold text-xs uppercase tracking-widest rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+                      title="Exporter la structure de la carte mentale vers Google Workspace"
+                    >
+                      <Globe className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Workspace ↗</span>
+                    </button>
+                  )}
                 </div>
               </div>
 

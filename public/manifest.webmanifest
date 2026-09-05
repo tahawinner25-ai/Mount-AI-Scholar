@@ -1,7 +1,7 @@
 {
   "name": "Mount AI Scholar - Cognitive Accessibility Suite",
   "short_name": "Mount AI",
-  "description": "Moteur IA d'apprentissage et d'accessibilité cognitive pour la dyslexie, la surdité et les troubles d'apprentissage.",
+  "description": "Cognitive learning and accessibility engine for dyslexia, sign language, deafness, and neuroinclusive learning.",
   "id": "/",
   "start_url": "/",
   "scope": "/",
@@ -11,7 +11,7 @@
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
   "categories": ["education", "productivity", "accessibility"],
-  "lang": "fr-FR",
+  "lang": "en-US",
   "dir": "ltr",
   "prefer_related_applications": false,
   "icons": [
@@ -58,42 +58,42 @@
       "sizes": "1280x720",
       "type": "image/jpeg",
       "form_factor": "wide",
-      "label": "Hub d'apprentissage et prévisualisation de cours - Mount AI Scholar"
+      "label": "Learning Hub and Course Preview - Mount AI Scholar"
     },
     {
       "src": "/screenshots/mobile-phonemes.jpg",
       "sizes": "720x1280",
       "type": "image/jpeg",
       "form_factor": "narrow",
-      "label": "Orbite phonologique et analyse vocale en temps réel"
+      "label": "Phonological Orbit and Real-Time Voice Analysis"
     },
     {
       "src": "/screenshots/tutor-desktop.jpg",
       "sizes": "1280x720",
       "type": "image/jpeg",
       "form_factor": "wide",
-      "label": "Tuteur socratique intelligent et arène cognitive"
+      "label": "Intelligent Socratic Tutor and Cognitive Arena"
     }
   ],
   "shortcuts": [
     {
-      "name": "Scanner Langue des Signes (SL2T)",
+      "name": "Sign Language Scanner (SL2T)",
       "short_name": "SL2T",
-      "description": "Reconnaissance gestuelle MediaPipe par caméra",
+      "description": "MediaPipe gesture recognition via camera",
       "url": "/?view=sl2t",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
-      "name": "Accessibilité Dyslexie & Phonèmes",
-      "short_name": "Dyslexie",
-      "description": "Orbite phonologique et correction temps réel",
+      "name": "Dyslexia & Phoneme Accessibility",
+      "short_name": "Dyslexia",
+      "description": "Phonological orbit and real-time correction",
       "url": "/?view=dyslexia",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
-      "name": "Tuteur Socratique & Grand Document",
-      "short_name": "Tuteur IA",
-      "description": "Assistant socratique et synthèse cognitive",
+      "name": "Socratic Tutor & Long Document",
+      "short_name": "AI Tutor",
+      "description": "Socratic assistant and cognitive synthesis",
       "url": "/?view=mentora",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }

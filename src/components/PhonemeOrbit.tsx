@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Orbit, Compass, Mic, Volume2, Sparkles, Send, Loader2, AlertTriangle, ArrowLeft, RefreshCw, Trophy, HelpCircle, Shield, Layers, HelpCircle as HelpIcon, Play, Radio, VolumeX } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { addHistoryItem } from '../services/historyService';
+
 
 interface PhonemeOrbitProps {
   user: any;
@@ -274,7 +276,29 @@ export default function PhonemeOrbit({ user, onBack, selectedLang }: PhonemeOrbi
     setSimulatedPronunciation("");
     setErrorLogs([]);
     setActiveAccentId(null);
-  }, [selectedPresetIdx]);
+
+    // Sauvegarde unifiée dans l'Historique
+    try {
+      const currentUser = user || { isGuest: true, uid: 'guest_1337' };
+      addHistoryItem(currentUser, {
+        type: 'orbit',
+        fileExtension: '.orbit',
+        title: `Orbite Phonétique - ${currentPreset.word}`,
+        mode: 'phoneme_orbit',
+        language: currentPreset.lang || 'French',
+        originalText: `Modèle orbital phonologique : ${currentPreset.word} (${currentPreset.ipa}) • ${currentPreset.description}`,
+        generatedContent: `Structure phonologique décortiquée en ${currentPreset.phonemes.length} satellites : ${currentPreset.phonemes.map(p => `${p.char} [${p.ipa}]`).join(', ')}. Calibrage acoustique : ${currentPreset.family || 'universal'}.`,
+        metadata: {
+          word: currentPreset.word,
+          ipa: currentPreset.ipa,
+          phonemes: currentPreset.phonemes.map(p => p.ipa),
+          tags: ['Orbite', 'Phonétique', currentPreset.lang]
+        }
+      });
+    } catch (err) {
+      console.warn("Échec d'enregistrement de l'orbite dans l'historique :", err);
+    }
+  }, [selectedPresetIdx, user]);
 
   // Handle custom word generation via GPT 5.6
   const handleCustomWordCompile = async () => {
@@ -466,7 +490,7 @@ Return ONLY a valid JSON object matching this structure (do not wrap in markdown
     const activePreset = PRESET_WORDS[selectedPresetIdx];
     
     try {
-      setErrorLogs(prev => [...prev, `⚡ Sending signal to GPT 5.6 Phonetic Evaluator...`]);
+      setErrorLogs(prev => [...prev, `⚡ Sending signal to Gemini Phonetic Evaluator...`]);
       const response = await fetch('/api/superviseur-phonologique', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -482,7 +506,7 @@ Return ONLY a valid JSON object matching this structure (do not wrap in markdown
         setAnalysisResult(data);
         setErrorLogs(prev => [
           ...prev, 
-          `✅ GPT 5.6 Analysis: Levenshtein distance ${data.distanceLeven}, Syllable score ${data.scoreSyllabique}%`,
+          `✅ Gemini Analysis: Levenshtein distance ${data.distanceLeven}, Syllable score ${data.scoreSyllabique}%`,
           `🧬 Phonetic deviation flagged: ${data.analyse.typeErreur || "None"}`
         ]);
 
@@ -568,7 +592,7 @@ Return ONLY a valid JSON object matching this structure (do not wrap in markdown
         const errData = await response.json().catch(() => ({ error: 'Unknown error' }));
         const isQuota = JSON.stringify(errData).includes("quota") || JSON.stringify(errData).includes("429");
         if (isQuota) {
-          setErrorLogs(prev => [...prev, `⏳ Quota GPT 5.6 Voice dépassé (3 req/min max). Activation automatique du moteur local Edge Speech.`]);
+          setErrorLogs(prev => [...prev, `⏳ Quota Gemini Voice dépassé (3 req/min max). Activation automatique du moteur local Edge Speech.`]);
         } else {
           setErrorLogs(prev => [...prev, `⚠️ TTS API Error: ${errData.error || response.statusText}. Passage au moteur local.`]);
         }
@@ -625,7 +649,7 @@ Return ONLY a valid JSON object matching this structure (do not wrap in markdown
         const errData = await response.json().catch(() => ({ error: 'Unknown error' }));
         const isQuota = JSON.stringify(errData).includes("quota") || JSON.stringify(errData).includes("429");
         if (isQuota) {
-          setErrorLogs(prev => [...prev, `⏳ Quota GPT 5.6 Voice dépassé (3 req/min max). Synthèse d'accent émulée localement.`]);
+          setErrorLogs(prev => [...prev, `⏳ Quota Gemini Voice dépassé (3 req/min max). Synthèse d'accent émulée localement.`]);
         } else {
           setErrorLogs(prev => [...prev, `⚠️ Accent API Error: ${errData.error || response.statusText}. Inférence locale.`]);
         }
@@ -684,7 +708,7 @@ Return ONLY a valid JSON object matching this structure (do not wrap in markdown
         const errData = await response.json().catch(() => ({ error: 'Unknown error' }));
         const isQuota = JSON.stringify(errData).includes("quota") || JSON.stringify(errData).includes("429");
         if (isQuota) {
-          setErrorLogs(prev => [...prev, `⏳ Quota GPT 5.6 Voice dépassé pour le phonème. Émulation locale du son [${ipa}].`]);
+          setErrorLogs(prev => [...prev, `⏳ Quota Gemini Voice dépassé pour le phonème. Émulation locale du son [${ipa}].`]);
         }
       }
     } catch (err) {
@@ -975,7 +999,7 @@ Return ONLY a valid JSON object matching this structure (do not wrap in markdown
                       onClick={() => handleSpeakPhoneme(node.char, node.ipa)}
                       disabled={isSpeakingTts}
                       className={`w-11 h-11 rounded-full border flex flex-col items-center justify-center font-bold relative z-10 transition-all duration-300 group/node cursor-pointer disabled:opacity-50 ${borderClass} hover:scale-110 active:scale-95`}
-                      title={`Click to hear phoneme "${node.char}" [${node.ipa}] pronounced by GPT 5.6`}
+                      title={`Click to hear phoneme "${node.char}" [${node.ipa}] pronounced by Gemini`}
                     >
                       <span className="text-xs uppercase tracking-tight font-black leading-none group-hover/node:text-indigo-300 transition-colors">{node.char}</span>
                       <span className="text-[8px] font-mono mt-0.5 font-medium leading-none group-hover/node:text-indigo-400 transition-colors">{node.ipa}</span>
@@ -1118,13 +1142,13 @@ Return ONLY a valid JSON object matching this structure (do not wrap in markdown
             </div>
           </div>
 
-          {/* GPT 5.6 Orthophonic Insights (Adaptive Flight Plan) */}
+          {/* Gemini Orthophonic Insights (Adaptive Flight Plan) */}
           <div className="bg-[#0b0f19]/80 backdrop-blur-xl rounded-[2.5rem] border border-slate-800/80 p-8 flex flex-col gap-6 shadow-2xl flex-1 justify-between">
             <div>
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className="text-sm font-black text-white uppercase tracking-wider mb-1">🌌 Cognitive Flight Plan</h3>
-                  <p className="text-[10px] text-slate-500 font-mono uppercase">GPT 5.6 Orbital Analysis Logs</p>
+                  <p className="text-[10px] text-slate-500 font-mono uppercase">Gemini Orbital Analysis Logs</p>
                 </div>
                 
                 {analysisResult && (
@@ -1132,7 +1156,7 @@ Return ONLY a valid JSON object matching this structure (do not wrap in markdown
                     onClick={() => handleSpeakWord(analysisResult.conseilCognitif || "")}
                     disabled={isSpeakingTts}
                     className="p-2 bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20 rounded-xl transition-colors shrink-0"
-                    title="Speak Cognitive Advice with GPT 5.6 Voice"
+                    title="Speak Cognitive Advice with Gemini Voice"
                   >
                     {isSpeakingTts ? <Loader2 className="w-4 h-4 animate-spin" /> : <Volume2 className="w-4 h-4" />}
                   </button>
@@ -1235,7 +1259,7 @@ Return ONLY a valid JSON object matching this structure (do not wrap in markdown
 
               <div className="space-y-4">
                 <p className="text-xs text-slate-400 leading-relaxed font-sans">
-                  Enter a word with high linguistic or speech-pathology difficulty. GPT 5.6 will instantly decompose it into phonetic IPA satellites and configure its orbital gravity field.
+                  Enter a word with high linguistic or speech-pathology difficulty. Gemini will instantly decompose it into phonetic IPA satellites and configure its orbital gravity field.
                 </p>
                 
                 <div>

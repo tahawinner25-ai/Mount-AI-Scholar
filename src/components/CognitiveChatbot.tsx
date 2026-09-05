@@ -7,6 +7,10 @@ import {
 } from 'lucide-react';
 import Markdown from 'react-markdown';
 import Mermaid from './Mermaid';
+import { addHistoryItem } from '../services/historyService';
+import { auth } from '../services/firebase';
+import { generateLocalCognitiveResponse } from '../services/cognitiveFallback';
+
 
 interface GroundedSource {
   title: string;
@@ -105,10 +109,10 @@ const TRANSLATIONS: Record<string, {
   mindmapIntro: (topic: string) => string;
 }> = {
   French: {
-    title: "Chatbot Cognitif & Moteur de Connaissances Google",
-    subtitle: "Intelligence conversationnelle unifiée • Résumés • Quiz interactifs • Cartes mentales",
-    welcome: `Bonjour Capitaine ! Je suis ton **Chatbot Cognitif Intégré & Augmenté par Google Search**.\n\nTape le nom d'un livre (ex: **"Le Horla"**), d'un chapitre (ex: **"Vecteurs"**), ou n'importe quel sujet de cours. Je chercherai en direct sur Google et je pourrai te générer des **Résumés**, **Quiz Interactifs** et **Cartes Mentales** directement intégrés dans notre fil de discussion !`,
-    quickTopicsTitle: "Sujets Rapides :",
+    title: "Chatbot & Assistant Google Search",
+    subtitle: "Conversations naturelles • 5 sources explorées • Résumés • Quiz • Mindmaps",
+    welcome: `Salut Capitaine ! 🚀 Je suis ton assistant d'apprentissage intelligent connecté à **Google Search**.\n\nPose-moi n'importe quelle question sur un livre (ex: **"Le Horla"**), une notion de cours (ex: **"Les Vecteurs"**), ou un sujet d'actualité. J'explore systématiquement **5 sites de référence en direct** pour te répondre simplement, et je peux aussi te générer des **Résumés**, des **Quiz** et des **Cartes Mentales** en un clic !`,
+    quickTopicsTitle: "Idées de recherche :",
     presetTopics: [
       { label: "📖 Le Horla (Maupassant)", query: "Le Horla de Guy de Maupassant" },
       { label: "📐 Vecteurs (Mathématiques)", query: "Vecteurs mathématiques et physique" },
@@ -116,35 +120,35 @@ const TRANSLATIONS: Record<string, {
       { label: "⚛️ Physique Quantique", query: "Principes de la physique quantique" },
       { label: "🌍 Révolution Industrielle", query: "La Révolution Industrielle du XIXe siècle" }
     ],
-    placeholder: "Posez n'importe quelle question ('Le Horla', 'Vecteurs', 'Théorème de Pythagore')...",
+    placeholder: "Pose ta question ('Le Horla', 'Vecteurs', 'Théorème de Pythagore')...",
     send: "Envoyer",
     userLabel: "👤 Capitaine",
-    botLabel: "Google Search Assistant",
-    sourcesLabel: "Sources certifiées Google Search",
-    actionSummary: "📄 Résumé Détaillé",
-    actionQuiz: "🎯 Générer Quiz",
+    botLabel: "Mentora AI (Google Search)",
+    sourcesLabel: "5 Sources explorées sur le Web",
+    actionSummary: "📄 Fiche de Résumé",
+    actionQuiz: "🎯 Super Quiz (5 questions)",
     actionMindmap: "🗺️ Carte Mentale",
     quizTitle: "Quiz Interactif (5 Questions)",
     quizScore: "Score :",
     quizValidate: "Valider mes réponses",
     quizExplanation: "Explication :",
     mindmapTitle: "Carte Mentale :",
-    tip: "💡 Astuce : Demandez directement 'Résumé de...', 'Quiz sur...', ou 'Carte mentale de...'",
+    tip: "💡 Astuce : Demande directement 'Résumé de...', 'Quiz sur...', ou 'Carte mentale de...'",
     historyTitle: "Historique des Discussions",
     newChat: "Nouveau Chat",
     clearHistory: "Effacer L'Historique",
     savedSessions: "Sessions Enregistrées",
     noHistory: "Aucune discussion enregistrée pour le moment.",
-    loadingSearch: "Recherche en direct sur Google Search en cours...",
-    loadingSummary: "Rédaction du Résumé Détaillé Google Search...",
-    loadingQuiz: "Génération du Quiz Google Search...",
-    loadingMindmap: "Construction de la Carte Mentale...",
-    errorMsg: (q) => `Désolé Capitaine, une erreur s'est produite lors de la recherche Google pour **"${q}"**. Veuillez réanalyser ou vérifier la connexion.`,
-    summaryPrompt: (topic) => `📄 Donne-moi un résumé complet et structuré de : "${topic}"`,
-    quizPrompt: (topic) => `🎯 Génère un Quiz interactif de 5 questions sur : "${topic}"`,
+    loadingSearch: "Recherche en direct sur 5 sites via Google Search...",
+    loadingSummary: "Rédaction de ta Fiche de Résumé détaillée...",
+    loadingQuiz: "Génération de ton Quiz interactif...",
+    loadingMindmap: "Construction de ta Carte Mentale visuelle...",
+    errorMsg: (q) => `Oups, une petite coupure est survenue lors de la recherche sur Google pour **"${q}"**. On relance ?`,
+    summaryPrompt: (topic) => `📄 Donne-moi un super résumé complet et clair de : "${topic}"`,
+    quizPrompt: (topic) => `🎯 Fais-moi un Quiz interactif de 5 questions sur : "${topic}"`,
     mindmapPrompt: (topic) => `🗺️ Génère une Carte Mentale (Mindmap) visuelle sur : "${topic}"`,
-    quizIntro: (topic) => `Voici ton **Quiz d'évaluation interactif** sur **"${topic}"** basé sur les résultats Google Search en direct. Teste tes connaissances ci-dessous !`,
-    mindmapIntro: (topic) => `Voici la **Carte Mentale & Cartographie Neurale** pour **"${topic}"** issue de la recherche Google en direct.`
+    quizIntro: (topic) => `Voici ton **Quiz interactif** sur **"${topic}"** créé à partir des 5 sources trouvées sur Google. À toi de jouer !`,
+    mindmapIntro: (topic) => `Voici ta **Carte Mentale** sur **"${topic}"** basée sur les 5 sources Google.`
   },
   English: {
     title: "Cognitive Chatbot & Google Knowledge Engine",
@@ -468,18 +472,20 @@ export default function CognitiveChatbot({
       });
 
       if (!response.ok) {
-        throw new Error(`API returned HTTP status ${response.status}`);
+        console.warn(`[CognitiveChatbot] API returned HTTP ${response.status}, switching to local cognitive engine.`);
+        return generateLocalCognitiveResponse(queryText, mode, currentLang);
       }
 
       const data = await response.json();
-      if (!data.success) {
-        throw new Error(data.error || "Query failed");
+      if (!data || !data.success) {
+        console.warn("[CognitiveChatbot] API response non-success, using local fallback.");
+        return generateLocalCognitiveResponse(queryText, mode, currentLang);
       }
 
       return data;
     } catch (err) {
-      console.error("API Query error:", err);
-      throw err;
+      console.warn("[CognitiveChatbot] Network/API error, engaging high-speed local cognitive synthesizer:", err);
+      return generateLocalCognitiveResponse(queryText, mode, currentLang);
     } finally {
       setLoading(false);
       setLoadingAction(null);
@@ -554,7 +560,48 @@ export default function CognitiveChatbot({
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
 
-      setMessages(prev => [...prev, assistantMsg]);
+      setMessages(prev => {
+        const next = [...prev, assistantMsg];
+        
+        // Sauvegarde unifiée dans l'Historique global de l'application
+        try {
+          const currentUser = auth.currentUser || { isGuest: true, uid: 'guest_1337' };
+          let itemType: 'chat' | 'quiz' | 'mindmap' | 'summary' = 'chat';
+          let extension: '.chat' | '.quiz' | '.map' | '.pdf' = '.chat';
+
+          if (parsedQuiz) {
+            itemType = 'quiz';
+            extension = '.quiz';
+          } else if (parsedMindmap) {
+            itemType = 'mindmap';
+            extension = '.map';
+          } else if (mode === 'summary') {
+            itemType = 'summary';
+            extension = '.pdf';
+          }
+
+          addHistoryItem(currentUser, {
+            type: itemType,
+            fileExtension: extension,
+            title: `${effectiveTopic.substring(0, 40)}`,
+            mode,
+            language: currentLang,
+            originalText: userPromptText,
+            generatedContent: responseText,
+            metadata: {
+              chatSessionId: activeSessionId || `session_${Date.now()}`,
+              chatMessages: next,
+              quizQuestions: parsedQuiz,
+              mindmapData: parsedMindmap,
+              tags: ['Chatbot', mode, currentLang]
+            }
+          });
+        } catch (histErr) {
+          console.warn("Échec de l'enregistrement dans l'historique universel :", histErr);
+        }
+
+        return next;
+      });
 
       // Initialize quiz state if present
       if (parsedQuiz) {

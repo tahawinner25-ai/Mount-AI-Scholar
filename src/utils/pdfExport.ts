@@ -156,8 +156,10 @@ const COMMON_PDF_STYLES = `
   color: #0f172a;
   background-color: #ffffff;
   width: 780px;
+  min-height: 400px;
   padding: 32px 36px;
-  margin: 0 auto;
+  box-sizing: border-box;
+  margin: 0;
   line-height: 1.5;
 `;
 
@@ -171,7 +173,7 @@ const HEADER_TEMPLATE = (title: string, badge: string, subtitle?: string) => `
         ${title}
       </h1>
       <p style="font-size: 10px; color: #64748b; margin-top: 4px; margin-bottom: 0;">
-        ${subtitle || `Généré le ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })} • Mount AI Scholar Core`}
+        ${subtitle || `Généré le ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })} • Mount AI Scholar Core (Gemini AI)`}
       </p>
     </div>
     <div style="background: #f8fafc; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 8px; text-align: right; min-width: 140px;">
@@ -183,24 +185,34 @@ const HEADER_TEMPLATE = (title: string, badge: string, subtitle?: string) => `
 
 const FOOTER_TEMPLATE = () => `
   <div style="margin-top: 24px; border-top: 1px solid #e2e8f0; padding-top: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 9px; color: #94a3b8; font-family: monospace;">
-    <span>Mount AI Scholar • Moteur Cognitif & Écosystème d'Étude</span>
+    <span>Mount AI Scholar • Moteur Cognitif & Écosystème d'Étude (Gemini AI)</span>
     <span>Page Document d'Apprentissage • Imprimable</span>
   </div>
 `;
+
+/**
+ * Helper to prepare a visible off-screen rendering element for html2canvas
+ */
+function createRenderContainer(htmlContent: string, customWidth?: string): HTMLDivElement {
+  const container = document.createElement('div');
+  // Use left: -10000px and top: 0 with opacity: 1 and visibility: visible so html2canvas renders all text & layout properly without producing blank canvas
+  container.setAttribute('style', `position: absolute; left: -10000px; top: 0; z-index: -9999; visibility: visible; opacity: 1; pointer-events: none; ${COMMON_PDF_STYLES} ${customWidth ? `width: ${customWidth};` : ''}`);
+  container.innerHTML = htmlContent;
+  document.body.appendChild(container);
+  return container;
+}
 
 /**
  * Standard General PDF exporter with automatic vector fallback
  */
 export async function downloadPdfDocument(title: string, content: string, badge?: string) {
   const safeContent = content || 'Document sans contenu textuel spécifique.';
-  const container = document.createElement('div');
-  container.setAttribute('style', `position: fixed; left: 0; top: 0; z-index: -9999; opacity: 0; pointer-events: none; ${COMMON_PDF_STYLES}`);
 
   const formattedContent = safeContent
     .replace(/\n\n+/g, '</p><p style="margin-bottom: 12px; font-size: 12px; line-height: 1.6; color: #334155;">')
     .replace(/\n/g, '<br/>');
 
-  container.innerHTML = `
+  const html = `
     ${HEADER_TEMPLATE(title, badge || 'MOUNT AI SCHOLAR • RAPPORT D\'ÉTUDE')}
     
     <div style="font-size: 12px; line-height: 1.65; color: #334155; background: #f8fafc; padding: 18px; border-radius: 10px; border: 1px solid #e2e8f0; margin-bottom: 16px;">
@@ -212,21 +224,20 @@ export async function downloadPdfDocument(title: string, content: string, badge?
     ${FOOTER_TEMPLATE()}
   `;
 
-  document.body.appendChild(container);
+  const container = createRenderContainer(html);
 
   try {
     const opt = {
       margin: [0.35, 0.4, 0.35, 0.4],
       filename: `${title.replace(/[^a-zA-Z0-9_\-]/g, '_')}_Mount_AI.pdf`,
       image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false },
+      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, scrollY: 0, scrollX: 0 },
       jsPDF: { unit: 'in' as const, format: 'a4' as const, orientation: 'portrait' as const }
     };
 
     await html2pdf().set(opt).from(container).save();
   } catch (err) {
     console.warn("[PDF EXPORT] html2pdf failed, switching to vector jsPDF engine:", err);
-    // Fallback: 100% resilient jsPDF generation
     const lines = safeContent.split('\n').filter(l => l.trim().length > 0);
     downloadPdfDirectVector(title, [{ heading: 'Contenu du Document', lines }], badge || 'MOUNT AI SCHOLAR');
   } finally {
@@ -240,9 +251,6 @@ export async function downloadPdfDocument(title: string, content: string, badge?
  * Export Learning Summary & Revision Sheet to a clean, highly structured PDF
  */
 export async function exportSummaryToPdf(data: SummaryExportData) {
-  const container = document.createElement('div');
-  container.setAttribute('style', `position: fixed; left: 0; top: 0; z-index: -9999; opacity: 0; pointer-events: none; ${COMMON_PDF_STYLES}`);
-
   const keyPointsHtml = data.keyPoints && data.keyPoints.length > 0 ? `
     <div style="margin-bottom: 16px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px 16px;">
       <div style="font-size: 11px; font-weight: 800; color: #1d4ed8; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">
@@ -260,7 +268,7 @@ export async function exportSummaryToPdf(data: SummaryExportData) {
     .map(p => `<p style="margin-bottom: 10px; font-size: 11.5px; line-height: 1.6; color: #1e293b;">${p.replace(/\n/g, '<br/>')}</p>`)
     .join('');
 
-  container.innerHTML = `
+  const html = `
     ${HEADER_TEMPLATE(data.title, data.badge || 'FICHE DE SYNTHÈSE & RÉVISION', data.sourceDoc ? `Document Source : ${data.sourceDoc}` : undefined)}
     
     ${keyPointsHtml}
@@ -277,14 +285,14 @@ export async function exportSummaryToPdf(data: SummaryExportData) {
     ${FOOTER_TEMPLATE()}
   `;
 
-  document.body.appendChild(container);
+  const container = createRenderContainer(html);
 
   try {
     const opt = {
       margin: [0.35, 0.4, 0.35, 0.4],
       filename: `Synthese_${data.title.replace(/[^a-zA-Z0-9_\-]/g, '_')}.pdf`,
       image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false },
+      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, scrollY: 0, scrollX: 0 },
       jsPDF: { unit: 'in' as const, format: 'a4' as const, orientation: 'portrait' as const }
     };
 
@@ -309,9 +317,6 @@ export async function exportSummaryToPdf(data: SummaryExportData) {
  * Export Mindmap / Concept Network to a clean printable PDF
  */
 export async function exportMindmapToPdf(data: MindmapExportData) {
-  const container = document.createElement('div');
-  container.setAttribute('style', `position: fixed; left: 0; top: 0; z-index: -9999; opacity: 0; pointer-events: none; ${COMMON_PDF_STYLES} width: 840px;`);
-
   // Build branch cards or node list
   let branchesHtml = '';
 
@@ -374,7 +379,7 @@ export async function exportMindmapToPdf(data: MindmapExportData) {
     `;
   }
 
-  container.innerHTML = `
+  const html = `
     ${HEADER_TEMPLATE(data.title, data.badge || 'CARTE MENTALE & RÉSEAU DE CONCEPTS', `Sujet Central : ${data.root || data.title}`)}
 
     ${branchesHtml}
@@ -382,14 +387,14 @@ export async function exportMindmapToPdf(data: MindmapExportData) {
     ${FOOTER_TEMPLATE()}
   `;
 
-  document.body.appendChild(container);
+  const container = createRenderContainer(html, '840px');
 
   try {
     const opt = {
       margin: [0.35, 0.4, 0.35, 0.4],
       filename: `Carte_Mentale_${data.title.replace(/[^a-zA-Z0-9_\-]/g, '_')}.pdf`,
       image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false },
+      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, scrollY: 0, scrollX: 0 },
       jsPDF: { unit: 'in' as const, format: 'a4' as const, orientation: 'portrait' as const }
     };
 
@@ -423,9 +428,6 @@ export async function exportMindmapToPdf(data: MindmapExportData) {
  * Export Adaptive Quiz & Correction Sheet to a printable PDF
  */
 export async function exportQuizToPdf(data: QuizExportData) {
-  const container = document.createElement('div');
-  container.setAttribute('style', `position: fixed; left: 0; top: 0; z-index: -9999; opacity: 0; pointer-events: none; ${COMMON_PDF_STYLES}`);
-
   const questionsHtml = data.questions.map((q, idx) => {
     const qText = q.question || q.text || `Question ${idx + 1}`;
     const ansKey = q.answer || q.correctAnswer || '';
@@ -457,8 +459,8 @@ export async function exportQuizToPdf(data: QuizExportData) {
     `;
   }).join('');
 
-  container.innerHTML = `
-    ${HEADER_TEMPLATE(data.title, data.badge || 'ÉVALUATION & QUIZ ADAPTATIF', data.score !== undefined && data.total !== undefined ? `Score : ${data.score}/${data.total} (${Math.round((data.score / data.total) * 100)}%) • Évaluation Mount AI` : `Sujet : ${data.topic || data.title}`)}
+  const html = `
+    ${HEADER_TEMPLATE(data.title, data.badge || 'ÉVALUATION & QUIZ ADAPTATIF', data.score !== undefined && data.total !== undefined ? `Score : ${data.score}/${data.total} (${Math.round((data.score / data.total) * 100)}%) • Évaluation Mount AI (Gemini AI)` : `Sujet : ${data.topic || data.title}`)}
 
     <div style="margin-bottom: 16px;">
       ${questionsHtml}
@@ -467,14 +469,14 @@ export async function exportQuizToPdf(data: QuizExportData) {
     ${FOOTER_TEMPLATE()}
   `;
 
-  document.body.appendChild(container);
+  const container = createRenderContainer(html);
 
   try {
     const opt = {
       margin: [0.35, 0.4, 0.35, 0.4],
       filename: `Quiz_${data.title.replace(/[^a-zA-Z0-9_\-]/g, '_')}.pdf`,
       image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false },
+      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, scrollY: 0, scrollX: 0 },
       jsPDF: { unit: 'in' as const, format: 'a4' as const, orientation: 'portrait' as const }
     };
 
@@ -507,14 +509,11 @@ export async function exportQuizToPdf(data: QuizExportData) {
 export async function generatePdfBlob(title: string, content: string, badge?: string): Promise<Blob> {
   const safeContent = content || 'Contenu du document';
   try {
-    const container = document.createElement('div');
-    container.setAttribute('style', `position: fixed; left: 0; top: 0; z-index: -9999; opacity: 0; pointer-events: none; ${COMMON_PDF_STYLES}`);
-
     const formattedContent = safeContent
       .replace(/\n\n+/g, '</p><p style="margin-bottom: 12px; font-size: 12px; line-height: 1.6; color: #334155;">')
       .replace(/\n/g, '<br/>');
 
-    container.innerHTML = `
+    const html = `
       ${HEADER_TEMPLATE(title, badge || 'MOUNT AI SCHOLAR • WORKSPACE DOCUMENT')}
       
       <div style="font-size: 12px; line-height: 1.65; color: #334155; background: #f8fafc; padding: 18px; border-radius: 10px; border: 1px solid #e2e8f0; margin-bottom: 16px;">
@@ -526,14 +525,14 @@ export async function generatePdfBlob(title: string, content: string, badge?: st
       ${FOOTER_TEMPLATE()}
     `;
 
-    document.body.appendChild(container);
+    const container = createRenderContainer(html);
 
     try {
       const opt = {
         margin: [0.35, 0.4, 0.35, 0.4],
         filename: `${title.replace(/[^a-zA-Z0-9_\-]/g, '_')}.pdf`,
         image: { type: 'jpeg' as const, quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, scrollY: 0, scrollX: 0 },
         jsPDF: { unit: 'in' as const, format: 'a4' as const, orientation: 'portrait' as const }
       };
 

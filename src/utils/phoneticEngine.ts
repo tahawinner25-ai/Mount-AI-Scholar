@@ -8,6 +8,50 @@ export interface LocalWordDefinition {
   phoneticCode: string;
 }
 
+// Comprehensive dictionary of common English words with spelling difficulties
+export const ENGLISH_DICTIONARY: LocalWordDefinition[] = [
+  { word: "scholar", meaning: "A specialist in a particular branch of study; a distinguished learner.", example: "The scholar analyzed the historical manuscript with diligence.", phoneticCode: "" },
+  { word: "education", meaning: "The process of receiving or giving systematic instruction.", example: "Quality education empowers every young mind.", phoneticCode: "" },
+  { word: "knowledge", meaning: "Facts, information, and skills acquired through experience or education.", example: "Reading books expands your foundational knowledge.", phoneticCode: "" },
+  { word: "technology", meaning: "The application of scientific knowledge for practical purposes.", example: "Modern technology creates new opportunities for accessible learning.", phoneticCode: "" },
+  { word: "spectacular", meaning: "Beautiful in a dramatic and eye-catching way.", example: "The sunset over the horizon was spectacular.", phoneticCode: "" },
+  { word: "obstacle", meaning: "A thing that blocks one's way or hinders progress.", example: "With perseverance, any obstacle can be overcome.", phoneticCode: "" },
+  { word: "dyslexia", meaning: "A learning difficulty that primarily affects reading and spelling.", example: "Assistive technology makes reading accessible for people with dyslexia.", phoneticCode: "" },
+  { word: "intelligence", meaning: "The ability to acquire and apply knowledge and skills.", example: "Artificial intelligence enhances human capabilities.", phoneticCode: "" },
+  { word: "cognitive", meaning: "Relating to conscious intellectual activity such as thinking or reasoning.", example: "Cognitive exercises strengthen memory and focus.", phoneticCode: "" },
+  { word: "algorithm", meaning: "A process or set of rules to be followed in calculations or problem-solving.", example: "The search algorithm computes answers in milliseconds.", phoneticCode: "" },
+  { word: "accessibility", meaning: "The quality of being easily reached, used, or understood by everyone.", example: "Digital accessibility is a fundamental human right.", phoneticCode: "" },
+  { word: "phoneme", meaning: "Any of the distinct units of sound that distinguish one word from another.", example: "A phoneme is the basic sound building block of spoken language.", phoneticCode: "" },
+  { word: "grapheme", meaning: "The smallest meaningful contrastive unit in a writing system.", example: "The letters 'sh' represent a single phoneme with a two-letter grapheme.", phoneticCode: "" },
+  { word: "computer", meaning: "An electronic device for storing and processing data.", example: "He writes code directly on his laptop computer.", phoneticCode: "" },
+  { word: "science", meaning: "The systematic study of the physical and natural world through observation.", example: "Curiosity is the driving force behind modern science.", phoneticCode: "" },
+  { word: "language", meaning: "A system of communication used by a particular community or country.", example: "English is spoken by millions of people across the globe.", phoneticCode: "" },
+  { word: "vocabulary", meaning: "The body of words used in a particular language.", example: "Daily reading steadily increases your vocabulary.", phoneticCode: "" },
+  { word: "sentence", meaning: "A set of words that is complete in itself, conveying a statement or question.", example: "She wrote a clear and elegant sentence.", phoneticCode: "" },
+  { word: "paragraph", meaning: "A distinct section of a piece of writing dealing with a single theme.", example: "Each paragraph begins with a clear topic sentence.", phoneticCode: "" },
+  { word: "message", meaning: "A verbal, written, or recorded communication sent to someone.", example: "He received a congratulatory message from his mentor.", phoneticCode: "" },
+  { word: "practice", meaning: "Perform an activity repeatedly to improve proficiency.", example: "Daily practice leads to mastery in coding.", phoneticCode: "" },
+  { word: "learning", meaning: "The acquisition of knowledge or skills through experience or study.", example: "Lifelong learning keeps the mind curious and sharp.", phoneticCode: "" },
+  { word: "memory", meaning: "The faculty by which the mind stores and remembers information.", example: "Spaced repetition helps transfer facts into long-term memory.", phoneticCode: "" },
+  { word: "attention", meaning: "Notice taken of someone or something; the regarding of someone as interesting.", example: "Focusing your attention enables deep work.", phoneticCode: "" },
+  { word: "solution", meaning: "A means of solving a problem or dealing with a difficult situation.", example: "They engineered an innovative software solution.", phoneticCode: "" },
+  { word: "question", meaning: "A sentence worded to elicit information.", example: "Asking the right question is the beginning of wisdom.", phoneticCode: "" },
+  { word: "answer", meaning: "A thing said, written, or done to deal with a question or problem.", example: "The Socratic tutor helped him deduce the answer.", phoneticCode: "" },
+  { word: "research", meaning: "The systematic investigation into and study of materials and sources.", example: "Deep research leads to scientific breakthroughs.", phoneticCode: "" },
+  { word: "summary", meaning: "A brief statement or account of the main points of something.", example: "The dashboard generated an executive summary of the lecture.", phoneticCode: "" },
+  { word: "workspace", meaning: "An area allocated for work or study.", example: "He organized his Google Workspace for maximum productivity.", phoneticCode: "" },
+  { word: "classroom", meaning: "A room in which a class of pupils or students is taught.", example: "Digital tools bring interactive learning into every classroom.", phoneticCode: "" },
+  { word: "calendar", meaning: "A chart or page showing the days, weeks, and months of a year.", example: "Schedule your study blocks directly on the calendar.", phoneticCode: "" },
+  { word: "connection", meaning: "A relationship in which a person, thing, or idea is linked to another.", example: "The offline cache keeps the app functional with no internet connection.", phoneticCode: "" },
+  { word: "presentation", meaning: "A speech or talk in which a new product or idea is shown to an audience.", example: "He delivered a captivating presentation at Devoxx.", phoneticCode: "" },
+  { word: "achievement", meaning: "A thing done successfully with effort, skill, or courage.", example: "Winning the Kaggle hackathon was a proud achievement.", phoneticCode: "" },
+  { word: "progress", meaning: "Forward or onward movement toward a destination or goal.", example: "Tracking daily progress motivates consistent effort.", phoneticCode: "" },
+  { word: "exercise", meaning: "An activity carried out for learning or physical training.", example: "Saccadic exercises reduce reading fatigue.", phoneticCode: "" },
+  { word: "pronunciation", meaning: "The manner in which a word is spoken.", example: "Listen to the audio guide to refine your pronunciation.", phoneticCode: "" },
+  { word: "opportunity", meaning: "A set of circumstances that makes it possible to do something.", example: "Every challenge brings a valuable opportunity to learn.", phoneticCode: "" },
+  { word: "environment", meaning: "The surroundings or conditions in which a person or machine operates.", example: "A quiet study environment fosters concentration.", phoneticCode: "" }
+];
+
 // Comprehensive dictionary of common French words with spelling difficulties
 export const FRENCH_DICTIONARY: LocalWordDefinition[] = [
   { word: "spectacle", meaning: "Représentation théâtrale, de cirque ou artistique.", example: "Nous allons voir un magnifique spectacle ce soir.", phoneticCode: "" },
@@ -144,6 +188,59 @@ export function getLevenshteinDistance(a: string, b: string): number {
   return tmp[a.length][b.length];
 }
 
+// Convert word to simplified phonetic English representation
+export function getPhoneticCodeEnglish(word: string): string {
+  let s = word.toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+
+  if (!s) return "";
+
+  // 1. Silent starting letters
+  s = s.replace(/^(kn|gn|pn|wr)/, "n");
+  s = s.replace(/^ps/, "s");
+  s = s.replace(/^wh/, "w");
+
+  // 2. Double letter reduction
+  s = s.replace(/([^s])\1+/g, "$1");
+
+  // 3. Common English sound conversions
+  s = s.replace(/ph/g, "f");
+  s = s.replace(/gh/g, "f");
+  s = s.replace(/tion|sion/g, "shun");
+  s = s.replace(/t[iu]a/g, "sha");
+  s = s.replace(/th/g, "th");
+  s = s.replace(/ch/g, "ch");
+  s = s.replace(/sh/g, "sh");
+  s = s.replace(/qu/g, "kw");
+  s = s.replace(/x/g, "ks");
+
+  // 4. Vowel standardizations
+  s = s.replace(/ee|ea|ie/g, "i");
+  s = s.replace(/oo|ou/g, "u");
+  s = s.replace(/ai|ay|ei|ey/g, "a");
+  s = s.replace(/oa/g, "o");
+  s = s.replace(/y$/g, "i");
+
+  // 5. Consonants
+  s = s.replace(/c([eiy])/g, "s$1");
+  s = s.replace(/c([aou])/g, "k$1");
+  s = s.replace(/ck/g, "k");
+  s = s.replace(/g([eiy])/g, "j$1");
+  s = s.replace(/g([aou])/g, "g$1");
+
+  // Remove silent ending 'e'
+  if (s.length > 3 && s.endsWith("e")) {
+    s = s.slice(0, -1);
+  }
+
+  // Cleanup potential duplicates
+  s = s.replace(/(.)\1+/g, "$1");
+
+  return s;
+}
+
 // Convert word to simplified phonetic French representation
 export function getPhoneticCodeFrench(word: string): string {
   let s = word.toLowerCase()
@@ -193,19 +290,28 @@ export function getPhoneticCodeFrench(word: string): string {
 }
 
 // Pre-initialize dictionary phonetics
+ENGLISH_DICTIONARY.forEach(def => {
+  def.phoneticCode = getPhoneticCodeEnglish(def.word);
+});
+
 FRENCH_DICTIONARY.forEach(def => {
   def.phoneticCode = getPhoneticCodeFrench(def.word);
 });
 
-// Main low-latency local search function
-export function findLocalPhoneticSuggestions(word: string): Array<{word: string, probability: string, meaning: string, example: string}> {
+// Main low-latency local search function with multi-language support (English default)
+export function findLocalPhoneticSuggestions(
+  word: string, 
+  language: string = "English"
+): Array<{word: string, probability: string, meaning: string, example: string}> {
   const cleanWord = word.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   if (!cleanWord) return [];
 
-  const inputPhonetic = getPhoneticCodeFrench(cleanWord);
+  const isFrench = language.toLowerCase() === "french";
+  const dictionary = isFrench ? FRENCH_DICTIONARY : ENGLISH_DICTIONARY;
+  const inputPhonetic = isFrench ? getPhoneticCodeFrench(cleanWord) : getPhoneticCodeEnglish(cleanWord);
 
   // Compute metrics for all dictionary words
-  const matches = FRENCH_DICTIONARY.map(entry => {
+  const matches = dictionary.map(entry => {
     // 1. Match phonetic codes
     const phoneticDistance = getLevenshteinDistance(inputPhonetic, entry.phoneticCode);
     

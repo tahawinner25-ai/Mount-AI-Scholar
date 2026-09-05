@@ -29,22 +29,32 @@ interface DyslexiaViewProps {
   onAddToWorkspace?: (title: string, text: string) => void;
 }
 
-// Preset texts for Saccadic Trainer
+// Preset texts for Saccadic Trainer (English-first, with multilingual options)
 const PRESET_READING_TEXTS = [
   {
-    title: "🔬 Exploration de l'Espace (Niveau Moyen)",
-    lang: "French",
-    text: "Le télescope spatial Hubble a capturé des images d'une galaxie spirale lointaine. Les astronomes étudient la naissance des étoiles dans ces nuages de gaz cosmiques géants pour comprendre les secrets de la création de notre propre univers."
-  },
-  {
-    title: "🦁 La Fable du Lion (Niveau Facile)",
-    lang: "French",
-    text: "Un tout petit rat sauva un grand lion fatigué qui était prisonnier d'un filet de corde solide. Le lion comprit alors que même les plus petits amis peuvent s'avérer être d'une aide précieuse."
-  },
-  {
-    title: "🌌 Quantum Physics (Advanced)",
+    title: "🌌 Quantum Computing & Physics (Advanced)",
     lang: "English",
-    text: "Quantum mechanics dictates that subatomic particles exist in multiple probability states simultaneously until observed. This superposition collapse represents the fundamental frontier of modern computing architectures."
+    text: "Quantum mechanics dictates that subatomic particles exist in multiple probability states simultaneously until observed. This superposition collapse represents the fundamental frontier of modern computing architectures and artificial intelligence."
+  },
+  {
+    title: "🚀 Deep Space Exploration (Intermediate)",
+    lang: "English",
+    text: "The James Webb Space Telescope captures profound images of distant spiral galaxies. Astronomers analyze the birth of ancient stars inside giant cosmic clouds to unlock the secrets of our expanding universe."
+  },
+  {
+    title: "🦁 The Lion and the Mouse (Foundational)",
+    lang: "English",
+    text: "A tiny mouse saved a mighty lion who had been trapped in a heavy hunter's net. The lion realized that even the smallest companion can offer extraordinary help and courage."
+  },
+  {
+    title: "🔬 Exploration Spatiale (Français - Niveau Moyen)",
+    lang: "French",
+    text: "Le télescope spatial Hubble a capturé des images d'une galaxie spirale lointaine. Les astronomes étudient la naissance des étoiles dans ces nuages de gaz cosmiques géants pour comprendre les secrets de l'univers."
+  },
+  {
+    title: "🦁 La Fable du Lion (Français - Niveau Facile)",
+    lang: "French",
+    text: "Un tout petit rat sauva un grand lion fatigué qui était prisonnier d'un filet de corde solide. Le lion comprit alors que même les plus petits amis peuvent s'avérer précieux."
   }
 ];
 

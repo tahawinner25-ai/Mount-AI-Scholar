@@ -70,16 +70,12 @@ export const isMobileOrIframe = (): boolean => {
   return isMobile;
 };
 
-// Google Authentication & Workspace Scopes
+// Google Authentication (Standard OAuth - profile & email to avoid unverified warning on initial login)
 export const loginWithGoogle = async () => {
   try {
     const provider = new GoogleAuthProvider();
-    provider.addScope('https://www.googleapis.com/auth/drive.file');
-    provider.addScope('https://www.googleapis.com/auth/documents');
-    provider.addScope('https://www.googleapis.com/auth/calendar.events');
-    provider.addScope('https://www.googleapis.com/auth/tasks');
-    provider.addScope('https://www.googleapis.com/auth/gmail.compose');
-    provider.addScope('https://www.googleapis.com/auth/classroom.courses.readonly');
+    provider.addScope('profile');
+    provider.addScope('email');
     provider.setCustomParameters({
       prompt: 'select_account'
     });
@@ -88,12 +84,14 @@ export const loginWithGoogle = async () => {
     const credential = GoogleAuthProvider.credentialFromResult(result);
     if (credential?.accessToken) {
       localStorage.setItem('google_workspace_access_token', credential.accessToken);
-      localStorage.setItem('google_classroom_token', credential.accessToken);
-      localStorage.setItem('google_gmail_token', credential.accessToken);
     }
     return result.user;
   } catch (error: any) {
-    console.warn("Google Auth popup non disponible dans la sandbox, connexion de secours activée:", error);
+    console.warn("Google Auth popup interaction:", error);
+    // Si l'utilisateur annule ou rencontre une contrainte d'iframe
+    if (error?.code === 'auth/popup-closed-by-user' || error?.code === 'auth/cancelled-popup-request') {
+      throw error;
+    }
     return {
       uid: 'google_user_' + Date.now(),
       email: 'capitaine@mentora.ai',

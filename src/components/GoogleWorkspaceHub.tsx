@@ -7,6 +7,7 @@ import {
 import { auth, getCachedWorkspaceToken } from '../services/firebase';
 import { downloadPdfDocument } from '../utils/pdfExport';
 import { MainViewType } from '../types';
+import { addHistoryItem } from '../services/historyService';
 import pptxgen from 'pptxgenjs';
 
 interface GoogleWorkspaceHubProps {
@@ -148,6 +149,23 @@ export default function GoogleWorkspaceHub({ setMainView, onImportText }: Google
 
       if (appKey === 'pdf_local' || appKey === 'pdf_drive') {
         await downloadPdfDocument(customTitle, content, 'MOUNT AI SCHOLAR • WORKSPACE');
+        
+        // Sauvegarde unifiée dans l'Historique
+        const currentUser = auth.currentUser || { isGuest: true, uid: 'guest_1337' };
+        addHistoryItem(currentUser, {
+          type: 'pdf',
+          fileExtension: '.pdf',
+          title: customTitle,
+          mode: 'workspace_pdf',
+          language: 'French',
+          originalText: `Export Workspace PDF : ${customTitle}`,
+          generatedContent: content,
+          metadata: {
+            fileName: `${customTitle}.pdf`,
+            tags: ['Workspace', 'PDF']
+          }
+        });
+
         if (appKey === 'pdf_drive') {
           window.open('https://drive.google.com', '_blank');
           setStatusMsg({
@@ -176,6 +194,26 @@ export default function GoogleWorkspaceHub({ setMainView, onImportText }: Google
         a.download = `${customTitle}.eml`;
         a.click();
         URL.revokeObjectURL(url);
+
+        // Sauvegarde unifiée du mail dans l'Historique
+        const currentUser = auth.currentUser || { isGuest: true, uid: 'guest_1337' };
+        addHistoryItem(currentUser, {
+          type: 'mail',
+          fileExtension: '.eml',
+          title: customTitle,
+          mode: 'workspace_gmail',
+          language: 'French',
+          originalText: `Courrier Gmail pour ${userEmail}`,
+          generatedContent: content,
+          metadata: {
+            mailData: {
+              to: userEmail,
+              subject: customTitle,
+              body: content
+            },
+            tags: ['Gmail', 'Email', 'Workspace']
+          }
+        });
 
         setStatusMsg({
           type: 'success',

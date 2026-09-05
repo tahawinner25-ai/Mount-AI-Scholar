@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { X, LogIn, UserCheck, CreditCard, ShieldCheck, Sparkles, CheckCircle2, Zap, Star, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, LogIn, UserCheck, CreditCard, ShieldCheck, Sparkles, CheckCircle2, Zap, Star, ArrowRight, Lock, Clock } from 'lucide-react';
+import { isGuestLockedOut, getGuestLockoutRemainingMs, formatRemainingTime } from '../utils/guestManager';
 
 const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/test_28EbJ33RDfwdfrk2lx0gw02";
 
@@ -24,6 +25,27 @@ export default function LoginModal({
 }: LoginModalProps) {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [selectedTabTier, setSelectedTabTier] = useState<'free' | 'pro'>(userTier);
+  const [guestLocked, setGuestLocked] = useState(false);
+  const [lockoutCountdown, setLockoutCountdown] = useState("");
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const checkLockout = () => {
+      const locked = isGuestLockedOut();
+      setGuestLocked(locked);
+      if (locked) {
+        const remaining = getGuestLockoutRemainingMs();
+        setLockoutCountdown(formatRemainingTime(remaining));
+      } else {
+        setLockoutCountdown("");
+      }
+    };
+
+    checkLockout();
+    const timer = setInterval(checkLockout, 1000);
+    return () => clearInterval(timer);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -40,6 +62,10 @@ export default function LoginModal({
   };
 
   const handleGuestAuth = () => {
+    if (guestLocked) {
+      alert(`⚠️ Guest Mode is temporarily locked for 24h following a completed session.\n\nRemaining time: ${lockoutCountdown}\n\nSign in with Google or subscribe to a plan to continue without interruption.`);
+      return;
+    }
     onGuestLogin();
     onClose();
   };
@@ -58,13 +84,13 @@ export default function LoginModal({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-lg font-black text-white uppercase tracking-tight">Espace Connexion & Formules</h3>
+                <h3 className="text-lg font-black text-white uppercase tracking-tight">Authentication & Plans</h3>
                 <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 text-[10px] font-mono font-bold rounded-full uppercase">
                   Mount AI Auth
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Abonnements Free (5/jour) vs Paid Tier (Illimité) & Extension Stripe Billing.
+                Free Tier (5/day) vs Paid Pro Tier (Unlimited) & Stripe Billing integration.
               </p>
             </div>
           </div>
@@ -85,8 +111,8 @@ export default function LoginModal({
             <div className="p-4 bg-purple-950/40 border border-purple-500/40 rounded-2xl flex items-center gap-3 text-purple-200">
               <Sparkles className="w-5 h-5 text-amber-400 shrink-0" />
               <div className="text-xs">
-                <strong className="text-white block font-black uppercase">Compte Développeur CEO (tahawinner25@gmail.com)</strong>
-                Accès Pro Scholar Illimité Garanti à vie sans aucun frais.
+                <strong className="text-white block font-black uppercase">Developer & CEO Account (tahawinner25@gmail.com)</strong>
+                Lifetime Unlimited Pro Scholar access guaranteed at zero cost.
               </div>
             </div>
           )}
@@ -95,10 +121,10 @@ export default function LoginModal({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <label className="text-xs font-mono font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                <Zap className="w-4 h-4 text-amber-400" /> 1. Choix de la Formule d'Accès :
+                <Zap className="w-4 h-4 text-amber-400" /> 1. Select Access Plan :
               </label>
               <span className="text-[10px] text-emerald-400 font-mono font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                Standard : Tout utilisateur = Free Tier (5/jour)
+                Standard: All users = Free Tier (5/day)
               </span>
             </div>
 
@@ -117,17 +143,17 @@ export default function LoginModal({
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="px-2.5 py-1 bg-slate-800 text-slate-300 text-[10px] font-mono font-bold rounded-lg uppercase">
-                      Offre Découverte
+                      Starter Plan
                     </span>
-                    <span className="text-xs font-black text-emerald-400 font-mono">0 € / GRATUIT</span>
+                    <span className="text-xs font-black text-emerald-400 font-mono">$0 / FREE</span>
                   </div>
-                  <h4 className="text-sm font-black text-white uppercase mb-1">Formule Free Tier</h4>
+                  <h4 className="text-sm font-black text-white uppercase mb-1">Free Tier Plan</h4>
                   <p className="text-[11px] text-slate-400 leading-relaxed mb-3">
-                    Accès à tous les modules d'IA et de phonétique avec une limite de <strong>5 générations par jour</strong>.
+                    Access all AI and phonetic modules with a cap of <strong>5 generations per day</strong>.
                   </p>
                 </div>
                 <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[10px] font-mono text-slate-400">
-                  <span>✓ Connexion Google & Invité</span>
+                  <span>✓ Google & Guest Sign In</span>
                   {selectedTabTier === 'free' && (
                     <CheckCircle2 className="w-4 h-4 text-purple-400 shrink-0" />
                   )}
@@ -149,15 +175,15 @@ export default function LoginModal({
                     <span className="px-2.5 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-mono font-bold rounded-lg uppercase flex items-center gap-1">
                       <Star className="w-3 h-3 text-emerald-400" /> Stripe Extension
                     </span>
-                    <span className="text-xs font-black text-emerald-400 font-mono">19€/mois • 190€/an</span>
+                    <span className="text-xs font-black text-emerald-400 font-mono">€19/mo • €190/yr</span>
                   </div>
-                  <h4 className="text-sm font-black text-white uppercase mb-1">Formule Paid (Pro Illimité)</h4>
+                  <h4 className="text-sm font-black text-white uppercase mb-1">Paid Plan (Pro Unlimited)</h4>
                   <p className="text-[11px] text-slate-400 leading-relaxed mb-3">
-                    Accès <strong>100% ILLIMITÉ</strong> à l'Inférence Edge Codex, RAG Élastique Profond & Workspace Google.
+                    <strong>100% UNLIMITED</strong> access to Codex Edge Inference, Deep Elastic RAG & Google Workspace.
                   </p>
                 </div>
                 <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[10px] font-mono text-emerald-400">
-                  <span>★ Vérification Serveur Stripe</span>
+                  <span>★ Stripe Server Verification</span>
                   {selectedTabTier === 'pro' && (
                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                   )}
@@ -172,14 +198,14 @@ export default function LoginModal({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <CreditCard className="w-4 h-4 text-emerald-400" />
-                <h5 className="text-xs font-black text-white uppercase tracking-wider">Extension Stripe Billing & Paiement</h5>
+                <h5 className="text-xs font-black text-white uppercase tracking-wider">Stripe Billing & Payment Extension</h5>
               </div>
               <span className="px-2 py-0.5 bg-black/50 text-emerald-300 text-[9px] font-mono rounded border border-emerald-500/30">
-                Paiement Sécurisé
+                Secure Checkout
               </span>
             </div>
             <p className="text-[11px] text-slate-300 leading-relaxed">
-              Pour débloquer l'accès Pro Illimité (Paid Tier), souscrivez directement via l'extension Stripe Checkout. Un contrôle serveur valide automatiquement votre statut client Stripe lors de chaque connexion.
+              To unlock Unlimited Pro access (Paid Tier), subscribe directly via the Stripe Checkout extension. Server checks automatically authenticate customer status on every session.
             </p>
             <div className="flex flex-wrap items-center gap-3 pt-1">
               <button
@@ -190,7 +216,7 @@ export default function LoginModal({
                 className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-bold text-xs rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all flex items-center gap-2"
               >
                 <CreditCard className="w-3.5 h-3.5" />
-                <span>Souscrire au Tier Paid (19€/mois)</span>
+                <span>Subscribe to Paid Tier (€19/month)</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
               <a
@@ -199,7 +225,7 @@ export default function LoginModal({
                 rel="noopener noreferrer"
                 className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[11px] rounded-xl transition-colors border border-slate-700 flex items-center gap-1.5"
               >
-                Lien Direct Stripe ↗
+                Direct Stripe Link ↗
               </a>
             </div>
           </div>
@@ -207,7 +233,7 @@ export default function LoginModal({
           {/* STEP 2: Login Options */}
           <div className="space-y-3 pt-2 border-t border-slate-800">
             <label className="text-xs font-mono font-bold text-slate-300 uppercase tracking-wider block">
-              2. S'authentifier :
+              2. Sign In :
             </label>
 
             <div className="space-y-3">
@@ -223,17 +249,47 @@ export default function LoginModal({
                   <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
                 </svg>
-                <span>{isLoggingIn ? "Connexion Google en cours..." : "Se connecter avec Google"}</span>
+                <span>{isLoggingIn ? "Signing in with Google..." : "Sign in with Google"}</span>
               </button>
 
-              {/* Guest Login Button */}
-              <button
-                onClick={handleGuestAuth}
-                className="w-full py-3.5 px-5 bg-slate-900 hover:bg-slate-800 text-purple-300 font-extrabold text-sm rounded-2xl border border-purple-500/30 transition-all flex items-center justify-center gap-3 cursor-pointer"
-              >
-                <UserCheck className="w-5 h-5 text-purple-400" />
-                <span>Continuer en Mode Invité (Formule Free - 5/jour)</span>
-              </button>
+              {/* Guest Login Button with 30-min timer and 24h Lockout */}
+              {guestLocked ? (
+                <div className="p-4 bg-rose-950/30 border border-rose-500/40 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-rose-300 font-bold text-xs">
+                      <Lock className="w-4 h-4 text-rose-400 shrink-0" />
+                      <span>Guest Mode Locked (24h)</span>
+                    </div>
+                    <span className="px-2.5 py-0.5 bg-rose-500/20 text-rose-200 font-mono font-bold text-[10px] rounded-full border border-rose-500/30 flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-rose-400 animate-pulse" />
+                      {lockoutCountdown || "24h 00m"}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Your 30-minute guest session has ended. Guest mode is locked for 24 hours. Sign in with <strong>Google</strong> above to continue without interruption.
+                  </p>
+                  <button
+                    disabled
+                    className="w-full py-2.5 px-4 bg-slate-900/60 text-slate-500 font-bold text-xs rounded-xl border border-slate-800 cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>Guest Access Unavailable (Locked {lockoutCountdown})</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <button
+                    onClick={handleGuestAuth}
+                    className="w-full py-3.5 px-5 bg-slate-900 hover:bg-slate-800 text-purple-300 hover:text-purple-200 font-extrabold text-sm rounded-2xl border border-purple-500/30 hover:border-purple-500/60 transition-all flex items-center justify-center gap-3 cursor-pointer shadow-[0_0_20px_rgba(168,85,247,0.15)] group"
+                  >
+                    <UserCheck className="w-5 h-5 text-purple-400 group-hover:scale-110 transition-transform" />
+                    <span>Continue as Guest (30-Minute Session)</span>
+                  </button>
+                  <p className="text-[10px] text-center text-slate-400 font-mono">
+                    ⏱️ 30-minute maximum session. Afterwards, returns to welcome landing with 24-hour lockout.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -241,7 +297,7 @@ export default function LoginModal({
           <div className="p-3 bg-slate-900/50 border border-slate-800/80 rounded-xl flex items-start gap-2.5 text-[11px] text-slate-400">
             <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
             <p className="leading-snug">
-              <strong className="text-slate-200">Règle de sécurité :</strong> Tous les comptes utilisateurs démarrant en Google ou Invité reçoivent la <span className="text-emerald-400 font-bold">Formule Free (5/jour)</span>. Seuls l'adresse du Développeur CEO (tahawinner25@gmail.com) ou les clients vérifiés Stripe sont attribués au Tier Paid Illimité.
+              <strong className="text-slate-200">Security Rule:</strong> All accounts signing in via Google or Guest receive the <span className="text-emerald-400 font-bold">Free Tier (5/day)</span> by default. Only the Developer & CEO account (tahawinner25@gmail.com) or verified Stripe active subscribers receive Unlimited Pro status.
             </p>
           </div>
 
@@ -254,7 +310,7 @@ export default function LoginModal({
             onClick={onClose}
             className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
           >
-            Fermer
+            Close
           </button>
         </div>
 

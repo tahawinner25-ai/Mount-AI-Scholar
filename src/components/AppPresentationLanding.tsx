@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Sparkles, 
   ShieldCheck, 
@@ -22,8 +22,10 @@ import {
   HelpCircle,
   WifiOff,
   Database,
-  FileCheck
+  FileCheck,
+  Clock
 } from 'lucide-react';
+import { isGuestLockedOut, getGuestLockoutRemainingMs, formatRemainingTime } from '../utils/guestManager';
 
 import scholarIcon from '../assets/images/mount_ai_logo_1785927100930.jpg';
 import desktopHubImg from '../assets/images/scholar_desktop_hub_1787943389838.jpg';
@@ -42,6 +44,21 @@ export const AppPresentationLanding: React.FC<AppPresentationLandingProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'hub' | 'tutor' | 'mobile' | 'neural'>('hub');
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
+  const [guestLocked, setGuestLocked] = useState(false);
+  const [lockoutCountdown, setLockoutCountdown] = useState("");
+
+  useEffect(() => {
+    const checkStatus = () => {
+      const locked = isGuestLockedOut();
+      setGuestLocked(locked);
+      if (locked) {
+        setLockoutCountdown(formatRemainingTime(getGuestLockoutRemainingMs()));
+      }
+    };
+    checkStatus();
+    const interval = setInterval(checkStatus, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const toggleFaq = (index: number) => {
     setOpenFaqIndex(openFaqIndex === index ? null : index);
@@ -50,35 +67,35 @@ export const AppPresentationLanding: React.FC<AppPresentationLandingProps> = ({
   const screenshots = [
     {
       id: 'hub',
-      label: 'Hub Central & Dashboard',
-      subtitle: 'Contrôle unifié des modules d\'apprentissage',
+      label: 'Central Hub & Dashboard',
+      subtitle: 'Unified control across all learning modules',
       image: desktopHubImg,
-      badge: 'Salle de Contrôle',
-      description: 'Accédez en un coup d\'œil à la suite complète : Prédicteur phonétique, Tuteur interactif, SL2T et intégration Classroom.'
+      badge: 'Control Room',
+      description: 'Access the complete suite at a glance: Phonetic Predictor, Interactive Tutor, SL2T Sign Language, and Classroom integration.'
     },
     {
       id: 'tutor',
-      label: 'Tuteur Cognitif & Dyslexie',
-      subtitle: 'Réalignement phonème-graphème en temps réel',
+      label: 'Cognitive Tutor & Dyslexia',
+      subtitle: 'Real-time phoneme-grapheme realignment',
       image: desktopTutorImg,
-      badge: 'Edge IA & Phonétique',
-      description: 'Outils d\'accessibilité bionique, espacement dynamique des caractères, correction des confusions visuelles (b/d/p/q) et synthèse vocale.'
+      badge: 'Edge AI & Phonetics',
+      description: 'Bionic accessibility tools, dynamic character spacing, visual letter mirror correction (b/d/p/q), and speech synthesis.'
     },
     {
       id: 'mobile',
-      label: 'Interface Mobile & PWA',
-      subtitle: 'Conçu pour Chromebooks, tablettes & smartphones',
+      label: 'Mobile Interface & PWA',
+      subtitle: 'Engineered for Chromebooks, tablets & smartphones',
       image: mobileAppImg,
       badge: 'ChromeOS & Android',
-      description: 'PWA industrielle ultra-légère optimisée pour les environnements scolaires avec support offline complet.'
+      description: 'Industrial-grade ultra-lightweight PWA optimized for school environments with comprehensive offline support.'
     },
     {
       id: 'neural',
-      label: 'Architecture Neuronale Locale',
-      subtitle: 'Privacy by Design & Traitement On-Device',
+      label: 'Local Neural Architecture',
+      subtitle: 'Privacy by Design & On-Device Processing',
       image: neuralArchImg,
-      badge: 'Inférence Zero-Latency',
-      description: 'Pipeline ML local garantissant la confidentialité absolue des données élèves et une réactivité instantanée sans dépendance cloud.'
+      badge: 'Zero-Latency Inference',
+      description: 'Local ML pipeline ensuring absolute privacy for student data and instant responsiveness with zero cloud dependency.'
     }
   ];
 
@@ -87,29 +104,29 @@ export const AppPresentationLanding: React.FC<AppPresentationLandingProps> = ({
   const features = [
     {
       icon: Cpu,
-      title: 'Moteur Local Zero-Latency',
-      desc: 'Inférence on-device en WebAssembly & Edge AI. Confidentialité absolue (Privacy by Design) sans fuite de données scolaires.',
+      title: 'Local Zero-Latency Engine',
+      desc: 'On-device inference powered by WebAssembly & Edge AI. Absolute privacy by design with no student data leaks.',
       color: 'from-blue-500 to-indigo-600',
       tag: 'Edge Computing'
     },
     {
       icon: Eye,
-      title: 'Accessibilité Dyslexie Avancée',
-      desc: 'Lecture bionique, colorimétrie phonologique, guides visuels saccadiques et neutralisation des inversions de lettres.',
+      title: 'Advanced Dyslexia Accessibility',
+      desc: 'Bionic reading, phonological color coding, saccadic visual pacing guides, and letter inversion neutralization.',
       color: 'from-amber-500 to-orange-600',
       tag: 'Cognitive Aid'
     },
     {
       icon: HandMetal,
-      title: 'SL2T - Langue des Signes',
-      desc: 'Reconnaissance gestuelle en direct par vision par ordinateur (MediaPipe Vision AI) pour l\'inclusion des personnes sourdes.',
+      title: 'SL2T - Sign Language Translation',
+      desc: 'Real-time gesture recognition powered by computer vision (MediaPipe Vision AI) for deaf and hard-of-hearing inclusion.',
       color: 'from-purple-500 to-pink-600',
       tag: 'Computer Vision'
     },
     {
       icon: GraduationCap,
       title: 'Google Workspace & Classroom',
-      desc: 'Connecteurs natifs pour importer des devoirs, exporter des cours synthétisés vers Google Docs et synchroniser le suivi pédagogique.',
+      desc: 'Native connectors to import homework, export structured lecture summaries to Google Docs, and synchronize learning roadmaps.',
       color: 'from-emerald-500 to-teal-600',
       tag: 'EdTech Bridge'
     }
@@ -117,32 +134,32 @@ export const AppPresentationLanding: React.FC<AppPresentationLandingProps> = ({
 
   const faqItems = [
     {
-      question: "Comment est garantie la confidentialité des données scolaires (Privacy by Design) ?",
-      answer: "L'application fonctionne selon une architecture 'Edge-First'. Les textes analysés, les corrections phonologiques et les exercices d'apprentissage sont traités directement en local sur votre machine via WebAssembly et Edge AI. Aucune donnée d'élève, document PDF importé ou transcription n'est utilisée pour entraîner des modèles publics d'intelligence artificielle.",
+      question: "How is student data privacy guaranteed (Privacy by Design)?",
+      answer: "The application operates on an 'Edge-First' architecture. Analyzed text, phonological corrections, and learning exercises are processed directly on your local device via WebAssembly and Edge AI. No student data, uploaded PDF documents, or transcripts are ever used to train public AI models.",
       icon: Lock,
-      badge: "Confidentialité 100% Souveraine"
+      badge: "100% Sovereign Privacy"
     },
     {
-      question: "Comment fonctionne le mode Hors Ligne (Offline & PWA) ?",
-      answer: "Grâce à notre Service Worker industriel et à la base de données locale IndexedDB, l'ensemble des modules d'accessibilité cognitive, les règles phonétiques, les modèles de lecture bionique et vos cours sauvegardés restent pleinement opérationnels sans aucune connexion Internet. Dès le retour du réseau, vos données se synchronisent de manière transparente.",
+      question: "How does the Offline Mode (Offline & PWA) work?",
+      answer: "Thanks to our industrial Service Worker and local IndexedDB database, all cognitive accessibility modules, phonetic rules, bionic reading models, and saved study materials remain fully operational without an internet connection. Once reconnected, data syncs smoothly.",
       icon: WifiOff,
-      badge: "Zéro Dépendance Réseau"
+      badge: "Zero Network Dependency"
     },
     {
-      question: "Qu'est-ce que l'inférence neuronale Zero-Latency ?",
-      answer: "Contrairement aux plateformes classiques qui envoient chaque frappe de clavier vers des serveurs distants en subissant des temps de latence de plusieurs secondes, le moteur local de Mount AI Scholar calcule les découpages phonémiques et saccadiques en moins de 15 millisecondes pour un confort visuel instantané.",
+      question: "What is Zero-Latency Neural Inference?",
+      answer: "Unlike traditional platforms that route every keystroke to remote servers resulting in seconds of latency, Mount AI Scholar's local engine computes phonemic and saccadic segmentations in under 15 milliseconds for seamless visual comfort.",
       icon: Zap,
-      badge: "Moins de 15ms"
+      badge: "Under 15ms"
     },
     {
-      question: "Quels appareils et navigateurs sont supportés ?",
-      answer: "L'application est certifiée comme Progressive Web App (PWA) de niveau industriel. Elle est entièrement optimisée pour Google Chrome, les Chromebooks (ChromeOS), les tablettes Android, iPadOS ainsi que les ordinateurs de bureau (Windows, macOS, Linux).",
+      question: "Which devices and operating systems are supported?",
+      answer: "The application is certified as an industrial-grade Progressive Web App (PWA). It is fully optimized for Google Chrome, Chromebooks (ChromeOS), Android tablets, iPadOS, and desktop operating systems (Windows, macOS, Linux).",
       icon: Laptop,
-      badge: "Multi-Plateforme"
+      badge: "Cross-Platform"
     },
     {
-      question: "Comment s'intègre l'application avec Google Classroom et Docs ?",
-      answer: "Grâce aux connecteurs Google Workspace for Education intégrés, vous pouvez d'un clic importer des documents de cours ou devoirs Classroom, les adapter avec les filtres cognitifs (OpenDyslexic, espacement syllabique) et réexporter les synthèses de révision directement dans Google Docs.",
+      question: "How does the app integrate with Google Classroom and Docs?",
+      answer: "With built-in Google Workspace for Education connectors, you can import classroom assignments with one click, enhance them with cognitive filters (OpenDyslexic, syllable spacing), and export structured revision summaries directly to Google Docs.",
       icon: GraduationCap,
       badge: "Google Workspace Ready"
     }
@@ -175,11 +192,25 @@ export const AppPresentationLanding: React.FC<AppPresentationLandingProps> = ({
         <div className="flex items-center gap-3">
           {onDirectGuest && (
             <button
-              onClick={onDirectGuest}
-              className="hidden sm:flex items-center gap-2 px-4 py-2 bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-300 rounded-xl text-xs font-bold transition hover:border-slate-500"
+              onClick={guestLocked ? onGoToLogin : onDirectGuest}
+              className={`hidden sm:flex items-center gap-2 px-4 py-2 border rounded-xl text-xs font-bold transition ${
+                guestLocked 
+                  ? 'bg-rose-950/40 border-rose-500/30 text-rose-300 hover:bg-rose-900/40' 
+                  : 'bg-slate-900/80 hover:bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-500'
+              }`}
+              title={guestLocked ? `Guest Mode locked for 24h (${lockoutCountdown})` : 'Guest Access 30 minutes'}
             >
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Accès Invité Direct</span>
+              {guestLocked ? (
+                <>
+                  <Lock className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Guest Locked ({lockoutCountdown})</span>
+                </>
+              ) : (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Guest Access (30 min)</span>
+                </>
+              )}
             </button>
           )}
 
@@ -187,7 +218,7 @@ export const AppPresentationLanding: React.FC<AppPresentationLandingProps> = ({
             onClick={onGoToLogin}
             className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-400 hover:to-amber-500 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-[0_0_25px_rgba(249,115,22,0.4)] transition hover:scale-105 active:scale-95"
           >
-            <span>Connexion Google</span>
+            <span>Google Login</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
@@ -197,15 +228,15 @@ export const AppPresentationLanding: React.FC<AppPresentationLandingProps> = ({
       <section className="relative z-10 max-w-6xl mx-auto px-4 md:px-8 pt-12 md:pt-16 pb-12 text-center flex flex-col items-center">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-gradient-to-r from-orange-500/10 via-amber-500/10 to-blue-500/10 border border-orange-500/30 rounded-full mb-6 shadow-[0_0_20px_rgba(249,115,22,0.15)]">
           <Sparkles className="w-4 h-4 text-orange-400 animate-pulse" />
-          <span className="text-xs font-bold font-mono text-orange-300 uppercase tracking-widest">Plateforme d'Accessibilité Cognitive de Prochaine Génération</span>
+          <span className="text-xs font-bold font-mono text-orange-300 uppercase tracking-widest">Next-Generation Cognitive Accessibility Platform</span>
         </div>
 
         <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight text-white max-w-4xl leading-[1.15] uppercase drop-shadow-2xl">
-          L'Intelligence Artificielle Locale au service de <span className="bg-gradient-to-r from-orange-400 via-amber-300 to-blue-400 bg-clip-text text-transparent">l'Apprentissage Inclusif</span>
+          On-Device Artificial Intelligence Powering <span className="bg-gradient-to-r from-orange-400 via-amber-300 to-blue-400 bg-clip-text text-transparent">Inclusive Learning</span>
         </h1>
 
         <p className="mt-6 text-base sm:text-lg md:text-xl text-slate-300 max-w-3xl font-medium leading-relaxed">
-          <strong className="text-white">Mount AI Scholar</strong> révolutionne la lecture, la révision et l'accessibilité cognitive (Dyslexie, Surdité, TDAH) grâce à un moteur neuronal embarqué ultra-rapide et sécurisé.
+          <strong className="text-white">Mount AI Scholar</strong> transforms reading, study revision, and cognitive accessibility (Dyslexia, Deafness, ADHD) with an embedded, lightning-fast, and secure neural engine.
         </p>
 
         {/* Action Buttons */}
@@ -220,17 +251,30 @@ export const AppPresentationLanding: React.FC<AppPresentationLandingProps> = ({
               <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
               <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
             </svg>
-            <span>Ouvrir l'App (Login Google)</span>
+            <span>Launch App (Google Login)</span>
             <ArrowRight className="w-4 h-4 text-slate-900 group-hover:translate-x-1 transition-transform" />
           </button>
 
           {onDirectGuest && (
             <button
-              onClick={onDirectGuest}
-              className="w-full sm:w-auto px-6 py-4.5 bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 hover:border-orange-500/50 text-slate-200 font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2.5 transition-all text-xs uppercase tracking-wider"
+              onClick={guestLocked ? onGoToLogin : onDirectGuest}
+              className={`w-full sm:w-auto px-6 py-4.5 border text-slate-200 font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2.5 transition-all text-xs uppercase tracking-wider ${
+                guestLocked
+                  ? 'bg-rose-950/40 border-rose-500/40 text-rose-200 hover:bg-rose-900/40'
+                  : 'bg-slate-900/90 hover:bg-slate-800 border-slate-700/80 hover:border-orange-500/50'
+              }`}
             >
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Tester en Mode Démo Invité</span>
+              {guestLocked ? (
+                <>
+                  <Lock className="w-4 h-4 text-rose-400" />
+                  <span>Guest Mode Locked 24h ({lockoutCountdown})</span>
+                </>
+              ) : (
+                <>
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Try Demo Guest Mode (30 min)</span>
+                </>
+              )}
             </button>
           )}
         </div>
@@ -258,7 +302,7 @@ export const AppPresentationLanding: React.FC<AppPresentationLandingProps> = ({
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6 border-b border-slate-800/80 pb-6">
             <div>
               <span className="text-[10px] font-mono font-bold text-orange-400 uppercase tracking-widest">Interface & Architecture</span>
-              <h2 className="text-2xl font-black text-white tracking-tight">Découvrez les Espaces de Mount AI Scholar</h2>
+              <h2 className="text-2xl font-black text-white tracking-tight">Explore Mount AI Scholar Workspaces</h2>
             </div>
 
             {/* Navigation Tabs */}
@@ -308,10 +352,10 @@ export const AppPresentationLanding: React.FC<AppPresentationLandingProps> = ({
                   onClick={onGoToLogin}
                   className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-400 hover:to-amber-500 text-slate-950 font-black rounded-xl text-xs uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 transition hover:scale-[1.02]"
                 >
-                  <span>Accéder à ce module</span>
+                  <span>Access This Module</span>
                   <ChevronRight className="w-4 h-4" />
                 </button>
-                <p className="text-[10px] text-slate-500 font-mono text-center">Connexion sécurisée via compte Google</p>
+                <p className="text-[10px] text-slate-500 font-mono text-center">Secure authentication via Google Account</p>
               </div>
             </div>
           </div>
@@ -321,8 +365,8 @@ export const AppPresentationLanding: React.FC<AppPresentationLandingProps> = ({
       {/* 4 Pillars Grid */}
       <section className="relative z-10 max-w-6xl mx-auto px-4 md:px-8 py-12">
         <div className="text-center mb-10">
-          <span className="text-[10px] font-mono font-bold text-blue-400 uppercase tracking-widest">Technologies & Capacités</span>
-          <h2 className="text-3xl font-black text-white tracking-tight mt-1">Conçu pour l'Excellence Scolaire & Inclusive</h2>
+          <span className="text-[10px] font-mono font-bold text-blue-400 uppercase tracking-widest">Technologies & Capabilities</span>
+          <h2 className="text-3xl font-black text-white tracking-tight mt-1">Engineered for Academic & Inclusive Excellence</h2>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -356,11 +400,11 @@ export const AppPresentationLanding: React.FC<AppPresentationLandingProps> = ({
         <div className="text-center mb-10">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/10 border border-blue-500/30 rounded-full mb-3">
             <HelpCircle className="w-3.5 h-3.5 text-blue-400" />
-            <span className="text-[10px] font-mono font-bold text-blue-300 uppercase tracking-widest">Foire Aux Questions</span>
+            <span className="text-[10px] font-mono font-bold text-blue-300 uppercase tracking-widest">Frequently Asked Questions</span>
           </div>
-          <h2 className="text-3xl font-black text-white tracking-tight">Questions Fréquentes & Sécurité</h2>
+          <h2 className="text-3xl font-black text-white tracking-tight">FAQ & Security Standards</h2>
           <p className="text-sm text-slate-400 mt-2 max-w-xl mx-auto">
-            Découvrez comment nous protégeons vos données scolaires et garantissons une utilisation sans connexion Internet.
+            Discover how we protect student data and ensure reliable, zero-latency accessibility both online and offline.
           </p>
         </div>
 
@@ -421,6 +465,21 @@ export const AppPresentationLanding: React.FC<AppPresentationLandingProps> = ({
         </div>
       </section>
 
+      {/* Founder Section - Exactly 2 sentences */}
+      <section className="relative z-10 max-w-4xl mx-auto px-4 md:px-8 py-8">
+        <div className="p-6 md:p-8 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-900/90 to-blue-950/40 border border-blue-500/30 backdrop-blur-xl relative overflow-hidden shadow-[0_0_40px_rgba(59,130,246,0.1)]">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-400">
+              <Award className="w-5 h-5" />
+            </div>
+            <span className="text-[11px] font-mono font-bold text-blue-400 uppercase tracking-widest">Founder's Vision & System Architecture</span>
+          </div>
+          <p className="text-sm md:text-base text-slate-200 leading-relaxed font-medium">
+            Engineered and architected by a 13-year-old tech prodigy certified by premier global AI programs and invited speaker at Devoxx Morocco, Mount AI Scholar embodies the new frontier of zero-latency cognitive accessibility. Its Edge-First architecture was forged to redefine global inclusive education by fusing local neural inference, uncompromised data privacy, and native bridges into leading learning tools.
+          </p>
+        </div>
+      </section>
+
       {/* Final Bottom Banner / Launch App */}
       <section className="relative z-10 max-w-4xl mx-auto px-4 md:px-8 pt-6 pb-20 text-center">
         <div className="p-8 md:p-12 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-orange-950/40 border border-orange-500/30 shadow-[0_0_50px_rgba(249,115,22,0.15)] relative overflow-hidden flex flex-col items-center">
@@ -429,10 +488,10 @@ export const AppPresentationLanding: React.FC<AppPresentationLandingProps> = ({
           </div>
 
           <h2 className="text-3xl md:text-4xl font-black text-white tracking-tight uppercase">
-            Prêt à explorer <span className="text-orange-400">Mount AI Scholar</span> ?
+            Ready to explore <span className="text-orange-400">Mount AI Scholar</span> ?
           </h2>
           <p className="mt-3 text-slate-300 text-sm md:text-base max-w-xl">
-            Connectez-vous avec votre compte Google pour accéder au Hub complet, à vos espaces de cours personnalisés et à l'arène d'apprentissage.
+            Sign in with your Google account to access the complete Hub, personalized study workspaces, and the cognitive learning arena.
           </p>
 
           <div className="mt-8 flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
@@ -446,7 +505,7 @@ export const AppPresentationLanding: React.FC<AppPresentationLandingProps> = ({
                 <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
               </svg>
-              <span>Accéder à l'écran de connexion</span>
+              <span>Proceed to Sign In</span>
               <ArrowRight className="w-4 h-4 text-slate-900" />
             </button>
           </div>
